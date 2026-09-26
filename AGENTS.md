@@ -6,7 +6,7 @@
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：规划；步伐、步频与距离方案已确定，其他待填写项由用户指导。
+- 当前阶段：步骤 0.1 规划已完成；步骤 1.1 规划及 1.2 已明确的扫描规则已写入（1.2 待确认项见 5.9）；步伐、步频与距离方案已确定，其他待填写项由用户指导。
 
 ## 2. 协作规则
 
@@ -54,6 +54,8 @@
 
 ### 4.2 Session 页
 
+- 使用独立的 `SensorActivity.kt`，由欢迎页按钮打开；界面继续使用 Compose。
+
 | 区域 | 内容 |
 |---|---|
 | 1：左上 | 可点击连接状态；弹窗展示已配对设备、扫描、连接、断开 |
@@ -76,10 +78,14 @@
 
 | 项目 | 决定 |
 |---|---|
-| App 名称、包名 | 【待填写】 |
-| Kotlin/Java、Compose/XML | 【待填写】 |
-| Android 版本、SDK 版本 | 【待填写】 |
-| 页面结构、文件职责 | 【待填写】 |
+| App 名称、包名 | `Polar H10 ActivityViewer`；`com.example.polarh10activityviewer` |
+| Kotlin/Java、Compose/XML | Kotlin + Jetpack Compose + Material 3，沿用现有项目 |
+| Android 版本、SDK 版本 | 最低 Android 13 / API 33（`minSdk = 33`）；沿用 `compileSdk = 37`、`targetSdk = 37`；官方 Polar BLE SDK 固定为 `8.3.0` |
+| SDK 仓库与配套依赖 | JitPack（`https://jitpack.io`）；`com.github.polarofficial:polar-ble-sdk:8.3.0`；`org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2`；`org.jetbrains.kotlinx:kotlinx-coroutines-rx3:1.10.2` |
+| 页面结构、文件职责 | 在 `com.example.polarh10activityviewer` 包下：`MainActivity.kt` 为欢迎页并打开 Session；`SensorActivity.kt` 为 Session 页面并处理系统权限请求；`PolarBleManager.kt` 独立管理 SDK 初始化、扫描、连接、设备回调、数据订阅及资源释放 |
+| 测试设备 | Samsung Galaxy A26，型号 `SM-A266B`；Android 16 / API 36；2026-09-26 已通过 ADB 读取确认，USB 调试已授权 |
+| SDK、权限与可用状态 | 步骤 1.1 规划已明确，见 5.8 |
+| 扫描与去重 | 步骤 1.2 已明确规则见 5.9；自动停止时限待确认 |
 | 颜色、字体、布局尺寸 | 【待填写】 |
 | 已配对设备的定义 | 【待填写：系统配对记录或 App 曾连接记录】 |
 | 断线与重连行为 | 【待填写】 |
@@ -95,6 +101,10 @@
 | 存储技术、字段与保存时机 | 【待填写】 |
 | 原始数据保留范围 | 【待填写：仅摘要或同时保留时序数据】 |
 | 数据隐私与保留方式 | 【待填写】 |
+
+步骤 0.1 的 SDK 依据：[H10 功能说明](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/documentation/products/PolarH10.md)、[8.3.0 发布版](https://github.com/polarofficial/polar-ble-sdk/releases/tag/8.3.0)、[8.3.0 安装说明](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/README.md#installation)。后续 API 按固定版本核对。
+
+最低版本按官方安装步骤选择 API 33；该版本库源码声明的最低版本为 API 26，与安装说明不一致，因此不将 API 33 表述为 SDK 源码唯一声明的最低要求。依赖兼容性仍需后续同步和构建验证。
 
 ### 5.1 加速度准备
 
@@ -166,6 +176,39 @@
 - 检查超时清空未确认序列、停止后步频归零、中断前后距离不跨段累加。
 - 真机记录静止、原地晃动、走路和跑步；用视频核对误计、漏计和重复检测。
 - 用已知距离做量级检查；记录实际误差，不预先承诺准确率。
+
+### 5.8 步骤 1.1：SDK、权限与可用状态规划
+
+- 目标：区分蓝牙功能可用、权限未允许、蓝牙关闭、不支持 BLE 和 SDK 初始化失败，并提供对应操作。
+- 前置条件：按 0.1 落实 Polar BLE SDK 8.3.0、协程相关依赖 1.10.2 和 `minSdk = 33`。
+- 权限：声明并动态申请 `BLUETOOTH_SCAN`、`BLUETOOTH_CONNECT`；不通过蓝牙扫描推断位置，扫描权限使用 `neverForLocation`，本步不申请定位权限。
+- 请求时机：欢迎页不请求权限；用户在 Session 首次点击蓝牙操作按钮时申请。本步使用“启用蓝牙功能”按钮，1.2 扫描入口复用同一套可用性检查。
+- 权限拒绝：显示用途说明及“重新授权”按钮，不自动反复弹窗；结合申请记录及系统返回结果识别无法再次弹窗的情况，提供“打开应用设置”入口。
+- 蓝牙关闭：显示“蓝牙已关闭”，提供系统开启入口，由用户确认；不支持 BLE 时显示原因并禁用相关操作。
+- 状态刷新：从设置返回或页面恢复时重新检查权限和蓝牙状态；蓝牙状态回调更新界面。
+- 可用条件：设备支持 BLE、两项权限均允许、蓝牙已开启、SDK 初始化成功；显示“蓝牙可用，尚未连接设备”，不能将可用误报为已连接或可采集。
+- 初始化与释放：权限满足后，由 `PolarBleManager.kt` 使用 `applicationContext` 初始化 SDK；同一管理实例不重复初始化，不因 Compose 重组反复创建。
+- 本步生命周期：`SensorActivity` 持有管理实例，Activity 销毁时释放 SDK；跨页面保留连接、页面重建后的连接连续性及后台采集方案在对应步骤明确。
+- 文件职责：仓库与依赖配置文件落实 0.1 配置；`AndroidManifest.xml` 声明权限及 BLE 功能；`SensorActivity.kt` 负责状态显示、权限请求和系统设置入口；`PolarBleManager.kt` 封装 SDK 初始化、状态回调与资源释放。
+- 验收：允许权限后可用、拒绝后可重试、无法再次弹窗时可进入设置、蓝牙关闭及重新开启后状态更新、从设置返回后刷新、SDK 初始化失败时明确报错。
+- 实际结果：仅规划已明确并写入；应用代码、构建及真机功能验证尚未完成。
+- 依据：[Android 蓝牙权限](https://developer.android.com/develop/connectivity/bluetooth/bt-permissions)、[运行时权限处理](https://developer.android.com/training/permissions/requesting)、[Polar SDK 8.3.0](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/README.md)。
+
+### 5.9 步骤 1.2：扫描与去重规划
+
+- 目标：扫描并展示真实 Polar H10，能够停止扫描且同一设备不重复列出。
+- 前置条件：1.1 蓝牙可用性检查通过。
+- 设备筛选：只显示 Polar H10。
+- 扫描控制：手动开始、手动停止，并设置自动停止时限；扫描中禁用开始按钮，避免重复扫描。
+- 自动停止时限：【待确认】；30 秒仅为建议，尚未作为确定参数。
+- 新一轮扫描：每次开始前清空上一轮结果。
+- 列表字段：设备名称、设备标识、信号强度。
+- 去重方式：以设备唯一标识去重；同一设备再次出现时更新原列表项，不追加重复项；具体 SDK 字段在实现时按 8.3.0 核对。
+- 扫描结束无结果：显示“未发现 Polar H10”。
+- 停止后的列表：【建议待确认】保留本轮结果供选择连接，下次开始扫描时再清空。
+- 文件职责：`PolarBleManager.kt` 管理扫描、停止、计时和设备结果；`SensorActivity.kt` 展示按钮、扫描状态和设备列表。
+- 验收：真实 H10 可显示，其他型号不显示；手动停止及到时停止有效；开始新一轮后旧结果清空；同一设备反复被发现时仅更新原项；无结果时显示提示。
+- 实际结果：已明确规则已写入；自动停止时限及停止后列表保留建议仍待确认；尚未实现或真机验证。
 
 ## 6. 功能开发步骤
 
@@ -245,12 +288,13 @@
 
 ## 9. 进度与证据
 
-- 当前步骤：【步伐、步频与距离规划已填写；应用开发未开始】。
-- 已提供代码：【无】。
-- 已写入文件：【仅本规划模板】。
+- 当前步骤：0.1 已完成（关键配置已写入规划）；1.1 规划和 1.2 已明确规则已写入，1.2 待确认项见 5.9；现有 Android 模板项目已创建，0.2 欢迎页与 Session 入口及 1.1、1.2 功能尚未实现；未自动推进后续开发步骤。
+- 已提供代码：【无本步骤功能代码】。
+- 已写入文件：已同步根目录及 `PolarH10ActivityViewer/` 内的两份 `AGENTS.md`；本次仅更新规划，未修改应用代码、Manifest 或 Gradle 配置。
+- 项目配置落实状态：项目实际 `minSdk` 仍为 27，Polar SDK 与配套依赖尚未加入；后续按已确认方案配置，不视为本次已实现。
 - 已构建验证：【无】。
-- 已真机验证：【无】。
-- 当前待决策：【第 5 节设计项】。
+- 已真机验证：仅通过 ADB 确认测试手机型号、Android 16 / API 36 和调试连接；App 启动、Polar H10 连接及采集均未验证。
+- 当前待决策：1.2 自动停止时限、停止后保留扫描结果的建议，以及第 5 节其余待填写项；已明确的 0.1、1.1 和 1.2 规则无需重复决策。
 - 截图/录屏位置：【待填写】。
 - AI 提示词与使用记录位置：【待填写】。
 
