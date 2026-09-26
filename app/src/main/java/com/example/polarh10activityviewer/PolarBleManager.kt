@@ -10,6 +10,7 @@ import com.polar.androidcommunications.api.ble.model.DisInfo
 import com.polar.sdk.api.PolarBleApi
 import com.polar.sdk.api.PolarBleApiCallback
 import com.polar.sdk.api.PolarBleApiDefaultImpl
+import com.polar.sdk.api.PolarBleDisconnectInfo
 import com.polar.sdk.api.model.PolarDeviceInfo
 import com.polar.sdk.api.model.PolarHealthThermometerData
 import kotlinx.coroutines.CancellationException
@@ -38,21 +39,47 @@ data class ScanState(
     val error: String? = null
 )
 
-class PolarBleManager(context: Context, private val onBluetoothStateChanged: () -> Unit) {
+enum class ConnectionStatus(val message: String) {
+    NOT_CONNECTED("Not connected"),
+    CONNECTING("Connecting"),
+    CONNECTED("Connected"),
+    DISCONNECTING("Disconnecting")
+}
+
+data class ConnectionDevice(val name: String, val deviceId: String)
+
+data class ConnectionState(
+    val status: ConnectionStatus = ConnectionStatus.NOT_CONNECTED,
+    val device: ConnectionDevice? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+class PolarBleManager(context: Context) {
+    var onBluetoothStateChanged: (() -> Unit)? = null
     private val appContext = context.applicationContext
+    private val savedDeviceStore = SavedDeviceStore.get(appContext)
+    val savedDevicesState = savedDeviceStore.state
     private val mainHandler = Handler(Looper.getMainLooper())
     private var api: PolarBleApi? = null
+    private var pendingCleanup: PolarBleApi? = null
     private val scanScope = CoroutineScope(Dispatchers.Main.immediate)
     private var scanJob: Job? = null
     private var scanGeneration = 0
     private val mutableScanState = MutableStateFlow(ScanState())
     val scanState = mutableScanState.asStateFlow()
+    private val mutableConnectionState = MutableStateFlow(ConnectionState())
+    val connectionState = mutableConnectionState.asStateFlow()
+    private var connectionTimeout: Runnable? = null
+    private var connectionConfirmed = false
+    private var sdkUsedForConnection = false
 
     var initializationError: String? = null
         private set
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     fun initialize(retry: Boolean = false): Boolean {
+        if (pendingCleanup != null && (!retry || !disposeSdk())) return false
         if (api != null) return true
         if (initializationError != null && !retry) return false
         initializationError = null
@@ -63,14 +90,67 @@ class PolarBleManager(context: Context, private val onBluetoothStateChanged: () 
                 setOf(PolarBleApi.PolarBleSdkFeature.FEATURE_HR)
             )
             api = created
+            sdkUsedForConnection = false
+            created.setAutomaticReconnection(false)
             created.setApiCallback(object : PolarBleApiCallback() {
                 override fun blePowerStateChanged(powered: Boolean) {
                     // Re-read current system state on the main thread; ignore old SDK instances.
                     mainHandler.post {
                         if (api === created) {
-                            if (!powered) stopScan(ScanStatus.INTERRUPTED)
-                            onBluetoothStateChanged()
+                            if (!powered) bluetoothUnavailable()
+                            onBluetoothStateChanged?.invoke()
                         }
+                    }
+                }
+
+                override fun deviceConnecting(polarDeviceInfo: PolarDeviceInfo) {
+                    mainHandler.post {
+                        if (matches(created, polarDeviceInfo) &&
+                            mutableConnectionState.value.status == ConnectionStatus.DISCONNECTING) {
+                            requestDisconnect(created, polarDeviceInfo.deviceId)
+                        }
+                    }
+                }
+
+                override fun deviceConnected(polarDeviceInfo: PolarDeviceInfo) {
+                    mainHandler.post {
+                        if (!matches(created, polarDeviceInfo)) return@post
+                        connectionConfirmed = true
+                        when (mutableConnectionState.value.status) {
+                            ConnectionStatus.CONNECTING -> {
+                                cancelConnectionTimeout()
+                                mutableConnectionState.value = ConnectionState(
+                                    ConnectionStatus.CONNECTED,
+                                    ConnectionDevice(polarDeviceInfo.name, polarDeviceInfo.deviceId)
+                                )
+                                // Only this accepted success branch can create or update a record.
+                                savedDeviceStore.save(SavedDevice(
+                                    polarDeviceInfo.name, polarDeviceInfo.deviceId, System.currentTimeMillis()
+                                ))
+                            }
+                            // A connection that arrives during cancellation must never become Connected.
+                            ConnectionStatus.DISCONNECTING -> requestDisconnect(created, polarDeviceInfo.deviceId)
+                            else -> Unit
+                        }
+                    }
+                }
+
+                override fun deviceDisconnected(polarDeviceInfo: PolarDeviceInfo, info: PolarBleDisconnectInfo) {
+                    mainHandler.post {
+                        if (!matches(created, polarDeviceInfo)) return@post
+                        val state = mutableConnectionState.value
+                        cancelConnectionTimeout()
+                        connectionConfirmed = false
+                        val reason = if (state.status == ConnectionStatus.DISCONNECTING) state.error else {
+                            "Connection ended: ${info.reason.name.replace('_', ' ')}" +
+                                (info.gattStatus?.let { " (GATT $it)" } ?: "") + ". Tap the device to retry."
+                        }
+                        mutableConnectionState.value = ConnectionState(
+                            error = reason,
+                            message = if (state.status == ConnectionStatus.DISCONNECTING && reason == null) {
+                                "Disconnected. Tap a device to reconnect."
+                            } else null
+                        )
                     }
                 }
 
@@ -89,7 +169,8 @@ class PolarBleManager(context: Context, private val onBluetoothStateChanged: () 
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     fun startScan() {
-        if (mutableScanState.value.status == ScanStatus.SCANNING) return
+        if (mutableScanState.value.status == ScanStatus.SCANNING ||
+            mutableConnectionState.value.status != ConnectionStatus.NOT_CONNECTED) return
         val currentApi = api ?: return
         val previousJob = scanJob
         val generation = ++scanGeneration
@@ -144,17 +225,133 @@ class PolarBleManager(context: Context, private val onBluetoothStateChanged: () 
         mutableScanState.value = mutableScanState.value.copy(status = status)
     }
 
-    fun release() {
+    @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
+    fun connect(deviceId: String) {
+        if (mutableConnectionState.value.status != ConnectionStatus.NOT_CONNECTED) return
+        val device = mutableScanState.value.devices.firstOrNull { it.deviceId == deviceId }
+            ?.let { ConnectionDevice(it.name, it.deviceId) }
+            ?: savedDevicesState.value.devices.firstOrNull { it.deviceId == deviceId }
+                ?.let { ConnectionDevice(it.name, it.deviceId) }
+            ?: return
+        stopScan()
+        // The SDK does not tag callbacks with an attempt ID. Never reuse an attempted SDK for retry.
+        if (sdkUsedForConnection && !disposeSdk()) return
+        if (!initialize()) {
+            mutableConnectionState.value = ConnectionState(error = initializationError)
+            onBluetoothStateChanged?.invoke()
+            return
+        }
+        val currentApi = api ?: return
+        sdkUsedForConnection = true
+        connectionConfirmed = false
+        mutableConnectionState.value = ConnectionState(ConnectionStatus.CONNECTING, device)
+        connectionTimeout = Runnable {
+            if (api === currentApi && mutableConnectionState.value.status == ConnectionStatus.CONNECTING) {
+                interruptConnection("Connection timed out after 10 seconds. Tap the device to retry.")
+            }
+        }.also { mainHandler.postDelayed(it, 10_000L) }
+        try {
+            currentApi.connectToDevice(deviceId)
+        } catch (error: Exception) {
+            Log.e("PolarBleManager", "Connection request failed", error)
+            interruptConnection("Connection failed (${error.javaClass.simpleName}). Tap the device to retry.")
+        }
+    }
+
+    private fun matches(source: PolarBleApi, device: PolarDeviceInfo): Boolean =
+        api === source && mutableConnectionState.value.device?.deviceId == device.deviceId
+
+    fun bluetoothUnavailable() {
+        stopScan(ScanStatus.INTERRUPTED)
+        interruptConnection("Bluetooth is unavailable. Enable Bluetooth and permissions, then retry.")
+    }
+
+    fun leaveSession() {
+        stopScan()
+        interruptConnection(reason = null, message = "Session left the foreground. Reconnect manually when available.")
+    }
+
+    fun disconnect() {
+        if (mutableConnectionState.value.status != ConnectionStatus.CONNECTED) return
+        interruptConnection(reason = null, message = "Disconnect requested.")
+    }
+
+    private fun interruptConnection(reason: String?, message: String? = null) {
+        val state = mutableConnectionState.value
+        if (state.status == ConnectionStatus.NOT_CONNECTED || state.status == ConnectionStatus.DISCONNECTING) return
+        val currentApi = api ?: return
+        val device = state.device ?: return
+        cancelConnectionTimeout()
+        mutableConnectionState.value = state.copy(status = ConnectionStatus.DISCONNECTING, error = reason, message = message)
+        requestDisconnect(currentApi, device.deviceId)
+        // Cancelling an SDK search can produce no disconnect callback because no session opened.
+        // Dispose that unconfirmed attempt before allowing retry; this is not a confirmed disconnect.
+        mainHandler.post {
+            if (api === currentApi && !connectionConfirmed &&
+                mutableConnectionState.value.status == ConnectionStatus.DISCONNECTING && disposeSdk()) {
+                mutableConnectionState.value = ConnectionState(
+                    error = reason,
+                    message = "No connection was confirmed; the request was cancelled."
+                )
+                onBluetoothStateChanged?.invoke()
+            }
+        }
+    }
+
+    private fun requestDisconnect(source: PolarBleApi, deviceId: String) {
+        try {
+            source.disconnectFromDevice(deviceId)
+        } catch (error: Exception) {
+            Log.e("PolarBleManager", "Cancellation/disconnection failed", error)
+            mutableConnectionState.value = mutableConnectionState.value.copy(
+                error = "${mutableConnectionState.value.error.orEmpty()} Unable to disconnect (${error.javaClass.simpleName})."
+            )
+        }
+    }
+
+    private fun cancelConnectionTimeout() {
+        connectionTimeout?.let { mainHandler.removeCallbacks(it) }
+        connectionTimeout = null
+    }
+
+    private fun disposeSdk(): Boolean {
+        cancelConnectionTimeout()
         stopScan(ScanStatus.INTERRUPTED)
         scanJob?.cancel()
-        val previous = api
+        val previous = api ?: pendingCleanup
+        // Invalidate queued callbacks before shutdown, including callbacks for the same device ID.
         api = null
-        mainHandler.removeCallbacksAndMessages(null)
-        try {
+        return try {
             previous?.shutDown()
+            pendingCleanup = null
+            true
         } catch (error: Exception) {
+            // Retain only for cleanup. Its callbacks stay invalid and initialization is blocked.
+            pendingCleanup = previous
+            initializationError = "SDK cleanup failed (${error.javaClass.simpleName}). Restart Session."
+            mutableConnectionState.value = mutableConnectionState.value.copy(error = initializationError)
             Log.e("PolarBleManager", "SDK cleanup failed", error)
+            false
         }
-        initializationError = null
+    }
+
+    fun release() {
+        val state = mutableConnectionState.value
+        val disposed = disposeSdk()
+        mainHandler.removeCallbacksAndMessages(null)
+        if (disposed) {
+            initializationError = null
+            if (state.status != ConnectionStatus.NOT_CONNECTED) {
+                // Shutdown ends local ownership; do not claim a callback-confirmed disconnection.
+                mutableConnectionState.value = if (connectionConfirmed) {
+                    state.copy(
+                        status = ConnectionStatus.DISCONNECTING,
+                        error = "SDK released. Disconnection was not confirmed; reopen Session before reconnecting."
+                    )
+                } else {
+                    ConnectionState(error = "Connection request cancelled when the SDK was released.")
+                }
+            }
+        }
     }
 }

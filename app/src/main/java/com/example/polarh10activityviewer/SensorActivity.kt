@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,7 +34,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 
 class SensorActivity : ComponentActivity() {
     private val permissions = arrayOf(
@@ -74,12 +79,12 @@ class SensorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         systemRequestPending = savedInstanceState?.getBoolean("systemRequestPending") ?: false
-        bleManager = PolarBleManager(applicationContext) {
-            if (!isDestroyed) refreshAvailability()
-        }
+        bleManager = ViewModelProvider(this)[SensorViewModel::class.java].bleManager
         enableEdgeToEdge()
         setContent {
             val scanState by bleManager.scanState.collectAsState()
+            val connectionState by bleManager.connectionState.collectAsState()
+            val savedDevicesState by bleManager.savedDevicesState.collectAsState()
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     SessionScreen(
@@ -90,11 +95,20 @@ class SensorActivity : ComponentActivity() {
                         scanState = scanState,
                         onStartScan = ::handleStartScan,
                         onStopScan = { bleManager.stopScan() },
+                        connectionState = connectionState,
+                        onConnect = ::handleConnect,
+                        savedDevicesState = savedDevicesState,
+                        onDisconnect = ::handleDisconnect,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        bleManager.onBluetoothStateChanged = { refreshAvailability() }
     }
 
     override fun onResume() {
@@ -107,9 +121,10 @@ class SensorActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onDestroy() {
-        bleManager.release()
-        super.onDestroy()
+    override fun onStop() {
+        bleManager.onBluetoothStateChanged = null
+        if (!isChangingConfigurations) bleManager.leaveSession()
+        super.onStop()
     }
 
     private fun missingPermissions() = permissions.filter {
@@ -122,7 +137,7 @@ class SensorActivity : ComponentActivity() {
         errorMessage = null
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) || adapter == null) {
-            bleManager.stopScan(ScanStatus.INTERRUPTED)
+            bleManager.bluetoothUnavailable()
             availability = BluetoothAvailability.UNSUPPORTED
             return
         }
@@ -148,7 +163,7 @@ class SensorActivity : ComponentActivity() {
         }
         try {
             availability = if (adapter.isEnabled) BluetoothAvailability.READY else BluetoothAvailability.BLUETOOTH_OFF
-            if (availability != BluetoothAvailability.READY) bleManager.stopScan(ScanStatus.INTERRUPTED)
+            if (availability != BluetoothAvailability.READY) bleManager.bluetoothUnavailable()
         } catch (_: SecurityException) {
             bleManager.release()
             availability = BluetoothAvailability.PERMISSIONS_NEEDED
@@ -160,6 +175,19 @@ class SensorActivity : ComponentActivity() {
         if (systemRequestPending) return
         refreshAvailability()
         if (availability == BluetoothAvailability.READY) bleManager.startScan()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun handleConnect(deviceId: String) {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.connect(deviceId)
+    }
+
+    private fun handleDisconnect() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.disconnect()
     }
 
     @SuppressLint("MissingPermission")
@@ -198,7 +226,7 @@ enum class BluetoothAvailability(val message: String, val buttonLabel: String) {
     BLUETOOTH_OFF("Bluetooth is off.", "Turn on Bluetooth"),
     UNSUPPORTED("This phone does not support Bluetooth Low Energy (BLE).", "Bluetooth unavailable"),
     SDK_ERROR("SDK initialization failed.", "Retry"),
-    READY("Bluetooth ready — no device connected", "Bluetooth ready")
+    READY("Bluetooth ready", "Bluetooth ready")
 }
 
 @Composable
@@ -210,6 +238,10 @@ fun SessionScreen(
     scanState: ScanState,
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
+    connectionState: ConnectionState,
+    onConnect: (String) -> Unit,
+    savedDevicesState: SavedDevicesState,
+    onDisconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -218,6 +250,20 @@ fun SessionScreen(
     ) {
         Text("Session", style = MaterialTheme.typography.headlineLarge)
         Text(availability.message, style = MaterialTheme.typography.bodyLarge)
+        Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
+        connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
+        if (connectionState.status == ConnectionStatus.CONNECTED) {
+            Text("Data feature readiness has not been checked.")
+        }
+        connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        connectionState.message?.let { Text(it) }
+        Button(
+            onClick = onDisconnect,
+            enabled = actionEnabled && availability == BluetoothAvailability.READY &&
+                connectionState.status == ConnectionStatus.CONNECTED
+        ) {
+            Text("Disconnect")
+        }
         if (availability in setOf(
                 BluetoothAvailability.PERMISSIONS_NEEDED,
                 BluetoothAvailability.PERMISSION_DENIED,
@@ -232,12 +278,35 @@ fun SessionScreen(
         ) {
             Text(availability.buttonLabel)
         }
+        val canConnect = actionEnabled && availability == BluetoothAvailability.READY &&
+            connectionState.status == ConnectionStatus.NOT_CONNECTED
+        Text("Saved devices", style = MaterialTheme.typography.titleMedium)
+        Text("Previously connected by this app. A saved record does not mean the device is nearby, online or paired in system settings.")
+        savedDevicesState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (savedDevicesState.loading) {
+            Text("Loading saved devices...")
+        } else if (savedDevicesState.devices.isEmpty() && savedDevicesState.error == null) {
+            Text("No saved devices")
+        }
+        savedDevicesState.devices.forEach { device ->
+            OutlinedCard(onClick = { onConnect(device.deviceId) }, enabled = canConnect) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(device.name, style = MaterialTheme.typography.titleSmall)
+                    Text("Device ID: ${device.deviceId}")
+                    val lastConnected = DateFormat.getDateTimeInstance(
+                        DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH
+                    ).format(Date(device.lastConnectedAt))
+                    Text("Last connected: $lastConnected")
+                    Text("Tap to connect")
+                }
+            }
+        }
         Text("Nearby Polar H10 devices", style = MaterialTheme.typography.titleMedium)
         val scanning = scanState.status == ScanStatus.SCANNING
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
                 onClick = onStartScan,
-                enabled = actionEnabled && availability == BluetoothAvailability.READY && !scanning
+                enabled = canConnect && !scanning
             ) {
                 Text("Start scan")
             }
@@ -252,10 +321,13 @@ fun SessionScreen(
             Text("No Polar H10 found")
         }
         scanState.devices.forEach { device ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(device.name, style = MaterialTheme.typography.titleSmall)
-                Text("Device ID: ${device.deviceId}")
-                Text("Signal strength: ${device.rssi} dBm")
+            OutlinedCard(onClick = { onConnect(device.deviceId) }, enabled = canConnect) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(device.name, style = MaterialTheme.typography.titleSmall)
+                    Text("Device ID: ${device.deviceId}")
+                    Text("Signal strength: ${device.rssi} dBm")
+                    Text("Tap to connect")
+                }
             }
         }
     }
@@ -272,7 +344,11 @@ fun SessionPreview() {
             onBluetoothAction = {},
             scanState = ScanState(),
             onStartScan = {},
-            onStopScan = {}
+            onStopScan = {},
+            connectionState = ConnectionState(),
+            onConnect = {},
+            savedDevicesState = SavedDevicesState(loading = false),
+            onDisconnect = {}
         )
     }
 }
