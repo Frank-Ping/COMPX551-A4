@@ -86,6 +86,7 @@ class SensorActivity : ComponentActivity() {
         setContent {
             val scanState by bleManager.scanState.collectAsState()
             val connectionState by bleManager.connectionState.collectAsState()
+            val batteryLevel by bleManager.batteryLevel.collectAsState()
             val savedDevicesState by bleManager.savedDevicesState.collectAsState()
             val dataReadiness by bleManager.dataReadiness.collectAsState()
             PolarH10ActivityViewerTheme {
@@ -99,6 +100,7 @@ class SensorActivity : ComponentActivity() {
                         onStartScan = ::handleStartScan,
                         onStopScan = { bleManager.stopScan() },
                         connectionState = connectionState,
+                        batteryLevel = batteryLevel,
                         onConnect = ::handleConnect,
                         savedDevicesState = savedDevicesState,
                         onDisconnect = ::handleDisconnect,
@@ -263,7 +265,8 @@ fun SessionScreen(
     onRetryDisconnect: () -> Unit,
     dataReadiness: Map<PolarDeviceDataType, DataReadiness>,
     onRecheckData: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    batteryLevel: Int? = null
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -273,6 +276,7 @@ fun SessionScreen(
         Text(availability.message, style = MaterialTheme.typography.bodyLarge)
         Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
         connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
+        Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}")
         DataReadinessPanel(
             states = dataReadiness,
             canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&

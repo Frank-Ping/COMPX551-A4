@@ -78,6 +78,8 @@ class PolarBleManager(context: Context) {
     val scanState = mutableScanState.asStateFlow()
     private val mutableConnectionState = MutableStateFlow(ConnectionState())
     val connectionState = mutableConnectionState.asStateFlow()
+    private val deviceBattery = DeviceBattery()
+    val batteryLevel = deviceBattery.level
     private var connectionTimeout: Runnable? = null
     private var connectionConfirmed = false
     private var sdkUsedForConnection = false
@@ -140,7 +142,11 @@ class PolarBleManager(context: Context) {
         return try {
             val created = PolarBleApiDefaultImpl.defaultImplementation(
                 appContext,
-                setOf(PolarBleSdkFeature.FEATURE_HR, PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING)
+                setOf(
+                    PolarBleSdkFeature.FEATURE_HR,
+                    PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING,
+                    PolarBleSdkFeature.FEATURE_BATTERY_INFO
+                )
             )
             api = created
             sdkUsedForConnection = false
@@ -206,6 +212,12 @@ class PolarBleManager(context: Context) {
                                 "Disconnected. Tap a device to reconnect."
                             } else null
                         )
+                    }
+                }
+
+                override fun batteryLevelReceived(identifier: String, level: Int) {
+                    mainHandler.post {
+                        deviceBattery.receive(created, api, identifier, mutableConnectionState.value, level)
                     }
                 }
 
@@ -301,6 +313,7 @@ class PolarBleManager(context: Context) {
                 ?.let { ConnectionDevice(it.name, it.deviceId) }
             ?: return
         stopScan()
+        deviceBattery.clear()
         // The SDK does not tag callbacks with an attempt ID. Never reuse an attempted SDK for retry.
         if (sdkUsedForConnection && !disposeSdk()) return
         if (!initialize()) {
@@ -436,6 +449,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
+        deviceBattery.clear()
         cleanupDataSubscriptions()
         readinessGeneration++
         readinessJob?.cancel()
@@ -554,6 +568,24 @@ class PolarBleManager(context: Context) {
                 }
             }
         }
+    }
+}
+
+// SDK instances are compared only by identity; this state needs no Android calls.
+@MainThread
+internal class DeviceBattery {
+    private val mutableLevel = MutableStateFlow<Int?>(null)
+    val level = mutableLevel.asStateFlow()
+
+    fun receive(source: Any, currentSdk: Any?, identifier: String, connection: ConnectionState, value: Int) {
+        if (source === currentSdk && connection.status == ConnectionStatus.CONNECTED &&
+            connection.device?.deviceId == identifier && value in 0..100) {
+            mutableLevel.value = value
+        }
+    }
+
+    fun clear() {
+        mutableLevel.value = null
     }
 }
 
