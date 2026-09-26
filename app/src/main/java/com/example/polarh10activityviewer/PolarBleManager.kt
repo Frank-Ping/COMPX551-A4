@@ -1,10 +1,14 @@
 package com.example.polarh10activityviewer
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.annotation.MainThread
 import androidx.annotation.RequiresPermission
 import com.polar.androidcommunications.api.ble.model.DisInfo
 import com.polar.sdk.api.PolarBleApi
@@ -21,6 +25,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -83,6 +88,44 @@ class PolarBleManager(context: Context) {
     private val unavailableFeatures = mutableSetOf<PolarBleSdkFeature>()
     private val mutableDataReadiness = MutableStateFlow(checkedDataTypes.associateWith { DataReadiness() })
     val dataReadiness = mutableDataReadiness.asStateFlow()
+    private val dataSubscriptions = DataSubscriptions(CoroutineScope(Dispatchers.Main.immediate))
+    internal val subscriptionStates = dataSubscriptions.states
+
+    // Real SDK flow factories and data consumers are added in steps 4.1-4.3.
+    @MainThread
+    internal fun <T> startDataSubscription(
+        type: PolarDeviceDataType,
+        stream: suspend (PolarBleApi, String) -> Flow<T>,
+        onData: (T) -> Unit
+    ): Boolean {
+        val source = api ?: return false
+        val identifier = mutableConnectionState.value.device?.deviceId ?: return false
+        return dataSubscriptions.start(
+            type,
+            readiness = { mutableDataReadiness.value[type] ?: DataReadiness() },
+            isCurrent = { readinessMatches(source, identifier) && bluetoothAvailableForData() },
+            stream = { stream(source, identifier) },
+            onData = onData
+        )
+    }
+
+    @MainThread
+    internal fun stopDataSubscription(type: PolarDeviceDataType) = dataSubscriptions.stop(type)
+
+    @MainThread
+    internal fun cleanupDataSubscriptions() = dataSubscriptions.stopAll()
+
+    @SuppressLint("MissingPermission")
+    private fun bluetoothAvailableForData(): Boolean {
+        if (listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT).any {
+                appContext.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+            }) return false
+        return try {
+            appContext.getSystemService(BluetoothManager::class.java)?.adapter?.isEnabled == true
+        } catch (_: SecurityException) {
+            false
+        }
+    }
 
     var initializationError: String? = null
         private set
@@ -393,6 +436,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
+        cleanupDataSubscriptions()
         readinessGeneration++
         readinessJob?.cancel()
         readinessJob = null
@@ -510,5 +554,90 @@ class PolarBleManager(context: Context) {
                 }
             }
         }
+    }
+}
+
+internal enum class SubscriptionStatus { IDLE, STARTING, RECEIVING, STOPPING, STOPPED, FAILED }
+
+internal data class SubscriptionState(
+    val status: SubscriptionStatus = SubscriptionStatus.IDLE,
+    val error: String? = null
+)
+
+// Confined to the main thread by the manager; tests use a single coroutine test scheduler.
+@MainThread
+internal class DataSubscriptions(private val scope: CoroutineScope) {
+    private class Task {
+        lateinit var job: Job
+        var stopping = false
+        var error: String? = null
+    }
+
+    private val tasks = mutableMapOf<PolarDeviceDataType, Task>()
+    private val mutableStates = MutableStateFlow(checkedDataTypes.associateWith { SubscriptionState() })
+    val states = mutableStates.asStateFlow()
+
+    private fun setState(type: PolarDeviceDataType, status: SubscriptionStatus, error: String? = null) {
+        mutableStates.value = mutableStates.value + (type to SubscriptionState(status, error))
+    }
+
+    fun <T> start(
+        type: PolarDeviceDataType,
+        readiness: () -> DataReadiness,
+        isCurrent: () -> Boolean,
+        stream: suspend () -> Flow<T>,
+        onData: (T) -> Unit
+    ): Boolean {
+        fun canStart() = isCurrent() && readiness().let {
+            it.status == DataReadinessStatus.READY && it.configurationComplete
+        }
+        if (type !in checkedDataTypes || type in tasks || !canStart()) return false
+        val task = Task()
+        fun acceptsEvents() = tasks[type] === task && !task.stopping && isCurrent()
+        task.job = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                if (!canStart()) return@launch
+                stream().collect { data ->
+                    ensureActive()
+                    if (acceptsEvents()) {
+                        setState(type, SubscriptionStatus.RECEIVING)
+                        onData(data)
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (acceptsEvents()) {
+                    task.error = "$type stream failed: ${error.message ?: error.javaClass.simpleName}"
+                }
+            }
+        }
+        tasks[type] = task
+        setState(type, SubscriptionStatus.STARTING)
+        task.job.invokeOnCompletion {
+            // Completion includes child jobs and cleanup, even if cancelled before launch.
+            scope.launch {
+                if (tasks[type] === task) {
+                    tasks.remove(type)
+                    val error = task.error.takeIf { !task.stopping && isCurrent() }
+                    setState(type, if (error == null) SubscriptionStatus.STOPPED else SubscriptionStatus.FAILED, error)
+                }
+            }
+        }
+        task.job.start()
+        return true
+    }
+
+    fun stop(type: PolarDeviceDataType) {
+        val task = tasks[type] ?: return
+        if (task.stopping) return
+        task.stopping = true
+        setState(type, SubscriptionStatus.STOPPING)
+        // Keep ownership until completion so another start cannot overlap cleanup.
+        task.job.cancel()
+    }
+
+    fun stopAll() {
+        tasks.keys.toList().forEach(::stop)
     }
 }
