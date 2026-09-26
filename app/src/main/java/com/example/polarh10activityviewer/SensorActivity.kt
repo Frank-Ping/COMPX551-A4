@@ -99,6 +99,7 @@ class SensorActivity : ComponentActivity() {
                         onConnect = ::handleConnect,
                         savedDevicesState = savedDevicesState,
                         onDisconnect = ::handleDisconnect,
+                        onRetryDisconnect = ::handleRetryDisconnect,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -190,6 +191,12 @@ class SensorActivity : ComponentActivity() {
         if (availability == BluetoothAvailability.READY) bleManager.disconnect()
     }
 
+    private fun handleRetryDisconnect() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.retryDisconnect()
+    }
+
     @SuppressLint("MissingPermission")
     private fun handleBluetoothAction() {
         if (systemRequestPending) return
@@ -242,6 +249,7 @@ fun SessionScreen(
     onConnect: (String) -> Unit,
     savedDevicesState: SavedDevicesState,
     onDisconnect: () -> Unit,
+    onRetryDisconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -256,6 +264,7 @@ fun SessionScreen(
             Text("Data feature readiness has not been checked.")
         }
         connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        connectionState.disconnectError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         connectionState.message?.let { Text(it) }
         Button(
             onClick = onDisconnect,
@@ -263,6 +272,14 @@ fun SessionScreen(
                 connectionState.status == ConnectionStatus.CONNECTED
         ) {
             Text("Disconnect")
+        }
+        if (connectionState.status == ConnectionStatus.DISCONNECTING && connectionState.disconnectError != null) {
+            Button(
+                onClick = onRetryDisconnect,
+                enabled = actionEnabled && availability == BluetoothAvailability.READY
+            ) {
+                Text("Retry disconnect")
+            }
         }
         if (availability in setOf(
                 BluetoothAvailability.PERMISSIONS_NEEDED,
@@ -348,7 +365,8 @@ fun SessionPreview() {
             connectionState = ConnectionState(),
             onConnect = {},
             savedDevicesState = SavedDevicesState(loading = false),
-            onDisconnect = {}
+            onDisconnect = {},
+            onRetryDisconnect = {}
         )
     }
 }

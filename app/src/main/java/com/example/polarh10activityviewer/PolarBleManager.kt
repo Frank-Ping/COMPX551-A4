@@ -52,7 +52,8 @@ data class ConnectionState(
     val status: ConnectionStatus = ConnectionStatus.NOT_CONNECTED,
     val device: ConnectionDevice? = null,
     val error: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    val disconnectError: String? = null
 )
 
 class PolarBleManager(context: Context) {
@@ -276,6 +277,14 @@ class PolarBleManager(context: Context) {
         interruptConnection(reason = null, message = "Disconnect requested.")
     }
 
+    fun retryDisconnect() {
+        val state = mutableConnectionState.value
+        if (state.status != ConnectionStatus.DISCONNECTING || state.disconnectError == null) return
+        val currentApi = api ?: return
+        val device = state.device ?: return
+        requestDisconnect(currentApi, device.deviceId)
+    }
+
     private fun interruptConnection(reason: String?, message: String? = null) {
         val state = mutableConnectionState.value
         if (state.status == ConnectionStatus.NOT_CONNECTED || state.status == ConnectionStatus.DISCONNECTING) return
@@ -299,12 +308,17 @@ class PolarBleManager(context: Context) {
     }
 
     private fun requestDisconnect(source: PolarBleApi, deviceId: String) {
+        val state = mutableConnectionState.value
+        if (api !== source || state.device?.deviceId != deviceId ||
+            state.status != ConnectionStatus.DISCONNECTING) return
+        // A disconnect error is the retry flag. Clear it before sending to block duplicate taps.
+        mutableConnectionState.value = state.copy(disconnectError = null)
         try {
             source.disconnectFromDevice(deviceId)
         } catch (error: Exception) {
             Log.e("PolarBleManager", "Cancellation/disconnection failed", error)
             mutableConnectionState.value = mutableConnectionState.value.copy(
-                error = "${mutableConnectionState.value.error.orEmpty()} Unable to disconnect (${error.javaClass.simpleName})."
+                disconnectError = "Unable to disconnect (${error.javaClass.simpleName}). Please retry."
             )
         }
     }
@@ -321,6 +335,7 @@ class PolarBleManager(context: Context) {
         val previous = api ?: pendingCleanup
         // Invalidate queued callbacks before shutdown, including callbacks for the same device ID.
         api = null
+        mutableConnectionState.value = mutableConnectionState.value.copy(disconnectError = null)
         return try {
             previous?.shutDown()
             pendingCleanup = null
@@ -346,7 +361,8 @@ class PolarBleManager(context: Context) {
                 mutableConnectionState.value = if (connectionConfirmed) {
                     state.copy(
                         status = ConnectionStatus.DISCONNECTING,
-                        error = "SDK released. Disconnection was not confirmed; reopen Session before reconnecting."
+                        error = "SDK released. Disconnection was not confirmed; reopen Session before reconnecting.",
+                        disconnectError = null
                     )
                 } else {
                     ConnectionState(error = "Connection request cancelled when the SDK was released.")
