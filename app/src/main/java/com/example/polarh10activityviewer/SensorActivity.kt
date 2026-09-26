@@ -15,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -77,6 +79,7 @@ class SensorActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         setContent {
+            val scanState by bleManager.scanState.collectAsState()
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     SessionScreen(
@@ -84,6 +87,9 @@ class SensorActivity : ComponentActivity() {
                         actionEnabled = !systemRequestPending,
                         errorMessage = errorMessage,
                         onBluetoothAction = ::handleBluetoothAction,
+                        scanState = scanState,
+                        onStartScan = ::handleStartScan,
+                        onStopScan = { bleManager.stopScan() },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -116,6 +122,7 @@ class SensorActivity : ComponentActivity() {
         errorMessage = null
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE) || adapter == null) {
+            bleManager.stopScan(ScanStatus.INTERRUPTED)
             availability = BluetoothAvailability.UNSUPPORTED
             return
         }
@@ -141,10 +148,18 @@ class SensorActivity : ComponentActivity() {
         }
         try {
             availability = if (adapter.isEnabled) BluetoothAvailability.READY else BluetoothAvailability.BLUETOOTH_OFF
+            if (availability != BluetoothAvailability.READY) bleManager.stopScan(ScanStatus.INTERRUPTED)
         } catch (_: SecurityException) {
             bleManager.release()
             availability = BluetoothAvailability.PERMISSIONS_NEEDED
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun handleStartScan() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.startScan()
     }
 
     @SuppressLint("MissingPermission")
@@ -192,6 +207,9 @@ fun SessionScreen(
     actionEnabled: Boolean,
     errorMessage: String?,
     onBluetoothAction: () -> Unit,
+    scanState: ScanState,
+    onStartScan: () -> Unit,
+    onStopScan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -214,6 +232,32 @@ fun SessionScreen(
         ) {
             Text(availability.buttonLabel)
         }
+        Text("Nearby Polar H10 devices", style = MaterialTheme.typography.titleMedium)
+        val scanning = scanState.status == ScanStatus.SCANNING
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = onStartScan,
+                enabled = actionEnabled && availability == BluetoothAvailability.READY && !scanning
+            ) {
+                Text("Start scan")
+            }
+            Button(onClick = onStopScan, enabled = scanning) {
+                Text("Stop scan")
+            }
+        }
+        Text(scanState.status.message)
+        scanState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (scanState.devices.isEmpty() &&
+            scanState.status in setOf(ScanStatus.STOPPED, ScanStatus.TIMED_OUT)) {
+            Text("No Polar H10 found")
+        }
+        scanState.devices.forEach { device ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(device.name, style = MaterialTheme.typography.titleSmall)
+                Text("Device ID: ${device.deviceId}")
+                Text("Signal strength: ${device.rssi} dBm")
+            }
+        }
     }
 }
 
@@ -225,7 +269,10 @@ fun SessionPreview() {
             availability = BluetoothAvailability.PERMISSIONS_NEEDED,
             actionEnabled = true,
             errorMessage = null,
-            onBluetoothAction = {}
+            onBluetoothAction = {},
+            scanState = ScanState(),
+            onStartScan = {},
+            onStopScan = {}
         )
     }
 }
