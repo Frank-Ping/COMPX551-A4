@@ -8,6 +8,8 @@ import android.util.Log
 import androidx.annotation.RequiresPermission
 import com.polar.androidcommunications.api.ble.model.DisInfo
 import com.polar.sdk.api.PolarBleApi
+import com.polar.sdk.api.PolarBleApi.PolarBleSdkFeature
+import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.polar.sdk.api.PolarBleApiCallback
 import com.polar.sdk.api.PolarBleApiDefaultImpl
 import com.polar.sdk.api.PolarBleDisconnectInfo
@@ -74,6 +76,13 @@ class PolarBleManager(context: Context) {
     private var connectionTimeout: Runnable? = null
     private var connectionConfirmed = false
     private var sdkUsedForConnection = false
+    private val readinessScope = CoroutineScope(Dispatchers.Main.immediate)
+    private var readinessJob: Job? = null
+    private var readinessGeneration = 0
+    private val readyFeatures = mutableSetOf<PolarBleSdkFeature>()
+    private val unavailableFeatures = mutableSetOf<PolarBleSdkFeature>()
+    private val mutableDataReadiness = MutableStateFlow(checkedDataTypes.associateWith { DataReadiness() })
+    val dataReadiness = mutableDataReadiness.asStateFlow()
 
     var initializationError: String? = null
         private set
@@ -88,7 +97,7 @@ class PolarBleManager(context: Context) {
         return try {
             val created = PolarBleApiDefaultImpl.defaultImplementation(
                 appContext,
-                setOf(PolarBleApi.PolarBleSdkFeature.FEATURE_HR)
+                setOf(PolarBleSdkFeature.FEATURE_HR, PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING)
             )
             api = created
             sdkUsedForConnection = false
@@ -124,6 +133,7 @@ class PolarBleManager(context: Context) {
                                     ConnectionStatus.CONNECTED,
                                     ConnectionDevice(polarDeviceInfo.name, polarDeviceInfo.deviceId)
                                 )
+                                clearDataReadiness(DataReadinessStatus.WAITING)
                                 // Only this accepted success branch can create or update a record.
                                 savedDeviceStore.save(SavedDevice(
                                     polarDeviceInfo.name, polarDeviceInfo.deviceId, System.currentTimeMillis()
@@ -140,6 +150,7 @@ class PolarBleManager(context: Context) {
                     mainHandler.post {
                         if (!matches(created, polarDeviceInfo)) return@post
                         val state = mutableConnectionState.value
+                        clearDataReadiness()
                         cancelConnectionTimeout()
                         connectionConfirmed = false
                         val reason = if (state.status == ConnectionStatus.DISCONNECTING) state.error else {
@@ -153,6 +164,18 @@ class PolarBleManager(context: Context) {
                             } else null
                         )
                     }
+                }
+
+                override fun bleSdkFeatureReady(identifier: String, feature: PolarBleSdkFeature) {
+                    mainHandler.post { acceptReadiness(created, identifier, listOf(feature), emptyList()) }
+                }
+
+                override fun bleSdkFeaturesReadiness(
+                    identifier: String,
+                    ready: List<PolarBleSdkFeature>,
+                    unavailable: List<PolarBleSdkFeature>
+                ) {
+                    mainHandler.post { acceptReadiness(created, identifier, ready, unavailable) }
                 }
 
                 // Required by SDK 8.3.0; these features are not enabled in this step.
@@ -262,6 +285,122 @@ class PolarBleManager(context: Context) {
     private fun matches(source: PolarBleApi, device: PolarDeviceInfo): Boolean =
         api === source && mutableConnectionState.value.device?.deviceId == device.deviceId
 
+    private fun readinessMatches(source: PolarBleApi, identifier: String): Boolean =
+        api === source && mutableConnectionState.value.status == ConnectionStatus.CONNECTED &&
+            mutableConnectionState.value.device?.deviceId == identifier
+
+    private fun setDataReadiness(type: PolarDeviceDataType, state: DataReadiness) {
+        mutableDataReadiness.value = mutableDataReadiness.value + (type to state)
+    }
+
+    private fun acceptReadiness(
+        source: PolarBleApi, identifier: String,
+        ready: List<PolarBleSdkFeature>, unavailable: List<PolarBleSdkFeature>
+    ) {
+        if (!readinessMatches(source, identifier)) return
+        val online = PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
+        val onlineWasReady = online in readyFeatures
+        readyFeatures.addAll(ready)
+        unavailableFeatures.addAll(unavailable)
+        unavailableFeatures.removeAll(readyFeatures)
+        val hr = PolarBleSdkFeature.FEATURE_HR
+        if (hr in readyFeatures) {
+            setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
+        } else if (hr in unavailableFeatures) {
+            setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.UNSUPPORTED))
+        }
+        if (online in readyFeatures && !onlineWasReady) queryStreamSettings(source, identifier)
+        else if (online in unavailableFeatures) {
+            listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG).forEach {
+                setDataReadiness(it, DataReadiness(DataReadinessStatus.UNSUPPORTED))
+            }
+        }
+        // Features absent from both callback lists remain unresolved, not unsupported.
+    }
+
+    fun recheckDataReadiness() {
+        if (readinessJob != null) return
+        val source = api ?: return
+        val identifier = mutableConnectionState.value.device?.deviceId ?: return
+        if (!readinessMatches(source, identifier)) return
+        for (feature in listOf(PolarBleSdkFeature.FEATURE_HR, PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING)) {
+            val types = if (feature == PolarBleSdkFeature.FEATURE_HR) listOf(PolarDeviceDataType.HR)
+                else listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
+            try {
+                if (source.isFeatureReady(identifier, feature)) {
+                    readyFeatures.add(feature)
+                    unavailableFeatures.remove(feature)
+                    if (feature == PolarBleSdkFeature.FEATURE_HR) {
+                        setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
+                    } else queryStreamSettings(source, identifier)
+                } else {
+                    readyFeatures.remove(feature)
+                    types.forEach { setDataReadiness(it, DataReadiness(
+                        if (feature in unavailableFeatures) DataReadinessStatus.UNSUPPORTED else DataReadinessStatus.WAITING
+                    )) }
+                }
+            } catch (error: Exception) {
+                readyFeatures.remove(feature)
+                types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.FAILED,
+                    error = "Readiness check failed (${error.javaClass.simpleName}). Recheck to retry.")) }
+            }
+        }
+    }
+
+    private fun queryStreamSettings(source: PolarBleApi, identifier: String) {
+        if (readinessJob != null || !readinessMatches(source, identifier)) return
+        val generation = readinessGeneration
+        val types = listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
+        types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.CHECKING)) }
+        fun current() = generation == readinessGeneration && readinessMatches(source, identifier)
+        readinessJob = readinessScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val supported = source.getAvailableOnlineStreamDataTypes(identifier)
+                ensureActive()
+                if (!current()) return@launch
+                for (type in types) {
+                    if (type !in supported) {
+                        setDataReadiness(type, DataReadiness(DataReadinessStatus.UNSUPPORTED))
+                        continue
+                    }
+                    try {
+                        val settings = source.requestStreamSettings(identifier, type)
+                        ensureActive()
+                        if (!current()) return@launch
+                        setDataReadiness(type, checkedSettings(type, settings.settings))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        if (current()) setDataReadiness(type, DataReadiness(DataReadinessStatus.FAILED,
+                            error = "Settings check failed (${error.javaClass.simpleName}). Recheck to retry."))
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (current()) types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.FAILED,
+                    error = "Data type query failed (${error.javaClass.simpleName}). Recheck to retry.")) }
+            } finally {
+                if (generation == readinessGeneration) {
+                    readinessJob = null
+                    // Cancellation while still connected must not leave the recheck button blocked.
+                    if (current()) types.filter { mutableDataReadiness.value[it]?.status == DataReadinessStatus.CHECKING }
+                        .forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.WAITING)) }
+                }
+            }
+        }
+        readinessJob?.start()
+    }
+
+    private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
+        readinessGeneration++
+        readinessJob?.cancel()
+        readinessJob = null
+        readyFeatures.clear()
+        unavailableFeatures.clear()
+        mutableDataReadiness.value = checkedDataTypes.associateWith { DataReadiness(status) }
+    }
+
     fun bluetoothUnavailable() {
         stopScan(ScanStatus.INTERRUPTED)
         interruptConnection("Bluetooth is unavailable. Enable Bluetooth and permissions, then retry.")
@@ -286,6 +425,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun interruptConnection(reason: String?, message: String? = null) {
+        clearDataReadiness()
         val state = mutableConnectionState.value
         if (state.status == ConnectionStatus.NOT_CONNECTED || state.status == ConnectionStatus.DISCONNECTING) return
         val currentApi = api ?: return
@@ -329,6 +469,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun disposeSdk(): Boolean {
+        clearDataReadiness()
         cancelConnectionTimeout()
         stopScan(ScanStatus.INTERRUPTED)
         scanJob?.cancel()

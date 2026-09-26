@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
+import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
+import com.polar.sdk.api.model.PolarSensorSetting.SettingType
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,6 +87,7 @@ class SensorActivity : ComponentActivity() {
             val scanState by bleManager.scanState.collectAsState()
             val connectionState by bleManager.connectionState.collectAsState()
             val savedDevicesState by bleManager.savedDevicesState.collectAsState()
+            val dataReadiness by bleManager.dataReadiness.collectAsState()
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     SessionScreen(
@@ -100,6 +103,8 @@ class SensorActivity : ComponentActivity() {
                         savedDevicesState = savedDevicesState,
                         onDisconnect = ::handleDisconnect,
                         onRetryDisconnect = ::handleRetryDisconnect,
+                        dataReadiness = dataReadiness,
+                        onRecheckData = ::handleRecheckData,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -197,6 +202,12 @@ class SensorActivity : ComponentActivity() {
         if (availability == BluetoothAvailability.READY) bleManager.retryDisconnect()
     }
 
+    private fun handleRecheckData() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.recheckDataReadiness()
+    }
+
     @SuppressLint("MissingPermission")
     private fun handleBluetoothAction() {
         if (systemRequestPending) return
@@ -250,6 +261,8 @@ fun SessionScreen(
     savedDevicesState: SavedDevicesState,
     onDisconnect: () -> Unit,
     onRetryDisconnect: () -> Unit,
+    dataReadiness: Map<PolarDeviceDataType, DataReadiness>,
+    onRecheckData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -260,9 +273,12 @@ fun SessionScreen(
         Text(availability.message, style = MaterialTheme.typography.bodyLarge)
         Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
         connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
-        if (connectionState.status == ConnectionStatus.CONNECTED) {
-            Text("Data feature readiness has not been checked.")
-        }
+        DataReadinessPanel(
+            states = dataReadiness,
+            canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&
+                connectionState.status == ConnectionStatus.CONNECTED,
+            onRecheck = onRecheckData
+        )
         connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         connectionState.disconnectError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         connectionState.message?.let { Text(it) }
@@ -350,6 +366,42 @@ fun SessionScreen(
     }
 }
 
+// Temporary verification UI: remove during stage 8, keeping the underlying readiness checks.
+@Composable
+private fun DataReadinessPanel(
+    states: Map<PolarDeviceDataType, DataReadiness>,
+    canRecheck: Boolean,
+    onRecheck: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Data readiness", style = MaterialTheme.typography.titleMedium)
+        Text("Readiness check only. Data collection has not started.")
+        checkedDataTypes.forEach { type ->
+            val state = states[type] ?: DataReadiness()
+            Text("${type.name}: ${state.status.message}")
+            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (state.status == DataReadinessStatus.READY) {
+                Text(if (type == PolarDeviceDataType.HR) "Configuration: no sampling settings required."
+                    else if (state.configurationComplete) "Configuration: complete."
+                    else if (state.error != null) "Configuration: blocked."
+                    else "Configuration: awaiting your confirmation of multiple options.")
+            }
+            state.available.forEach { (setting, values) ->
+                val label = when (setting) {
+                    SettingType.SAMPLE_RATE -> "Sample rate (Hz)"
+                    SettingType.RESOLUTION -> "Resolution (bits)"
+                    SettingType.RANGE -> if (type == PolarDeviceDataType.ACC) "Range (g)" else "Range (SDK units not specified)"
+                    SettingType.CHANNELS -> "Channels (count)"
+                }
+                Text("$label: available ${values.sorted().joinToString()}; selected ${state.selected[setting] ?: "--"}")
+            }
+        }
+        Button(onClick = onRecheck, enabled = canRecheck && states.values.none { it.status == DataReadinessStatus.CHECKING }) {
+            Text("Recheck data readiness")
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 fun SessionPreview() {
@@ -366,7 +418,9 @@ fun SessionPreview() {
             onConnect = {},
             savedDevicesState = SavedDevicesState(loading = false),
             onDisconnect = {},
-            onRetryDisconnect = {}
+            onRetryDisconnect = {},
+            dataReadiness = checkedDataTypes.associateWith { DataReadiness() },
+            onRecheckData = {}
         )
     }
 }
