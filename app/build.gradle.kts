@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.polarh10activityviewer"
-        minSdk = 27
+        minSdk = 33
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -36,6 +36,9 @@ android {
 }
 
 dependencies {
+    implementation(libs.polar.ble.sdk)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.rx3)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
