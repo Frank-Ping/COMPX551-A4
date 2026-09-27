@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DataReadinessTest {
-    @Test fun accSelects100ButDoesNotGuessRange() {
+    @Test fun accSelectsConfirmed100HzAnd4g() {
         val result = checkedSettings(PolarDeviceDataType.ACC, mapOf(
             SettingType.SAMPLE_RATE to setOf(25, 100, 200),
             SettingType.RANGE to setOf(2, 4, 8),
@@ -14,8 +14,8 @@ class DataReadinessTest {
         ))
         assertEquals(100, result.selected[SettingType.SAMPLE_RATE])
         assertEquals(16, result.selected[SettingType.RESOLUTION])
-        assertFalse(result.selected.containsKey(SettingType.RANGE))
-        assertFalse(result.configurationComplete)
+        assertEquals(4, result.selected[SettingType.RANGE])
+        assertTrue(result.configurationComplete)
         assertNull(result.error)
     }
 
@@ -25,6 +25,31 @@ class DataReadinessTest {
         assertFalse(result.configurationComplete)
         assertFalse(result.selected.containsKey(SettingType.SAMPLE_RATE))
         assertNotNull(result.error)
+    }
+
+    @Test fun accWithout4gIsBlockedEvenWhenAnotherRangeIsTheOnlyOption() {
+        for (ranges in listOf(setOf(2), setOf(8), setOf(2, 8))) {
+            val result = checkedSettings(PolarDeviceDataType.ACC, mapOf(
+                SettingType.SAMPLE_RATE to setOf(100), SettingType.RANGE to ranges
+            ))
+            assertFalse(result.configurationComplete)
+            assertFalse(result.selected.containsKey(SettingType.RANGE))
+            assertTrue(result.error!!.contains("4 g"))
+        }
+        val missing = checkedSettings(PolarDeviceDataType.ACC, mapOf(SettingType.SAMPLE_RATE to setOf(100)))
+        assertFalse(missing.configurationComplete)
+        assertNotNull(missing.error)
+    }
+
+    @Test fun accOtherMultipleOptionsStillRequireConfirmation() {
+        val result = checkedSettings(PolarDeviceDataType.ACC, mapOf(
+            SettingType.SAMPLE_RATE to setOf(100), SettingType.RANGE to setOf(4),
+            SettingType.RESOLUTION to setOf(8, 16)
+        ))
+        assertFalse(result.configurationComplete)
+        assertFalse(result.selected.containsKey(SettingType.RESOLUTION))
+        assertEquals(4, result.selected[SettingType.RANGE])
+        assertNull(result.error)
     }
 
     @Test fun ecgAcceptsOnlySingleOptions() {

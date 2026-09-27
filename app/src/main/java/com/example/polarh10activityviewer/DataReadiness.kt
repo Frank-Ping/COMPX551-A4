@@ -27,17 +27,24 @@ internal fun checkedSettings(type: PolarDeviceDataType, settings: Map<SettingTyp
             error = "Missing or invalid settings. Recheck this device.")
     }
     val selected = available.mapNotNull { (key, values) ->
-        val value = if (type == PolarDeviceDataType.ACC && key == SettingType.SAMPLE_RATE) {
-            100.takeIf { it in values }
-        } else values.singleOrNull()
+        val value = when {
+            type == PolarDeviceDataType.ACC && key == SettingType.SAMPLE_RATE -> 100.takeIf { it in values }
+            type == PolarDeviceDataType.ACC && key == SettingType.RANGE -> 4.takeIf { it in values }
+            else -> values.singleOrNull()
+        }
         value?.let { key to it }
     }.toMap()
     val accRateMissing = type == PolarDeviceDataType.ACC && 100 !in available.getValue(SettingType.SAMPLE_RATE)
+    val accRangeMissing = type == PolarDeviceDataType.ACC && 4 !in available[SettingType.RANGE].orEmpty()
     return DataReadiness(
         status = DataReadinessStatus.READY,
         available = available,
         selected = selected,
-        configurationComplete = !accRateMissing && selected.keys == available.keys,
-        error = if (accRateMissing) "ACC disabled: 100 Hz is unavailable. No alternative rate selected." else null
+        configurationComplete = !accRateMissing && !accRangeMissing && selected.keys == available.keys,
+        error = when {
+            accRateMissing -> "ACC disabled: 100 Hz is unavailable. No alternative rate selected."
+            accRangeMissing -> "ACC disabled: +/-4 g is unavailable. No alternative range selected."
+            else -> null
+        }
     )
 }
