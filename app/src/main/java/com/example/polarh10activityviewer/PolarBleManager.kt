@@ -19,15 +19,19 @@ import com.polar.sdk.api.PolarBleApiDefaultImpl
 import com.polar.sdk.api.PolarBleDisconnectInfo
 import com.polar.sdk.api.model.PolarDeviceInfo
 import com.polar.sdk.api.model.PolarHealthThermometerData
+import com.polar.sdk.api.model.PolarHrData
+import com.polar.sdk.api.model.PolarSensorSetting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -90,10 +94,56 @@ class PolarBleManager(context: Context) {
     private val unavailableFeatures = mutableSetOf<PolarBleSdkFeature>()
     private val mutableDataReadiness = MutableStateFlow(checkedDataTypes.associateWith { DataReadiness() })
     val dataReadiness = mutableDataReadiness.asStateFlow()
-    private val dataSubscriptions = DataSubscriptions(CoroutineScope(Dispatchers.Main.immediate))
+    private val latestHeartRate = LatestHeartRate()
+    val heartRate = latestHeartRate.reading
+    private val accBuffer = AccBuffer()
+    val accSamples = accBuffer.samples
+    private val dataSubscriptions = DataSubscriptions(
+        CoroutineScope(Dispatchers.Main.immediate)
+    ) { type, status ->
+        latestHeartRate.onSubscriptionState(type, status)
+        accBuffer.onSubscriptionState(type, status)
+    }
     internal val subscriptionStates = dataSubscriptions.states
 
-    // Real SDK flow factories and data consumers are added in steps 4.1-4.3.
+    @MainThread
+    fun startHr(): Boolean = startDataSubscription(
+        PolarDeviceDataType.HR,
+        stream = { source, identifier ->
+            source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
+        },
+        onData = { latestHeartRate.receive(it, System.currentTimeMillis()) }
+    )
+
+    @MainThread
+    fun stopHr() = stopDataSubscription(PolarDeviceDataType.HR)
+
+    @MainThread
+    fun startAcc(): Boolean {
+        if (readinessJob != null) return false
+        return startDataSubscription(
+            PolarDeviceDataType.ACC,
+            stream = { source, identifier ->
+                val settings = source.requestStreamSettings(identifier, PolarDeviceDataType.ACC)
+                currentCoroutineContext().ensureActive()
+                if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
+                    throw CancellationException("ACC connection is no longer current.")
+                }
+                val checked = checkedSettings(PolarDeviceDataType.ACC, settings.settings)
+                setDataReadiness(PolarDeviceDataType.ACC, checked)
+                check(checked.configurationComplete) {
+                    checked.error ?: "ACC settings need confirmation. Confirm the displayed options before starting."
+                }
+                source.startAccStreaming(identifier, PolarSensorSetting(checked.selected))
+                    .filter { it.samples.isNotEmpty() }
+            },
+            onData = accBuffer::receive
+        )
+    }
+
+    @MainThread
+    fun stopAcc() = stopDataSubscription(PolarDeviceDataType.ACC)
+
     @MainThread
     internal fun <T> startDataSubscription(
         type: PolarDeviceDataType,
@@ -375,7 +425,7 @@ class PolarBleManager(context: Context) {
     }
 
     fun recheckDataReadiness() {
-        if (readinessJob != null) return
+        if (readinessJob != null || dataSubscriptions.isActive(PolarDeviceDataType.ACC)) return
         val source = api ?: return
         val identifier = mutableConnectionState.value.device?.deviceId ?: return
         if (!readinessMatches(source, identifier)) return
@@ -404,7 +454,8 @@ class PolarBleManager(context: Context) {
     }
 
     private fun queryStreamSettings(source: PolarBleApi, identifier: String) {
-        if (readinessJob != null || !readinessMatches(source, identifier)) return
+        if (readinessJob != null || dataSubscriptions.isActive(PolarDeviceDataType.ACC) ||
+            !readinessMatches(source, identifier)) return
         val generation = readinessGeneration
         val types = listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
         types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.CHECKING)) }
@@ -596,9 +647,32 @@ internal data class SubscriptionState(
     val error: String? = null
 )
 
+data class HeartRateReading(val bpm: Int, val receivedAt: Long)
+
+@MainThread
+internal class LatestHeartRate {
+    private val mutableReading = MutableStateFlow<HeartRateReading?>(null)
+    val reading = mutableReading.asStateFlow()
+
+    fun receive(batch: PolarHrData, receivedAt: Long) {
+        batch.samples.forEach { sample ->
+            mutableReading.value = HeartRateReading(sample.hr, receivedAt)
+        }
+    }
+
+    fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
+        if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING) {
+            mutableReading.value = null
+        }
+    }
+}
+
 // Confined to the main thread by the manager; tests use a single coroutine test scheduler.
 @MainThread
-internal class DataSubscriptions(private val scope: CoroutineScope) {
+internal class DataSubscriptions(
+    private val scope: CoroutineScope,
+    private val onStateChanged: (PolarDeviceDataType, SubscriptionStatus) -> Unit = { _, _ -> }
+) {
     private class Task {
         lateinit var job: Job
         var stopping = false
@@ -609,7 +683,10 @@ internal class DataSubscriptions(private val scope: CoroutineScope) {
     private val mutableStates = MutableStateFlow(checkedDataTypes.associateWith { SubscriptionState() })
     val states = mutableStates.asStateFlow()
 
+    fun isActive(type: PolarDeviceDataType) = type in tasks
+
     private fun setState(type: PolarDeviceDataType, status: SubscriptionStatus, error: String? = null) {
+        onStateChanged(type, status)
         mutableStates.value = mutableStates.value + (type to SubscriptionState(status, error))
     }
 

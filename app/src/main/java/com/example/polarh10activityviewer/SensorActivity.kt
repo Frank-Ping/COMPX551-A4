@@ -89,6 +89,9 @@ class SensorActivity : ComponentActivity() {
             val batteryLevel by bleManager.batteryLevel.collectAsState()
             val savedDevicesState by bleManager.savedDevicesState.collectAsState()
             val dataReadiness by bleManager.dataReadiness.collectAsState()
+            val heartRate by bleManager.heartRate.collectAsState()
+            val accSamples by bleManager.accSamples.collectAsState()
+            val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     SessionScreen(
@@ -107,6 +110,14 @@ class SensorActivity : ComponentActivity() {
                         onRetryDisconnect = ::handleRetryDisconnect,
                         dataReadiness = dataReadiness,
                         onRecheckData = ::handleRecheckData,
+                        heartRate = heartRate,
+                        hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
+                        onStartHr = ::handleStartHr,
+                        onStopHr = { bleManager.stopHr() },
+                        accSamples = accSamples,
+                        accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
+                        onStartAcc = ::handleStartAcc,
+                        onStopAcc = { bleManager.stopAcc() },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -210,6 +221,18 @@ class SensorActivity : ComponentActivity() {
         if (availability == BluetoothAvailability.READY) bleManager.recheckDataReadiness()
     }
 
+    private fun handleStartHr() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.startHr()
+    }
+
+    private fun handleStartAcc() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.startAcc()
+    }
+
     @SuppressLint("MissingPermission")
     private fun handleBluetoothAction() {
         if (systemRequestPending) return
@@ -250,7 +273,7 @@ enum class BluetoothAvailability(val message: String, val buttonLabel: String) {
 }
 
 @Composable
-fun SessionScreen(
+internal fun SessionScreen(
     availability: BluetoothAvailability,
     actionEnabled: Boolean,
     errorMessage: String?,
@@ -266,7 +289,15 @@ fun SessionScreen(
     dataReadiness: Map<PolarDeviceDataType, DataReadiness>,
     onRecheckData: () -> Unit,
     modifier: Modifier = Modifier,
-    batteryLevel: Int? = null
+    batteryLevel: Int? = null,
+    heartRate: HeartRateReading? = null,
+    hrSubscription: SubscriptionState = SubscriptionState(),
+    onStartHr: () -> Unit = {},
+    onStopHr: () -> Unit = {},
+    accSamples: List<AccSample> = emptyList(),
+    accSubscription: SubscriptionState = SubscriptionState(),
+    onStartAcc: () -> Unit = {},
+    onStopAcc: () -> Unit = {}
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -277,10 +308,34 @@ fun SessionScreen(
         Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
         connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
         Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}")
+        HeartRatePanel(
+            reading = heartRate,
+            subscription = hrSubscription,
+            canStart = actionEnabled && availability == BluetoothAvailability.READY &&
+                connectionState.status == ConnectionStatus.CONNECTED &&
+                dataReadiness[PolarDeviceDataType.HR]?.let {
+                    it.status == DataReadinessStatus.READY && it.configurationComplete
+                } == true,
+            onStart = onStartHr,
+            onStop = onStopHr
+        )
+        val accBusy = accSubscription.status in setOf(
+            SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
+        )
+        AccPanel(
+            samples = accSamples,
+            subscription = accSubscription,
+            readiness = dataReadiness[PolarDeviceDataType.ACC] ?: DataReadiness(),
+            canStart = actionEnabled && availability == BluetoothAvailability.READY &&
+                connectionState.status == ConnectionStatus.CONNECTED &&
+                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING } && !accBusy,
+            onStart = onStartAcc,
+            onStop = onStopAcc
+        )
         DataReadinessPanel(
             states = dataReadiness,
             canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED,
+                connectionState.status == ConnectionStatus.CONNECTED && !accBusy,
             onRecheck = onRecheckData
         )
         connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -370,6 +425,84 @@ fun SessionScreen(
     }
 }
 
+// Temporary HR verification controls; formal session controls belong to step 4.4.
+@Composable
+private fun HeartRatePanel(
+    reading: HeartRateReading?,
+    subscription: SubscriptionState,
+    canStart: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Heart rate (development check)", style = MaterialTheme.typography.titleMedium)
+        val status = when (subscription.status) {
+            SubscriptionStatus.IDLE -> "Idle"
+            SubscriptionStatus.STARTING -> "Starting"
+            SubscriptionStatus.RECEIVING -> "Receiving"
+            SubscriptionStatus.STOPPING -> "Stopping"
+            SubscriptionStatus.STOPPED -> "Stopped"
+            SubscriptionStatus.FAILED -> "Failed"
+        }
+        Text("HR stream: $status")
+        Text("HR: ${reading?.let { "${it.bpm} bpm" } ?: "--"}")
+        val receivedAt = reading?.let {
+            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH)
+                .format(Date(it.receivedAt))
+        } ?: "--"
+        Text("Last received on phone: $receivedAt")
+        Text("Shows the last received value; the time is not a sensor sampling timestamp.")
+        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        val active = subscription.status == SubscriptionStatus.STARTING ||
+            subscription.status == SubscriptionStatus.RECEIVING
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onStart, enabled = canStart && !active &&
+                subscription.status != SubscriptionStatus.STOPPING) { Text("Start HR") }
+            Button(onClick = onStop, enabled = active) { Text("Stop HR") }
+        }
+    }
+}
+
+// Temporary ACC verification UI; retained samples are not a live reading after stopping.
+@Composable
+private fun AccPanel(
+    samples: List<AccSample>,
+    subscription: SubscriptionState,
+    readiness: DataReadiness,
+    canStart: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Acceleration (development check)", style = MaterialTheme.typography.titleMedium)
+        Text("ACC stream: ${subscription.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
+        val receiving = subscription.status == SubscriptionStatus.RECEIVING
+        Text(if (receiving) "Latest received samples" else "Inactive snapshot")
+        Text("Selected rate: ${readiness.selected[SettingType.SAMPLE_RATE] ?: "--"} Hz")
+        Text("Selected range: +/-${readiness.selected[SettingType.RANGE] ?: "--"} g")
+        Text("Selected resolution: ${readiness.selected[SettingType.RESOLUTION] ?: "--"} bits")
+        val latest = samples.lastOrNull()
+        Text("X: ${latest?.x ?: "--"} mG; Y: ${latest?.y ?: "--"} mG; Z: ${latest?.z ?: "--"} mG")
+        Text("Sensor timestamp: ${latest?.timeStamp ?: "--"} ns (epoch 2000-01-01)")
+        Text("Buffer: ${samples.size} samples (up to 10 s / 1,000 samples)")
+        val lastGap = samples.lastOrNull { it.gapBeforeNs != null }
+        Text(if (lastGap == null) "Gap > 30 ms in buffer: none"
+            else "Last gap in buffer: ${lastGap.gapBeforeNs!! / 1_000_000.0} ms at ${lastGap.timeStamp} ns")
+        readiness.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (readiness.status == DataReadinessStatus.READY && !readiness.configurationComplete && readiness.error == null) {
+            Text("Confirm the available options in Data readiness before starting ACC.")
+        }
+        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onStart, enabled = canStart && readiness.status == DataReadinessStatus.READY &&
+                readiness.configurationComplete) { Text("Start ACC") }
+            Button(onClick = onStop, enabled = subscription.status == SubscriptionStatus.STARTING || receiving) {
+                Text("Stop ACC")
+            }
+        }
+    }
+}
+
 // Temporary verification UI: remove during stage 8, keeping the underlying readiness checks.
 @Composable
 private fun DataReadinessPanel(
@@ -379,7 +512,7 @@ private fun DataReadinessPanel(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Data readiness", style = MaterialTheme.typography.titleMedium)
-        Text("Readiness check only. Data collection has not started.")
+        Text("Feature readiness and configuration are separate from data reception.")
         checkedDataTypes.forEach { type ->
             val state = states[type] ?: DataReadiness()
             Text("${type.name}: ${state.status.message}")
