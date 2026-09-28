@@ -6,7 +6,7 @@
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：步骤 0.1—3.2（包括 2.3 设备电量）及 4.1—4.2 的代码已落实；已接入真实 SDK HR、ACC 流及临时启停界面，41 项单元测试、debug 构建和 lint 已通过，真实 H10 采集与完整生命周期验收待完成，见 5.15—5.16 和第 9 节。ECG 数据流及 4.4 正式会话控制尚未接入。用户已反馈扫描 RSSI 持续刷新；步伐、步频与距离方案已确定，其他待填写项由用户指导。
+- 当前阶段：步骤 0.1—3.2（包括 2.3 设备电量）及 4.1—4.3 的代码已落实；已接入真实 SDK HR、ACC、ECG 流及临时启停界面，49 项单元测试、debug 构建和 lint 已通过。用户反馈解除其他程序占用后 ACC 启动检查通过；ECG 真机采集、三路并行及完整生命周期验收待完成，见 5.15—5.17 和第 9 节。4.4 正式会话控制尚未接入。用户已反馈扫描 RSSI 持续刷新；步伐、步频与距离方案已确定，其他待填写项由用户指导。
 
 ## 2. 协作规则
 
@@ -98,8 +98,8 @@
 | 断线与重连行为 | 主动断开由回调确认，保留设备记录；意外断线提示后由用户手动重连；再次连接使用 10 秒超时，见 5.11 |
 | 设备电量 | 步骤 2.3 已实施：启用 SDK 电量回调，展示当前有效连接的电量百分比；未收到或断开后显示占位符，测试及构建通过，真机待验证，见 5.14 |
 | HR、ACC、ECG 采样配置 | ACC 目标 100 Hz、±4 g，见 5.16；HR 不设置可选采样率；启动前复核当前设备支持配置，其他参数选择规则见 5.12 |
-| 数据功能就绪与订阅管理 | 3.1 就绪查询与 3.2 订阅管理已实施，见 5.12—5.13；4.1—4.2 已接入真实 HR、ACC SDK 流，见 5.15—5.16，真机待验证；ECG 流尚未接入 |
-| 时间戳、单位、缺失数据规则 | HR 使用手机接收时间，单位 bpm，见 5.15；ACC 使用样本时间戳、间隔大于 30 ms 判定缺口，暂存最近 10 秒且最多 1,000 样本，见 5.16；算法中断规则见 5.6，其余规则待填写 |
+| 数据功能就绪与订阅管理 | 3.1 就绪查询与 3.2 订阅管理已实施，见 5.12—5.13；4.1—4.3 已接入真实 HR、ACC、ECG SDK 流，见 5.15—5.17；ACC 启动通过用户反馈确认，其余完整真机验收待完成 |
+| 时间戳、单位、缺失数据规则 | HR 使用手机接收时间，单位 bpm，见 5.15；ACC 使用样本时间戳、间隔大于 30 ms 判定缺口，暂存最近 10 秒且最多 1,000 样本，见 5.16；ECG 保留原始样本时间戳及 µV，暂存最近 10 秒且最多 1,300 样本，见 5.17；算法中断规则见 5.6 |
 | 步伐、步频、步长、距离算法 | 已确定，见 5.1—5.7；A_min 待静止实测确定 |
 | 速度及速度统计 | 【待填写：指标含义、计算窗口、单位】 |
 | 心率区间与运动强度规则 | 【待填写：阈值来源、个体参数】 |
@@ -346,7 +346,7 @@
 - SDK 核对：8.3.0 startHrStreaming 返回 Flow<PolarHrData>；官方接口声明关闭连接、流错误或取消收集会停止该流；另有 suspend stopHrStreaming。实现核对显示 HR 数据来自 observeHrNotifications。本步复用 Job.cancel 取消收集，不额外叠加停止请求；本地订阅取消不等于验证了 H10 硬件停止测量。[官方接口](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/PolarOnlineStreamingApi.kt)、[8.3.0 实现](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/impl/BDBleApiImpl.kt)。
 - 已执行验证：新增 HeartRateTest.kt 的 8 项受控测试，覆盖批次末样本与单次接收时间、相同值更新时间、空批次、重复开始保留读数、停止立即清空及清理后重启、正常结束与失败清空/手动重试、全部清理后不自动恢复、旧连接与旧任务事件隔离、其他流状态不清空 HR；复用原有 11 项订阅测试。全部 31 项测试通过，0 failures、0 errors、0 skipped；:app:testDebugUnitTest :app:assembleDebug :app:lintDebug 成功，lint 0 errors、18 warnings。首次沙箱执行被 Gradle 下载网络限制阻止；获准使用主机环境后完成上述检查。
 - 待执行真机验收：① 连接佩戴好的 H10，HR Ready 后点击 Start HR，收到真实样本才显示 Receiving，数值和手机接收时间持续更新（相同数值也更新时间）；② 连续点击 Start HR 不重复订阅、不清空已有值；③ Stop HR 后心率及时间立即显示 --，设备保持连接，清理完成后手动重新开始；④ 旋转保持连接、采集及最新值，无重复启动；⑤ 主动/意外断开、关闭蓝牙或撤销权限后读数清空，重连不自动采集；⑥ 锁屏、后台、返回欢迎页后停止并断开，返回后手动连接和启动。上述真机检查本次均未执行；失败重试与迟到事件仅通过受控测试验证，真实设备故障场景仍待验收。
-- 验证边界：已修改代码、通过测试和构建，不表示真实 H10 已持续上报或手机生命周期行为已真机通过。4.1 实施时未推进后续步骤；后续 4.2 结果见 5.16。4.3、4.4、算法、图表和持久化仍未实施；测试数据仅在 src/test。
+- 验证边界：已修改代码、通过测试和构建，不表示真实 H10 已持续上报或手机生命周期行为已真机通过。4.1 实施时未推进后续步骤；后续 4.2 结果见 5.16。4.3 实施结果见 5.17；4.4、算法、图表和持久化仍未实施；测试数据仅在 src/test。
 - SDK 依据：[8.3.0 PolarHrData 字段](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/model/PolarHrData.kt)。
 
 ### 5.16 步骤 4.2：ACC 量程、数据缺口与暂存规则
@@ -370,6 +370,8 @@
 - 待执行真机验收：① 连接佩戴好的 H10，确认选定 100 Hz、±4 g，Start ACC 后仅真实样本到达才显示 Receiving；核对实际可用参数、x/y/z 单位及时间戳持续推进。② 静止及改变朝向时核对含重力的三轴值；走路/跑步时用调试器查看缓存各轴是否反复接近 ±4,000 mG 或峰顶截平，当前 UI 的批次末值不能证明没有削顶，不自动换量程。③ 持续采集超过 10 秒，确认样本数不超过 1,000，调试器核对缓存首尾时间满足窗口规则；自然缺口出现时核对跨批次 gapBeforeNs，无缺口时不宣称已真机验证缺口分支。④ 连续点击、查询中 Stop、快速 Stop/Start：仅一个本地任务，停止保留并标为 Inactive snapshot，新开始清空后接收；记录 SDK 是否报告正在停止/已启动等失败，失败后仅手动重试。⑤ 同时运行 HR 与 ACC，单独 Stop ACC 后 HR 继续且蓝牙保持连接；单路失败隔离的真实故障场景待验证。⑥ 旋转不中断或重复订阅；主动/意外断线、关闭蓝牙、撤销权限、锁屏/后台后缓存停止更新，返回手动重连且不自动采集；返回欢迎页或进程结束后不承诺内存快照保留。上述真机检查本次均未执行。
 - SDK 依据：[8.3.0 H10 采样率和量程](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/documentation/products/PolarH10.md)、[8.3.0 ACC 单位与时间戳](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/model/PolarAccelerometerData.kt)。
 
+- 用户真机反馈（本次补录）：用户确认此前 Start ACC 的 ERROR_ALREADY_IN_STATE 是另一个程序占用采集功能导致，解除占用后检查通过。记录为 ACC 启动检查通过；没有确认本 App 的启停缺陷，不据此新增修复，也不扩大为快速启停、削顶、缓存上限、多流并行或完整生命周期验收通过。
+
 ### 5.17 步骤 4.3：ECG 数据保留规则
 
 - 目标：接收真实 ECG 数据，逐样本保留传感器时间戳和电压值（µV）；使用 SDK 的样本 timeStamp，不用手机接收时间替代采样时间。
@@ -377,7 +379,14 @@
 - 暂存范围（2026-09-28 用户确认）：运行时保留最近 10 秒 ECG，窗口为 (t − 10 秒, t]，t 为最新样本时间戳；同时最多保留 1,300 个样本。新样本进入后移除超时或超量的最旧样本，不无限累积。
 - 处理与用途：收到数据即可逐样本处理，不等待缓存填满；用于短段连续数据验收及后续实时曲线。10 秒为工程缓存选择，不是医学分析标准；后续曲线显示窗口可以小于缓存窗口，本步不实现图表。
 - 存储边界：仅保存在内存，不保存整段 ECG 历史，不实现导出或完整会话回放；如后续需要持久化，另行确定。停止、失败或断线后的缓存保留与显示按 5.18：保留已停止或失败的快照，重试对应流或再次 Start 时清空相关缓存。
-- 实施与验收：仅确认规划，尚未接入真实 ECG 流；本次未运行构建或真机验收。实施时验证真实数据、单位、样本时间轴和 10 秒/1,300 样本上限，并按 5.13 验证停止/重启、取消清理及多流兼容性。
+- 实际实现（2026-09-28）：PolarBleManager.kt 增加 startEcg/stopEcg，将 startEcgStreaming 接入现有 ECG DataSubscriptions 任务。复用连接、权限、就绪、配置完整条件及任务身份检查；每次接受的启动或重试都在任务内重新 requestStreamSettings，再按 checkedSettings 的唯一选项策略生成配置，不硬编码 130 Hz、不自动选择多选项最大值。配置不完整展示实际选项并阻止该流，等待用户确认；没有更改 HR、ACC 的选值规则。
+- 查询协调：ACC 与 ECG 的启动前查询共用 currentStreamSettings 和一个 Mutex，仅串行查询、校验及发布选定设置，不锁住持续采集；等待查询也属于本流 STARTING 任务，重复启动被拒绝，Stop 可取消等待或查询。取得锁后及查询返回后检查取消和当前连接。已有统一 readiness 查询进行时拒绝新 ACC/ECG 启动；ACC 或 ECG 任务存在时禁止统一 Recheck，防止其覆盖使用中的设置。两路已就绪的流可以分别启动并同时接收，HR 不受查询锁影响。
+- 样本与缓存：新增 EcgBuffer.kt，通过 h10EcgSamples 提取 SDK EcgSample，跳过其他样本类型及空批次；只有实际 H10 ECG 样本到达才触发 RECEIVING。按输入顺序保存 SDK 的 timeStamp（ns，2000-01-01 起点）及带符号 voltage（µV），无接收时间替代、转换或滤波。逐样本移除窗口左端点及更旧数据，同时限制 1,300 个样本；每批发布一次只读列表，不等窗口填满，不插值，也不套用 ACC 的 30 ms 阈值。
+- 启停与生命周期：新 ECG 启动被接受时清空本流缓存，重复请求不清空；停止、正常结束、失败或连接中断保留快照。旧事件沿用原订阅身份和连接有效性防护；停止后等待本地任务清理再允许重启。单独停止/失败 ECG 不停止 HR、ACC 或请求蓝牙断开。旋转保留 ViewModel、订阅及缓存；主动/意外断线、蓝牙或权限丢失、离开前台与 SDK 释放复用全部清理；手动重连不自动恢复，ViewModel 清除或进程结束后不承诺内存快照仍存在。
+- 临时界面：SensorActivity.kt 增加 Start ECG/Stop ECG，展示状态、选定频率/分辨率、最新电压 µV、样本时间戳、缓存数量及独立配置/采集错误；完整设置继续展示于 Data readiness。非 RECEIVING 显示 Inactive snapshot；启动、接收、停止期间禁止本流重复开始，查询中允许停止。不增加正式会话控制或曲线。
+- SDK 核对与停止边界：8.3.0 startEcgStreaming 返回 Flow<PolarEcgData>；H10 普通 ECG 样本为 EcgSample，FecgSample 不解释为 H10 电压数据。取消收集后 SDK 在 finally 中调用 stopPmdStreaming，后者独立异步发送设备停止命令；本地 Job 完成不表示硬件停止已确认。本步未增加任意等待时间、自动重试或额外设备停止请求。[官方采集接口](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/PolarOnlineStreamingApi.kt)、[SDK 实现](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/impl/BDBleApiImpl.kt)。
+- 已执行验证：新增 EcgBufferTest.kt 的 8 项受控测试，覆盖样本子类型提取、正负及零电压、原始时间戳与顺序、空批次、不插值、10 秒窗口左端点、1,300 样本上限、重复请求不清空、停止等待清理与重启清空、正常结束/失败/停止保留、HR/ACC 失败隔离、重复全部清理与重连不自动恢复、旧任务和旧连接事件。复用现有配置策略、订阅、HR、ACC 测试；共 49 项通过，0 failures、0 errors、0 skipped。:app:testDebugUnitTest :app:assembleDebug :app:lintDebug 成功，lint 0 errors、18 warnings，与上一步数量相同。SDK 实际查询和多流设备行为仅做源码核对，受控测试不作为真机或硬件停止证据。
+- 待执行真机验收：① 关闭其他占用 H10 采集的程序，连接佩戴好的 H10，核对实际 ECG 设置；唯一选项自动选择，多选项保持未确认。Start ECG 后实际样本到达才显示 Receiving，检查电压单位 µV、带符号数值和纳秒时间戳持续更新。② 连续接收超过 10 秒，确认缓存不超过 1,300；用调试器检查首尾时间戳符合 (t−10 秒, t]，不因批次拆分丢样或补样。③ 重复点击、查询中 Stop、快速 Stop/Start：不重复订阅，停止保留并标为 Inactive snapshot，新接受的启动立即清空；记录真实 SDK 停止/重启结果，失败只手动重试。④ 同时运行 HR、ACC、ECG，核对当前设置兼容性；停止 ECG 后 HR、ACC 继续且蓝牙保持连接，真实单流故障隔离仍需验证。⑤ 旋转保持采集和缓存；主动/意外断线、蓝牙关闭、权限撤销、锁屏/后台后停止更新并保留存活 ViewModel 内的快照，重连不自动恢复。以上 ECG 真机项目本次全部未执行；未实现 4.4、滤波、峰值检测、医学解释、统计、图表或存储。
 - SDK 依据：[8.3.0 H10 ECG 规格](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/documentation/products/PolarH10.md)、[8.3.0 ECG 样本时间戳](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/model/PolarEcgData.kt)。
 
 ### 5.18 步骤 4.4：Start/Stop 会话规则
@@ -482,28 +491,31 @@
 
 ## 9. 进度与证据
 
-- 更新日期：2026-09-28。
-- 当前步骤：0.1—3.2（含 2.3）及 4.1—4.2 已有实现；本次接入真实 ACC SDK 流、固定配置、缺口标记、有限缓存与临时启停界面，测试、debug 构建和 lint 通过，真机待验证，见 5.16。下一开发步骤为 4.3；ECG 采集和正式会话控制尚未实施。
-- 本次已写入文件（4.2）：修改 DataReadiness.kt、PolarBleManager.kt、SensorActivity.kt、DataReadinessTest.kt；新增 AccBuffer.kt、AccBufferTest.kt；同步两份 AGENTS.md。保留原 4.1 HR 实现；未修改依赖、Manifest、ViewModel、存储或提示词文件。
-- 本次构建验证（4.2）：2026-09-28 使用 Android Studio JBR 执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug，BUILD SUCCESSFUL；41 项测试通过（ACC 8、HR 8、订阅 11、电量 7、配置 6、模板 1），0 failures、0 errors、0 skipped；lint 0 errors、18 warnings，与上次数量一致。真实 ACC、削顶、快速停止/重启、HR 并行、旋转及断线/后台验收均待执行，见 5.16。
+- 更新日期：2026-09-29（本次补录 4.3 提示词；既有构建结果沿用实施记录）。
+- 当前步骤：0.1—3.2（含 2.3）及 4.1—4.3 已有实现；本次接入真实 ECG SDK 流、设置复查、有限缓存及临时启停界面，测试、debug 构建和 lint 通过，ECG 真机待验证，见 5.17。下一开发步骤为 4.4；正式会话控制和计时尚未实施。
+- 本次已写入文件（4.3）：修改 PolarBleManager.kt、SensorActivity.kt；新增 EcgBuffer.kt、EcgBufferTest.kt；同步两份 AGENTS.md 并补录 ACC 占用问题的用户反馈。保留 HR/ACC 行为；未修改依赖、Manifest、ViewModel、设备存储或 prompt.md。
+- 本次构建验证（4.3）：2026-09-28 使用 Android Studio JBR，:app:testDebugUnitTest :app:assembleDebug :app:lintDebug 最终 BUILD SUCCESSFUL；49 项测试通过（ECG 8、ACC 8、HR 8、订阅 11、电量 7、配置 6、模板 1），0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。真实 ECG 接收、设置、快速启停、三路并行及完整生命周期验收待执行。
+- 先前已写入文件（4.2）：修改 DataReadiness.kt、PolarBleManager.kt、SensorActivity.kt、DataReadinessTest.kt；新增 AccBuffer.kt、AccBufferTest.kt；同步两份 AGENTS.md。保留原 4.1 HR 实现；未修改依赖、Manifest、ViewModel、存储或提示词文件。
+- 先前构建验证（4.2）：2026-09-28 使用 Android Studio JBR 执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug，BUILD SUCCESSFUL；41 项测试通过（ACC 8、HR 8、订阅 11、电量 7、配置 6、模板 1），0 failures、0 errors、0 skipped；lint 0 errors、18 warnings，与上次数量一致。真实 ACC、削顶、快速停止/重启、HR 并行、旋转及断线/后台验收均待执行，见 5.16。
 - 先前已写入文件（4.1）：修改 PolarBleManager.kt、SensorActivity.kt，新增 HeartRateTest.kt，同步两份 AGENTS.md；未修改依赖、Manifest、存储、ViewModel 或 prompt.md。
 - 先前构建验证（4.1）：2026-09-28 使用 Android Studio JBR，:app:testDebugUnitTest :app:assembleDebug :app:lintDebug 最终 BUILD SUCCESSFUL；31 项测试通过（HR 8、订阅 11、电量 7、配置 4、模板 1），0 failures、0 errors、0 skipped；lint 0 errors、18 warnings，与此前数量一致。真实 H10 连续接收、快速启停、旋转、权限和断线/后台验收均待执行。
 - 先前已写入文件（2.3）：修改 `PolarBleManager.kt`、`SensorActivity.kt`，新增 `DeviceBatteryTest.kt`，同步两份 AGENTS.md；未修改依赖、Manifest、存储、ViewModel 或提示词文档。
 - 先前构建验证（2.3）：2026-09-27 使用 Android Studio JBR，在获准的主机环境执行 `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug`，最终 BUILD SUCCESSFUL；23 项测试通过，0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。真机电量、旋转、权限及断线/后台清理仍待逐项验收，见 5.14。
 - 先前规划记录：新增 5.12、5.13，明确 3.1、3.2 的状态、职责、错误处理、资源清理、步骤边界和验收方法。用户已确认 ACC 100 Hz 不可用时禁用该流、其他参数唯一值直接采用而多值需确认；单路失败其他流继续且手动重试；旋转保留订阅，离开前台清理，重连后手动开始采集。该规划阶段仅更新两份 AGENTS.md；后续 3.1、3.2 实施与验证结果分别见 5.12、5.13。
 - 临时界面决定：已记录第 8 阶段删除开发用详细状态展示及仅服务于它的文件，保留底层逻辑与正式用户状态；当前仅记录要求，未删除展示代码或文件。
-- 已提供代码：步骤 0.1—3.2（含 2.3）及 4.1—4.2 已直接写入项目；2.3 已接入电量回调，4.1—4.2 已在 3.2 内部订阅管理上接入真实 HR、ACC API。ECG 采集和正式会话控制尚未接入。
+- 已提供代码：步骤 0.1—3.2（含 2.3）及 4.1—4.3 已直接写入项目；2.3 已接入电量回调，4.1—4.3 已在 3.2 内部订阅管理上接入真实 HR、ACC、ECG API。正式会话控制尚未接入。
 - 先前已写入文件（3.2）：修改 `PolarBleManager.kt`，新增 `DataSubscriptionsTest.kt`；在 `gradle/libs.versions.toml`、`app/build.gradle.kts` 增加仅测试使用的 coroutines-test 1.10.2；同步更新两份 `AGENTS.md`。3.2 沿用已有界面、ViewModel 和就绪逻辑；本次 2.3 的改动见上文。
 - Git 记录：`ac252e4` 为步骤 2.1，`baad553` 为步骤 2.2，`5efc426` 为断开报错后手动重试修复；本次文档更新未自动提交。
 - 项目配置落实状态：`minSdk = 33`、Polar SDK 8.3.0、协程运行时依赖 1.10.2 保持原配置；3.2 增加同版本 coroutines-test 测试依赖，未修改 Manifest。
 - 已构建验证：2026-09-27 步骤 3.2 执行 `:app:assembleDebug :app:lintDebug :app:testDebugUnitTest`，BUILD SUCCESSFUL；16 项测试通过（11 项订阅管理、4 项配置策略、1 项原模板），0 failures、0 errors、0 skipped。lint 0 errors、18 warnings；比 3.1 的 17 项多出 coroutines-test 版本更新建议，固定 1.10.2 不变。首次沙箱构建因 Gradle 下载权限失败，随后获准在主机环境构建成功。报告位于项目 `app/build/reports/`，测试 XML 位于 `app/build/test-results/testDebugUnitTest/`，APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。
 - 已真机验证：此前通过 ADB 确认测试手机型号、Android 16 / API 36 和调试连接；2026-09-27 用户反馈实际测试中 RSSI 持续刷新。该反馈作为用户实测记录，不扩大为全部扫描、连接或存储验收通过；截图、日志及是否处于连接后状态尚未补充。
+- 用户真机反馈（本次补录）：用户确认此前 Start ACC 的 ERROR_ALREADY_IN_STATE 是另一个程序占用采集功能导致，解除占用后检查通过。记录为 ACC 启动检查通过；没有确认本 App 的启停缺陷，不据此新增修复，也不扩大为快速启停、削顶、缓存上限、多流并行或完整生命周期验收通过。
 - 待验证：权限拒绝与设置返回；扫描筛选、去重及停止规则；真实连接、10 秒超时、重试与生命周期；设备保存、时间更新及重启保留；主动与意外断线；断开异常重试、防重复点击及回调清理。读写错误和迟到回调仍待故障注入验证。
 - 3.1 待验证与待确认：真实设备功能就绪、实际采样设置、重复请求与旋转、失败重试、断开清理和迟到结果隔离均待运行时验证，步骤见 5.12；实际 ECG 与其他多选参数尚未读取，因此没有新增参数决定。构建和配置单元测试不等于上述真机验证已通过。
 - 审查跟进：断开请求抛错后无法重试已修复；“扫描 RSSI 不会刷新”的结论已撤回；系统时间回拨影响最近连接时间更新的问题尚未修复，见 5.11。
 - 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数、会话持久化字段及原始数据保留范围，以及第 5 节其余待填写项。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已明确仅 Start/Stop、首个数据开始计时、中断结束及结束时保存的规划，见 5.18；尚未实施。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
 - 截图/录屏位置：【待填写】。
-- AI 提示词与使用记录位置：工作区根目录 `prompt.md` 已记录 0.1、0.2、1.1、1.2、2.1、2.2 断开重试修复、3.1、3.2、2.3 及 4.1 的中英文提示词；本步未改写已有提示词。完整 2.2 实施提示词及采用/修改/拒绝原因、验证证据仍待补齐。
+- AI 提示词与使用记录位置：工作区根目录 `prompt.md` 已记录 0.1、0.2、1.1、1.2、2.1、2.2 断开重试修复、3.1、3.2、2.3、4.1 及 4.3 的中英文提示词；2026-09-29 补录 4.3 实际使用的提示词及实施/验证摘要，未改写已有提示词，未重新构建。完整 2.2、4.2 实施提示词及采用/修改/拒绝原因、验证证据仍待补齐。
 
 ## 10. 最终提交检查
 

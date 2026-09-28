@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 
 enum class ScanStatus(val message: String) {
@@ -98,11 +100,15 @@ class PolarBleManager(context: Context) {
     val heartRate = latestHeartRate.reading
     private val accBuffer = AccBuffer()
     val accSamples = accBuffer.samples
+    private val ecgBuffer = EcgBuffer()
+    val ecgSamples = ecgBuffer.samples
+    private val streamSettingsMutex = Mutex()
     private val dataSubscriptions = DataSubscriptions(
         CoroutineScope(Dispatchers.Main.immediate)
     ) { type, status ->
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
+        ecgBuffer.onSubscriptionState(type, status)
     }
     internal val subscriptionStates = dataSubscriptions.states
 
@@ -124,17 +130,8 @@ class PolarBleManager(context: Context) {
         return startDataSubscription(
             PolarDeviceDataType.ACC,
             stream = { source, identifier ->
-                val settings = source.requestStreamSettings(identifier, PolarDeviceDataType.ACC)
-                currentCoroutineContext().ensureActive()
-                if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
-                    throw CancellationException("ACC connection is no longer current.")
-                }
-                val checked = checkedSettings(PolarDeviceDataType.ACC, settings.settings)
-                setDataReadiness(PolarDeviceDataType.ACC, checked)
-                check(checked.configurationComplete) {
-                    checked.error ?: "ACC settings need confirmation. Confirm the displayed options before starting."
-                }
-                source.startAccStreaming(identifier, PolarSensorSetting(checked.selected))
+                val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ACC)
+                source.startAccStreaming(identifier, settings)
                     .filter { it.samples.isNotEmpty() }
             },
             onData = accBuffer::receive
@@ -143,6 +140,43 @@ class PolarBleManager(context: Context) {
 
     @MainThread
     fun stopAcc() = stopDataSubscription(PolarDeviceDataType.ACC)
+
+    @MainThread
+    fun startEcg(): Boolean {
+        if (readinessJob != null) return false
+        return startDataSubscription(
+            PolarDeviceDataType.ECG,
+            stream = { source, identifier ->
+                val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
+                source.startEcgStreaming(identifier, settings).h10EcgSamples()
+            },
+            onData = ecgBuffer::receive
+        )
+    }
+
+    @MainThread
+    fun stopEcg() = stopDataSubscription(PolarDeviceDataType.ECG)
+
+    // Serialize fresh ACC/ECG settings queries, not the lifetime of their data streams.
+    private suspend fun currentStreamSettings(
+        source: PolarBleApi, identifier: String, type: PolarDeviceDataType
+    ): PolarSensorSetting = streamSettingsMutex.withLock {
+        currentCoroutineContext().ensureActive()
+        if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
+            throw CancellationException("$type connection is no longer current.")
+        }
+        val settings = source.requestStreamSettings(identifier, type)
+        currentCoroutineContext().ensureActive()
+        if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
+            throw CancellationException("$type connection is no longer current.")
+        }
+        val checked = checkedSettings(type, settings.settings)
+        setDataReadiness(type, checked)
+        check(checked.configurationComplete) {
+            checked.error ?: "$type settings need confirmation. Confirm the displayed options before starting."
+        }
+        PolarSensorSetting(checked.selected)
+    }
 
     @MainThread
     internal fun <T> startDataSubscription(
@@ -425,7 +459,7 @@ class PolarBleManager(context: Context) {
     }
 
     fun recheckDataReadiness() {
-        if (readinessJob != null || dataSubscriptions.isActive(PolarDeviceDataType.ACC)) return
+        if (readinessJob != null || onlineStreamActive()) return
         val source = api ?: return
         val identifier = mutableConnectionState.value.device?.deviceId ?: return
         if (!readinessMatches(source, identifier)) return
@@ -453,8 +487,11 @@ class PolarBleManager(context: Context) {
         }
     }
 
+    private fun onlineStreamActive() = dataSubscriptions.isActive(PolarDeviceDataType.ACC) ||
+        dataSubscriptions.isActive(PolarDeviceDataType.ECG)
+
     private fun queryStreamSettings(source: PolarBleApi, identifier: String) {
-        if (readinessJob != null || dataSubscriptions.isActive(PolarDeviceDataType.ACC) ||
+        if (readinessJob != null || onlineStreamActive() ||
             !readinessMatches(source, identifier)) return
         val generation = readinessGeneration
         val types = listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)

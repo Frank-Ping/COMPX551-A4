@@ -37,6 +37,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
+import com.polar.sdk.api.model.EcgSample
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
 import java.text.DateFormat
 import java.util.Date
@@ -91,6 +92,7 @@ class SensorActivity : ComponentActivity() {
             val dataReadiness by bleManager.dataReadiness.collectAsState()
             val heartRate by bleManager.heartRate.collectAsState()
             val accSamples by bleManager.accSamples.collectAsState()
+            val ecgSamples by bleManager.ecgSamples.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -118,6 +120,10 @@ class SensorActivity : ComponentActivity() {
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
                         onStartAcc = ::handleStartAcc,
                         onStopAcc = { bleManager.stopAcc() },
+                        ecgSamples = ecgSamples,
+                        ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
+                        onStartEcg = ::handleStartEcg,
+                        onStopEcg = { bleManager.stopEcg() },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -233,6 +239,12 @@ class SensorActivity : ComponentActivity() {
         if (availability == BluetoothAvailability.READY) bleManager.startAcc()
     }
 
+    private fun handleStartEcg() {
+        if (systemRequestPending) return
+        refreshAvailability()
+        if (availability == BluetoothAvailability.READY) bleManager.startEcg()
+    }
+
     @SuppressLint("MissingPermission")
     private fun handleBluetoothAction() {
         if (systemRequestPending) return
@@ -297,7 +309,11 @@ internal fun SessionScreen(
     accSamples: List<AccSample> = emptyList(),
     accSubscription: SubscriptionState = SubscriptionState(),
     onStartAcc: () -> Unit = {},
-    onStopAcc: () -> Unit = {}
+    onStopAcc: () -> Unit = {},
+    ecgSamples: List<EcgSample> = emptyList(),
+    ecgSubscription: SubscriptionState = SubscriptionState(),
+    onStartEcg: () -> Unit = {},
+    onStopEcg: () -> Unit = {}
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -322,6 +338,9 @@ internal fun SessionScreen(
         val accBusy = accSubscription.status in setOf(
             SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
         )
+        val ecgBusy = ecgSubscription.status in setOf(
+            SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
+        )
         AccPanel(
             samples = accSamples,
             subscription = accSubscription,
@@ -332,10 +351,20 @@ internal fun SessionScreen(
             onStart = onStartAcc,
             onStop = onStopAcc
         )
+        EcgPanel(
+            samples = ecgSamples,
+            subscription = ecgSubscription,
+            readiness = dataReadiness[PolarDeviceDataType.ECG] ?: DataReadiness(),
+            canStart = actionEnabled && availability == BluetoothAvailability.READY &&
+                connectionState.status == ConnectionStatus.CONNECTED &&
+                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING } && !ecgBusy,
+            onStart = onStartEcg,
+            onStop = onStopEcg
+        )
         DataReadinessPanel(
             states = dataReadiness,
             canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED && !accBusy,
+                connectionState.status == ConnectionStatus.CONNECTED && !accBusy && !ecgBusy,
             onRecheck = onRecheckData
         )
         connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -498,6 +527,43 @@ private fun AccPanel(
                 readiness.configurationComplete) { Text("Start ACC") }
             Button(onClick = onStop, enabled = subscription.status == SubscriptionStatus.STARTING || receiving) {
                 Text("Stop ACC")
+            }
+        }
+    }
+}
+
+// Temporary ECG verification UI; formal session controls belong to step 4.4.
+@Composable
+private fun EcgPanel(
+    samples: List<EcgSample>,
+    subscription: SubscriptionState,
+    readiness: DataReadiness,
+    canStart: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("ECG (development check)", style = MaterialTheme.typography.titleMedium)
+        Text("ECG stream: ${subscription.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
+        val receiving = subscription.status == SubscriptionStatus.RECEIVING
+        Text(if (receiving) "Latest received samples" else "Inactive snapshot")
+        Text("Selected rate: ${readiness.selected[SettingType.SAMPLE_RATE] ?: "--"} Hz")
+        Text("Selected resolution: ${readiness.selected[SettingType.RESOLUTION] ?: "--"} bits")
+        Text("Other available settings and selections are shown in Data readiness.")
+        val latest = samples.lastOrNull()
+        Text("Voltage: ${latest?.voltage ?: "--"} µV")
+        Text("Sensor timestamp: ${latest?.timeStamp ?: "--"} ns (epoch 2000-01-01)")
+        Text("Buffer: ${samples.size} samples (up to 10 s / 1,300 samples)")
+        readiness.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        if (readiness.status == DataReadinessStatus.READY && !readiness.configurationComplete && readiness.error == null) {
+            Text("Confirm the available options in Data readiness before starting ECG.")
+        }
+        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onStart, enabled = canStart && readiness.status == DataReadinessStatus.READY &&
+                readiness.configurationComplete) { Text("Start ECG") }
+            Button(onClick = onStop, enabled = subscription.status == SubscriptionStatus.STARTING || receiving) {
+                Text("Stop ECG")
             }
         }
     }
