@@ -21,10 +21,9 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EcgBufferTest {
-    private val ready = DataReadiness(DataReadinessStatus.READY, configurationComplete = true)
     private fun batch(vararg samples: PolarEcgDataSample) = PolarEcgData(samples.toList())
     private fun DataSubscriptions.startEcg(buffer: EcgBuffer, source: Flow<PolarEcgData>,
-        current: () -> Boolean = { true }) = start(ECG, { ready }, current,
+        current: () -> Boolean = { true }) = start(ECG, { true }, current,
         { source.h10EcgSamples() }, buffer::receive)
 
     @Test fun extractsOnlyH10SamplesAndPreservesOrderSignedVoltageAndExactTiming() = runTest {
@@ -118,7 +117,7 @@ class EcgBufferTest {
         val buffer = EcgBuffer()
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
         for (type in listOf(HR, ACC)) {
-            subscriptions.start(type, { ready }, { true }, { flow { emit(1); awaitCancellation() } }, {})
+            subscriptions.start(type, { true }, { true }, { flow { emit(1); awaitCancellation() } }, {})
         }
         for (fails in listOf(false, true)) {
             assertTrue(subscriptions.startEcg(buffer, flow {

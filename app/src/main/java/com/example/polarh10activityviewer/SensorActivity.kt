@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +40,7 @@ import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.polar.sdk.api.model.EcgSample
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
+import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -94,6 +96,16 @@ class SensorActivity : ComponentActivity() {
             val accSamples by bleManager.accSamples.collectAsState()
             val ecgSamples by bleManager.ecgSamples.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
+            val session by bleManager.sessionState.collectAsState()
+            LaunchedEffect(session.generation, session.status) {
+                val generation = session.generation
+                if (session.status == SessionStatus.RUNNING) {
+                    while (true) {
+                        bleManager.refreshSessionTime(generation)
+                        delay(250)
+                    }
+                }
+            }
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     SessionScreen(
@@ -114,16 +126,14 @@ class SensorActivity : ComponentActivity() {
                         onRecheckData = ::handleRecheckData,
                         heartRate = heartRate,
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
-                        onStartHr = ::handleStartHr,
-                        onStopHr = { bleManager.stopHr() },
                         accSamples = accSamples,
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
-                        onStartAcc = ::handleStartAcc,
-                        onStopAcc = { bleManager.stopAcc() },
                         ecgSamples = ecgSamples,
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
-                        onStartEcg = ::handleStartEcg,
-                        onStopEcg = { bleManager.stopEcg() },
+                        session = session,
+                        onStartSession = ::handleStartSession,
+                        onStopSession = { bleManager.stopSession() },
+                        onRetryStream = ::handleRetryStream,
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -227,22 +237,16 @@ class SensorActivity : ComponentActivity() {
         if (availability == BluetoothAvailability.READY) bleManager.recheckDataReadiness()
     }
 
-    private fun handleStartHr() {
+    private fun handleStartSession() {
         if (systemRequestPending) return
         refreshAvailability()
-        if (availability == BluetoothAvailability.READY) bleManager.startHr()
+        if (availability == BluetoothAvailability.READY) bleManager.startSession()
     }
 
-    private fun handleStartAcc() {
+    private fun handleRetryStream(type: PolarDeviceDataType) {
         if (systemRequestPending) return
         refreshAvailability()
-        if (availability == BluetoothAvailability.READY) bleManager.startAcc()
-    }
-
-    private fun handleStartEcg() {
-        if (systemRequestPending) return
-        refreshAvailability()
-        if (availability == BluetoothAvailability.READY) bleManager.startEcg()
+        if (availability == BluetoothAvailability.READY) bleManager.retryStream(type)
     }
 
     @SuppressLint("MissingPermission")
@@ -304,16 +308,14 @@ internal fun SessionScreen(
     batteryLevel: Int? = null,
     heartRate: HeartRateReading? = null,
     hrSubscription: SubscriptionState = SubscriptionState(),
-    onStartHr: () -> Unit = {},
-    onStopHr: () -> Unit = {},
     accSamples: List<AccSample> = emptyList(),
     accSubscription: SubscriptionState = SubscriptionState(),
-    onStartAcc: () -> Unit = {},
-    onStopAcc: () -> Unit = {},
     ecgSamples: List<EcgSample> = emptyList(),
     ecgSubscription: SubscriptionState = SubscriptionState(),
-    onStartEcg: () -> Unit = {},
-    onStopEcg: () -> Unit = {}
+    session: SessionState = SessionState(),
+    onStartSession: () -> Unit = {},
+    onStopSession: () -> Unit = {},
+    onRetryStream: (PolarDeviceDataType) -> Unit = {}
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -324,47 +326,51 @@ internal fun SessionScreen(
         Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
         connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
         Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}")
+        val connected = actionEnabled && availability == BluetoothAvailability.READY &&
+            connectionState.status == ConnectionStatus.CONNECTED
+        val subscriptions = listOf(hrSubscription, accSubscription, ecgSubscription)
+        fun busy(subscription: SubscriptionState) = subscription.status in setOf(
+            SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
+        )
+        Text("Session: ${session.status.label}", style = MaterialTheme.typography.titleMedium)
+        val seconds = session.elapsedMs / 1_000
+        Text("Elapsed: ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}")
+        Text("Timing begins with the first received sample.")
+        session.endReason?.let { Text(it) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = onStartSession, enabled = connected &&
+                session.status in setOf(SessionStatus.IDLE, SessionStatus.STOPPED) &&
+                subscriptions.none(::busy) && dataReadiness.values.any {
+                    it.status == DataReadinessStatus.READY && it.configurationComplete
+                }) { Text("Start") }
+            Button(onClick = onStopSession, enabled = session.ongoing) { Text("Stop") }
+        }
         HeartRatePanel(
             reading = heartRate,
             subscription = hrSubscription,
-            canStart = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED &&
-                dataReadiness[PolarDeviceDataType.HR]?.let {
-                    it.status == DataReadinessStatus.READY && it.configurationComplete
-                } == true,
-            onStart = onStartHr,
-            onStop = onStopHr
-        )
-        val accBusy = accSubscription.status in setOf(
-            SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
-        )
-        val ecgBusy = ecgSubscription.status in setOf(
-            SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
+            canRetry = connected && session.ongoing,
+            onRetry = { onRetryStream(PolarDeviceDataType.HR) }
         )
         AccPanel(
             samples = accSamples,
             subscription = accSubscription,
             readiness = dataReadiness[PolarDeviceDataType.ACC] ?: DataReadiness(),
-            canStart = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED &&
-                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING } && !accBusy,
-            onStart = onStartAcc,
-            onStop = onStopAcc
+            canRetry = connected && session.ongoing &&
+                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
+            onRetry = { onRetryStream(PolarDeviceDataType.ACC) }
         )
         EcgPanel(
             samples = ecgSamples,
             subscription = ecgSubscription,
             readiness = dataReadiness[PolarDeviceDataType.ECG] ?: DataReadiness(),
-            canStart = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED &&
-                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING } && !ecgBusy,
-            onStart = onStartEcg,
-            onStop = onStopEcg
+            canRetry = connected && session.ongoing &&
+                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
+            onRetry = { onRetryStream(PolarDeviceDataType.ECG) }
         )
         DataReadinessPanel(
             states = dataReadiness,
             canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED && !accBusy && !ecgBusy,
+                connectionState.status == ConnectionStatus.CONNECTED && !busy(accSubscription) && !busy(ecgSubscription),
             onRecheck = onRecheckData
         )
         connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -454,14 +460,13 @@ internal fun SessionScreen(
     }
 }
 
-// Temporary HR verification controls; formal session controls belong to step 4.4.
+// Detailed stream information remains temporary until the final layout.
 @Composable
 private fun HeartRatePanel(
     reading: HeartRateReading?,
     subscription: SubscriptionState,
-    canStart: Boolean,
-    onStart: () -> Unit,
-    onStop: () -> Unit
+    canRetry: Boolean,
+    onRetry: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Heart rate (development check)", style = MaterialTheme.typography.titleMedium)
@@ -482,13 +487,7 @@ private fun HeartRatePanel(
         Text("Last received on phone: $receivedAt")
         Text("Shows the last received value; the time is not a sensor sampling timestamp.")
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        val active = subscription.status == SubscriptionStatus.STARTING ||
-            subscription.status == SubscriptionStatus.RECEIVING
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onStart, enabled = canStart && !active &&
-                subscription.status != SubscriptionStatus.STOPPING) { Text("Start HR") }
-            Button(onClick = onStop, enabled = active) { Text("Stop HR") }
-        }
+        StreamRetryButton(PolarDeviceDataType.HR, subscription, canRetry, onRetry)
     }
 }
 
@@ -498,9 +497,8 @@ private fun AccPanel(
     samples: List<AccSample>,
     subscription: SubscriptionState,
     readiness: DataReadiness,
-    canStart: Boolean,
-    onStart: () -> Unit,
-    onStop: () -> Unit
+    canRetry: Boolean,
+    onRetry: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Acceleration (development check)", style = MaterialTheme.typography.titleMedium)
@@ -522,25 +520,18 @@ private fun AccPanel(
             Text("Confirm the available options in Data readiness before starting ACC.")
         }
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onStart, enabled = canStart && readiness.status == DataReadinessStatus.READY &&
-                readiness.configurationComplete) { Text("Start ACC") }
-            Button(onClick = onStop, enabled = subscription.status == SubscriptionStatus.STARTING || receiving) {
-                Text("Stop ACC")
-            }
-        }
+        StreamRetryButton(PolarDeviceDataType.ACC, subscription, canRetry, onRetry)
     }
 }
 
-// Temporary ECG verification UI; formal session controls belong to step 4.4.
+// Temporary ECG verification display within the session.
 @Composable
 private fun EcgPanel(
     samples: List<EcgSample>,
     subscription: SubscriptionState,
     readiness: DataReadiness,
-    canStart: Boolean,
-    onStart: () -> Unit,
-    onStop: () -> Unit
+    canRetry: Boolean,
+    onRetry: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("ECG (development check)", style = MaterialTheme.typography.titleMedium)
@@ -559,13 +550,19 @@ private fun EcgPanel(
             Text("Confirm the available options in Data readiness before starting ECG.")
         }
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onStart, enabled = canStart && readiness.status == DataReadinessStatus.READY &&
-                readiness.configurationComplete) { Text("Start ECG") }
-            Button(onClick = onStop, enabled = subscription.status == SubscriptionStatus.STARTING || receiving) {
-                Text("Stop ECG")
-            }
-        }
+        StreamRetryButton(PolarDeviceDataType.ECG, subscription, canRetry, onRetry)
+    }
+}
+
+@Composable
+private fun StreamRetryButton(
+    type: PolarDeviceDataType,
+    subscription: SubscriptionState,
+    canRetry: Boolean,
+    onRetry: () -> Unit
+) {
+    if (subscription.status in setOf(SubscriptionStatus.IDLE, SubscriptionStatus.FAILED, SubscriptionStatus.STOPPED)) {
+        Button(onClick = onRetry, enabled = canRetry) { Text("Retry $type") }
     }
 }
 

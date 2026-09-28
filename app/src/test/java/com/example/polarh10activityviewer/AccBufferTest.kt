@@ -20,12 +20,11 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AccBufferTest {
-    private val ready = DataReadiness(DataReadinessStatus.READY, configurationComplete = true)
     private fun batch(vararg times: Long) = PolarAccelerometerData(times.map {
         PolarAccelerometerData.PolarAccelerometerDataSample(it, -123, 456, 1000)
     })
     private fun DataSubscriptions.startAcc(buffer: AccBuffer, source: Flow<PolarAccelerometerData>,
-        current: () -> Boolean = { true }) = start(ACC, { ready }, current,
+        current: () -> Boolean = { true }) = start(ACC, { true }, current,
         { source.filter { it.samples.isNotEmpty() } }, buffer::receive)
 
     @Test fun retainsEveryRawSampleAndMarksOnlyGapsStrictlyAbove30msAcrossBatches() {
@@ -105,7 +104,7 @@ class AccBufferTest {
     @Test fun completionFailureAndConnectionCleanupRetainDataAndLeaveHrIndependent() = runTest {
         val buffer = AccBuffer()
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
-        subscriptions.start(HR, { ready }, { true }, { flow { emit(80); awaitCancellation() } }, {})
+        subscriptions.start(HR, { true }, { true }, { flow { emit(80); awaitCancellation() } }, {})
         for (fails in listOf(false, true)) {
             subscriptions.startAcc(buffer, flow {
                 emit(batch(10))
@@ -142,7 +141,7 @@ class AccBufferTest {
             streams++
             flow { emit(batch(1)); awaitCancellation() }
         }
-        fun start() = subscriptions.start(ACC, { ready }, { true }, factory, buffer::receive)
+        fun start() = subscriptions.start(ACC, { true }, { true }, factory, buffer::receive)
         assertTrue(start())
         runCurrent()
         assertTrue(subscriptions.isActive(ACC))

@@ -20,7 +20,6 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HeartRateTest {
-    private val ready = DataReadiness(DataReadinessStatus.READY, configurationComplete = true)
 
     private fun batch(vararg values: Int) = PolarHrData(values.map {
         PolarHrData.PolarHrSample(it, 0, 0, emptyList(), emptyList(), false, true, true)
@@ -31,7 +30,7 @@ class HeartRateTest {
         source: Flow<PolarHrData>,
         current: () -> Boolean = { true },
         now: () -> Long = { 1_000L }
-    ) = start(HR, { ready }, current,
+    ) = start(HR, { true }, current,
         { source.filter { it.samples.isNotEmpty() } },
         { latest.receive(it, now()) })
 
@@ -201,7 +200,7 @@ class HeartRateTest {
         val subscriptions = DataSubscriptions(this, latest::onSubscriptionState)
         subscriptions.startHr(latest, flow { emit(batch(88)); awaitCancellation() })
         runCurrent()
-        subscriptions.start(ACC, { ready }, { true }, { flow<Int> { error("ACC failure") } }, {})
+        subscriptions.start(ACC, { true }, { true }, { flow<Int> { error("ACC failure") } }, {})
         runCurrent()
         assertEquals(HeartRateReading(88, 1_000), latest.reading.value)
         subscriptions.stopAll()

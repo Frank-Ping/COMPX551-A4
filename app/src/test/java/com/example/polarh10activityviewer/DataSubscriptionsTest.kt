@@ -29,7 +29,7 @@ class DataSubscriptionsTest {
         current: () -> Boolean = { true },
         stream: suspend () -> Flow<Int> = { flow { awaitCancellation() } },
         onData: (Int) -> Unit = {}
-    ) = start(type, readiness, current, stream, onData)
+    ) = start(type, { readiness().let { it.status == DataReadinessStatus.READY && it.configurationComplete } }, current, stream, onData)
 
     private fun DataSubscriptions.status(type: PolarDeviceDataType = HR) = states.value.getValue(type).status
 

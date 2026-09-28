@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.MainThread
 import androidx.annotation.RequiresPermission
@@ -103,30 +104,75 @@ class PolarBleManager(context: Context) {
     private val ecgBuffer = EcgBuffer()
     val ecgSamples = ecgBuffer.samples
     private val streamSettingsMutex = Mutex()
-    private val dataSubscriptions = DataSubscriptions(
+    private val dataSubscriptions: DataSubscriptions = DataSubscriptions(
         CoroutineScope(Dispatchers.Main.immediate)
     ) { type, status ->
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
         ecgBuffer.onSubscriptionState(type, status)
+        session.onSubscriptionState(status)
     }
     internal val subscriptionStates = dataSubscriptions.states
+    private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
+        clearAllReadings = { latestHeartRate.clear(); accBuffer.clear(); ecgBuffer.clear() },
+        clearHr = latestHeartRate::clear)
+    internal val sessionState = session.state
 
     @MainThread
-    fun startHr(): Boolean = startDataSubscription(
+    fun startSession(): Boolean = session.start(
+        eligible = connectedForData() && mutableDataReadiness.value.values.any {
+            it.status == DataReadinessStatus.READY && it.configurationComplete
+        }
+    ) {
+        checkedDataTypes.forEach { type ->
+            val readiness = mutableDataReadiness.value.getValue(type)
+            if (readiness.status == DataReadinessStatus.READY && readiness.configurationComplete) {
+                startStream(type)
+            } else {
+                dataSubscriptions.unavailable(type, readiness.error ?: if (readiness.status == DataReadinessStatus.READY)
+                    "$type configuration needs confirmation." else "$type: ${readiness.status.message}.")
+            }
+        }
+    }
+
+    @MainThread
+    fun stopSession() = session.stop("Stopped by user.")
+
+    @MainThread
+    fun retryStream(type: PolarDeviceDataType): Boolean = session.retry(type, connectedForData()) {
+        startStream(type)
+    }
+
+    fun refreshSessionTime(generation: Long) = session.refresh(generation)
+
+    private fun connectedForData() = api != null &&
+        mutableConnectionState.value.status == ConnectionStatus.CONNECTED && bluetoothAvailableForData()
+
+    private fun startStream(type: PolarDeviceDataType): Boolean {
+        if (type != PolarDeviceDataType.HR && readinessJob != null) {
+            dataSubscriptions.unavailable(type, "Settings check in progress. Retry when it finishes.")
+            return false
+        }
+        return when (type) {
+            PolarDeviceDataType.HR -> startHr()
+            PolarDeviceDataType.ACC -> startAcc()
+            PolarDeviceDataType.ECG -> startEcg()
+            else -> false
+        }
+    }
+
+    @MainThread
+    private fun startHr(): Boolean = startDataSubscription(
         PolarDeviceDataType.HR,
         stream = { source, identifier ->
+            checkFeature(source, identifier, PolarDeviceDataType.HR)
             source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
         },
         onData = { latestHeartRate.receive(it, System.currentTimeMillis()) }
     )
 
     @MainThread
-    fun stopHr() = stopDataSubscription(PolarDeviceDataType.HR)
-
-    @MainThread
-    fun startAcc(): Boolean {
-        if (readinessJob != null) return false
+    private fun startAcc(): Boolean {
         return startDataSubscription(
             PolarDeviceDataType.ACC,
             stream = { source, identifier ->
@@ -139,11 +185,7 @@ class PolarBleManager(context: Context) {
     }
 
     @MainThread
-    fun stopAcc() = stopDataSubscription(PolarDeviceDataType.ACC)
-
-    @MainThread
-    fun startEcg(): Boolean {
-        if (readinessJob != null) return false
+    private fun startEcg(): Boolean {
         return startDataSubscription(
             PolarDeviceDataType.ECG,
             stream = { source, identifier ->
@@ -154,8 +196,17 @@ class PolarBleManager(context: Context) {
         )
     }
 
-    @MainThread
-    fun stopEcg() = stopDataSubscription(PolarDeviceDataType.ECG)
+    private fun checkFeature(source: PolarBleApi, identifier: String, type: PolarDeviceDataType) {
+        val feature = if (type == PolarDeviceDataType.HR) PolarBleSdkFeature.FEATURE_HR
+            else PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
+        if (!source.isFeatureReady(identifier, feature)) {
+            setDataReadiness(type, DataReadiness(DataReadinessStatus.WAITING))
+            error("$type feature is not ready. Retry when available.")
+        }
+        if (type == PolarDeviceDataType.HR) {
+            setDataReadiness(type, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
+        }
+    }
 
     // Serialize fresh ACC/ECG settings queries, not the lifetime of their data streams.
     private suspend fun currentStreamSettings(
@@ -164,6 +215,16 @@ class PolarBleManager(context: Context) {
         currentCoroutineContext().ensureActive()
         if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
             throw CancellationException("$type connection is no longer current.")
+        }
+        checkFeature(source, identifier, type)
+        val supported = source.getAvailableOnlineStreamDataTypes(identifier)
+        currentCoroutineContext().ensureActive()
+        if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
+            throw CancellationException("$type connection is no longer current.")
+        }
+        if (type !in supported) {
+            setDataReadiness(type, DataReadiness(DataReadinessStatus.UNSUPPORTED))
+            error("$type is unavailable for online streaming.")
         }
         val settings = source.requestStreamSettings(identifier, type)
         currentCoroutineContext().ensureActive()
@@ -179,27 +240,25 @@ class PolarBleManager(context: Context) {
     }
 
     @MainThread
-    internal fun <T> startDataSubscription(
+    private fun <T> startDataSubscription(
         type: PolarDeviceDataType,
         stream: suspend (PolarBleApi, String) -> Flow<T>,
         onData: (T) -> Unit
     ): Boolean {
         val source = api ?: return false
         val identifier = mutableConnectionState.value.device?.deviceId ?: return false
+        val generation = sessionState.value.generation
         return dataSubscriptions.start(
             type,
-            readiness = { mutableDataReadiness.value[type] ?: DataReadiness() },
-            isCurrent = { readinessMatches(source, identifier) && bluetoothAvailableForData() },
+            canStart = { connectedForData() && session.accepts(generation) },
+            isCurrent = { session.accepts(generation) && readinessMatches(source, identifier) && bluetoothAvailableForData() },
             stream = { stream(source, identifier) },
             onData = onData
         )
     }
 
     @MainThread
-    internal fun stopDataSubscription(type: PolarDeviceDataType) = dataSubscriptions.stop(type)
-
-    @MainThread
-    internal fun cleanupDataSubscriptions() = dataSubscriptions.stopAll()
+    private fun cleanupDataSubscriptions() = dataSubscriptions.stopAll()
 
     @SuppressLint("MissingPermission")
     private fun bluetoothAvailableForData(): Boolean {
@@ -283,6 +342,7 @@ class PolarBleManager(context: Context) {
                     mainHandler.post {
                         if (!matches(created, polarDeviceInfo)) return@post
                         val state = mutableConnectionState.value
+                        session.stop("Connection ended: ${info.reason.name.replace('_', ' ')}.")
                         clearDataReadiness()
                         cancelConnectionTimeout()
                         connectionConfirmed = false
@@ -537,6 +597,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
+        session.stop("Connection or Bluetooth availability ended.")
         deviceBattery.clear()
         cleanupDataSubscriptions()
         readinessGeneration++
@@ -571,6 +632,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun interruptConnection(reason: String?, message: String? = null) {
+        session.stop(reason ?: message ?: "Connection ended.")
         clearDataReadiness()
         val state = mutableConnectionState.value
         if (state.status == ConnectionStatus.NOT_CONNECTED || state.status == ConnectionStatus.DISCONNECTING) return
@@ -638,6 +700,7 @@ class PolarBleManager(context: Context) {
     }
 
     fun release() {
+        session.stop("Session released.")
         val state = mutableConnectionState.value
         val disposed = disposeSdk()
         mainHandler.removeCallbacksAndMessages(null)
@@ -699,9 +762,11 @@ internal class LatestHeartRate {
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
         if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING) {
-            mutableReading.value = null
+            clear()
         }
     }
+
+    fun clear() { mutableReading.value = null }
 }
 
 // Confined to the main thread by the manager; tests use a single coroutine test scheduler.
@@ -722,27 +787,33 @@ internal class DataSubscriptions(
 
     fun isActive(type: PolarDeviceDataType) = type in tasks
 
+    fun reset() {
+        check(tasks.isEmpty())
+        mutableStates.value = checkedDataTypes.associateWith { SubscriptionState() }
+    }
+
+    fun unavailable(type: PolarDeviceDataType, reason: String) {
+        if (type in checkedDataTypes && !isActive(type)) setState(type, SubscriptionStatus.IDLE, reason)
+    }
+
     private fun setState(type: PolarDeviceDataType, status: SubscriptionStatus, error: String? = null) {
-        onStateChanged(type, status)
         mutableStates.value = mutableStates.value + (type to SubscriptionState(status, error))
+        onStateChanged(type, status)
     }
 
     fun <T> start(
         type: PolarDeviceDataType,
-        readiness: () -> DataReadiness,
+        canStart: () -> Boolean,
         isCurrent: () -> Boolean,
         stream: suspend () -> Flow<T>,
         onData: (T) -> Unit
     ): Boolean {
-        fun canStart() = isCurrent() && readiness().let {
-            it.status == DataReadinessStatus.READY && it.configurationComplete
-        }
-        if (type !in checkedDataTypes || type in tasks || !canStart()) return false
+        if (type !in checkedDataTypes || type in tasks || !isCurrent() || !canStart()) return false
         val task = Task()
         fun acceptsEvents() = tasks[type] === task && !task.stopping && isCurrent()
         task.job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                if (!canStart()) return@launch
+                if (!isCurrent() || !canStart()) return@launch
                 stream().collect { data ->
                     ensureActive()
                     if (acceptsEvents()) {

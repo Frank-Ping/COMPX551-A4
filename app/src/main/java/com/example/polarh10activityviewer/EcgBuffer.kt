@@ -22,9 +22,13 @@ internal class EcgBuffer {
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
         if (type == PolarDeviceDataType.ECG && status == SubscriptionStatus.STARTING) {
-            buffer.clear()
-            mutableSamples.value = emptyList()
+            clear()
         }
+    }
+
+    fun clear() {
+        buffer.clear()
+        mutableSamples.value = emptyList()
     }
 
     fun receive(samples: List<EcgSample>) {

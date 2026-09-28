@@ -24,10 +24,14 @@ internal class AccBuffer {
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
         if (type == PolarDeviceDataType.ACC && status == SubscriptionStatus.STARTING) {
-            buffer.clear()
-            previousTimeStamp = null
-            mutableSamples.value = emptyList()
+            clear()
         }
+    }
+
+    fun clear() {
+        buffer.clear()
+        previousTimeStamp = null
+        mutableSamples.value = emptyList()
     }
 
     fun receive(batch: PolarAccelerometerData) {
