@@ -21,6 +21,7 @@ import com.example.polarh10activityviewer.sensor.AccSample
 import com.example.polarh10activityviewer.session.SensorViewModel
 import com.example.polarh10activityviewer.session.SessionState
 import com.example.polarh10activityviewer.session.SessionStatus
+import com.example.polarh10activityviewer.session.SessionSummaryPanel
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -404,6 +405,7 @@ internal fun SessionScreen(
         if (steps.incompleteAcc) {
             Text("Incomplete ACC data. Missing distance may lower distance and average speed.")
         }
+        SessionSummaryPanel(session.record)
         charts()
         AccPanel(
             samples = accSamples,

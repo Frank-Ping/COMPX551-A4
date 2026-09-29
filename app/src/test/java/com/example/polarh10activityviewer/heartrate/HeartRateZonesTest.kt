@@ -6,6 +6,7 @@ import com.example.polarh10activityviewer.ble.LatestHeartRate
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.session.SessionController
 import com.example.polarh10activityviewer.session.SessionStatus
+import com.example.polarh10activityviewer.session.SessionSummary
 
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.*
 import com.polar.sdk.api.model.PolarHrData
@@ -46,14 +47,14 @@ class HeartRateZonesTest {
                 zones.clearCurrent(session.state.value.elapsedMs)
             }
             hr.onSubscriptionState(type, status)
-            session.onSubscriptionState(eventTime)
+            session.onSubscriptionState(type, status, eventTime)
         }
         init {
             session = SessionController(subscriptions, { now }, { hr.reset(); zones.reset() }, {
                 zones.clearCurrent(session.state.value.elapsedMs)
                 hr.clear()
                 now += cleanupMs
-            })
+            }, { SessionSummary() })
         }
         val state get() = zones.state.value
         fun startHr(source: Flow<PolarHrData>): Boolean {

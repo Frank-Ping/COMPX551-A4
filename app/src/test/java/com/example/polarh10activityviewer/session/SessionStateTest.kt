@@ -44,11 +44,13 @@ class SessionStateTest {
             hr.onSubscriptionState(type, status)
             acc.onSubscriptionState(type, status)
             ecg.onSubscriptionState(type, status)
-            session.onSubscriptionState()
+            session.onSubscriptionState(type, status)
         }
         init {
             session = SessionController(subscriptions, { now },
-                { hr.reset(); acc.clear(); ecg.clear() }, hr::clear)
+                { hr.reset(); acc.clear(); ecg.clear() }, hr::clear,
+                { SessionSummary(minimumHr = hr.statistics.value.min, maximumHr = hr.statistics.value.max,
+                    meanHr = hr.statistics.value.average, validHrCount = hr.statistics.value.count) })
         }
         val state get() = session.state.value
         fun receive(type: PolarDeviceDataType, value: Int) {

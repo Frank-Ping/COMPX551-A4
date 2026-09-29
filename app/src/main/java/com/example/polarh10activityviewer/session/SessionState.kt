@@ -2,6 +2,9 @@ package com.example.polarh10activityviewer.session
 
 import com.example.polarh10activityviewer.ble.checkedDataTypes
 import com.example.polarh10activityviewer.ble.DataSubscriptions
+import com.example.polarh10activityviewer.ble.ConnectionDevice
+import com.example.polarh10activityviewer.ble.SubscriptionStatus
+import java.util.UUID
 
 import androidx.annotation.MainThread
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
@@ -16,7 +19,8 @@ internal data class SessionState(
     val status: SessionStatus = SessionStatus.IDLE,
     val generation: Long = 0,
     val elapsedMs: Long = 0,
-    val endReason: String? = null
+    val endReason: String? = null,
+    val record: SessionRecord? = null
 ) {
     val ongoing: Boolean get() = status == SessionStatus.STARTING || status == SessionStatus.RUNNING
 }
@@ -27,7 +31,9 @@ internal class SessionController(
     private val subscriptions: DataSubscriptions,
     private val now: () -> Long,
     private val clearAllReadings: () -> Unit,
-    private val clearHr: () -> Unit
+    private val clearHr: () -> Unit,
+    private val readSummary: (Long) -> SessionSummary,
+    private val wallNow: () -> Long = System::currentTimeMillis
 ) {
     private val mutableState = MutableStateFlow(SessionState())
     val state = mutableState.asStateFlow()
@@ -36,12 +42,13 @@ internal class SessionController(
 
     fun accepts(generation: Long) = state.value.generation == generation && state.value.ongoing
 
-    fun start(eligible: Boolean, startStreams: () -> Unit): Boolean {
+    fun start(eligible: Boolean, device: ConnectionDevice? = null, startStreams: () -> Unit): Boolean {
         if (!eligible || state.value.ongoing || state.value.status == SessionStatus.STOPPING ||
             checkedDataTypes.any(subscriptions::isActive)) return false
         startingStreams = true
         startedAt = null
-        mutableState.value = SessionState(SessionStatus.STARTING, state.value.generation + 1)
+        mutableState.value = SessionState(SessionStatus.STARTING, state.value.generation + 1,
+            record = SessionRecord(UUID.randomUUID().toString(), wallNow(), device?.copy()))
         subscriptions.reset()
         clearAllReadings()
         try {
@@ -60,18 +67,40 @@ internal class SessionController(
         return accepted
     }
 
-    fun onValidData(at: Long = now()) {
+    fun onValidData(at: Long = now(), receivedAt: Long = wallNow()) {
         if (state.value.status == SessionStatus.STARTING) {
             startedAt = at
-            mutableState.value = state.value.copy(status = SessionStatus.RUNNING)
+            mutableState.value = state.value.copy(status = SessionStatus.RUNNING,
+                record = state.value.record?.copy(startedAt = receivedAt))
         }
     }
 
-    fun onSubscriptionState(at: Long = now()) = finishIfIdle(at)
+    fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus, at: Long = now()) {
+        if (state.value.ongoing) {
+            val record = state.value.record!!
+            val previous = record.streams.getValue(type)
+            val ended = status in setOf(SubscriptionStatus.IDLE, SubscriptionStatus.STOPPING,
+                SubscriptionStatus.STOPPED, SubscriptionStatus.FAILED)
+            mutableState.value = state.value.copy(record = record.copy(streams = record.streams +
+                (type to previous.copy(received = previous.received || status == SubscriptionStatus.RECEIVING,
+                    missing = previous.missing || ended,
+                    failed = previous.failed || status == SubscriptionStatus.FAILED))))
+        }
+        finishIfIdle(at)
+    }
+
+    fun markMissing(type: PolarDeviceDataType) {
+        if (!state.value.ongoing) return
+        val record = state.value.record!!
+        mutableState.value = state.value.copy(record = record.copy(streams = record.streams +
+            (type to record.streams.getValue(type).copy(missing = true))))
+    }
 
     fun refresh(generation: Long, at: Long = now()) {
-        if (accepts(generation) && state.value.status == SessionStatus.RUNNING) {
-            mutableState.value = state.value.copy(elapsedMs = elapsed(at))
+        if (accepts(generation)) {
+            val duration = elapsed(at)
+            mutableState.value = state.value.copy(elapsedMs = duration,
+                record = state.value.record!!.copy(durationMs = duration, summary = readSummary(duration)))
         }
     }
 
@@ -81,14 +110,22 @@ internal class SessionController(
     fun elapsedAt(at: Long = now()): Long =
         if (state.value.status == SessionStatus.RUNNING) elapsed(at) else state.value.elapsedMs
 
-    fun stop(reason: String) {
+    fun stop(reason: String, interrupted: Boolean = true) {
         if (!state.value.ongoing) return
         mutableState.value = state.value.copy(
-            status = SessionStatus.STOPPING, elapsedMs = elapsed(), endReason = reason
+            status = SessionStatus.STOPPING, elapsedMs = elapsed(), endReason = reason,
+            record = state.value.record!!.copy(endedAt = wallNow(), endReason = reason, interrupted = interrupted)
         )
         clearHr()
+        freezeSummary()
         subscriptions.stopAll()
         finishIfIdle()
+    }
+
+    private fun freezeSummary() {
+        val duration = state.value.elapsedMs
+        mutableState.value = state.value.copy(record = state.value.record!!.copy(
+            durationMs = duration, summary = readSummary(duration)))
     }
 
     private fun finishIfIdle(at: Long = now()) {
@@ -97,9 +134,11 @@ internal class SessionController(
             val reason = if (startedAt == null) "No data received. All stream attempts ended."
                 else "All streams ended."
             mutableState.value = state.value.copy(
-                status = SessionStatus.STOPPED, elapsedMs = elapsed(at), endReason = reason
+                status = SessionStatus.STOPPED, elapsedMs = elapsed(at), endReason = reason,
+                record = state.value.record!!.copy(endedAt = wallNow(), endReason = reason)
             )
             clearHr()
+            freezeSummary()
         } else if (state.value.status == SessionStatus.STOPPING) {
             mutableState.value = state.value.copy(status = SessionStatus.STOPPED)
         }

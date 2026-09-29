@@ -5,6 +5,7 @@ import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.sensor.AccBuffer
 import com.example.polarh10activityviewer.sensor.AccSample
 import com.example.polarh10activityviewer.session.SessionController
+import com.example.polarh10activityviewer.session.SessionSummary
 import com.example.polarh10activityviewer.session.SessionStatus
 
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.ACC
@@ -150,12 +151,12 @@ class StepDetectorTest {
         lateinit var session: SessionController
         val subscriptions = DataSubscriptions(this) { type, status ->
             if (type == ACC && session.state.value.ongoing) detector.onSubscriptionState(status)
-            session.onSubscriptionState()
+            session.onSubscriptionState(type, status)
         }
         session = SessionController(subscriptions, { now }, detector::reset, {
             detector.updateSessionTime(session.state.value.elapsedMs)
             detector.stop()
-        })
+        }, { SessionSummary() })
         fun start(): Boolean = session.start(true) {
             detector.onSubscriptionState(SubscriptionStatus.STARTING)
             val generation = session.state.value.generation
@@ -306,13 +307,13 @@ class StepDetectorTest {
             lateinit var session: SessionController
             val subscriptions = DataSubscriptions(this) { type, status ->
                 if (type == ACC && session.state.value.ongoing) detector.onSubscriptionState(status)
-                session.onSubscriptionState()
+                session.onSubscriptionState(type, status)
             }
             session = SessionController(subscriptions, { now }, detector::reset, {
                 detector.updateSessionTime(session.state.value.elapsedMs)
                 detector.stop()
                 now += 5000 // Cleanup must not enter the settled Running duration.
-            })
+            }, { SessionSummary() })
             assertTrue(session.start(true) {
                 val generation = session.state.value.generation
                 subscriptions.start(ACC, { session.accepts(generation) }, { session.accepts(generation) },
@@ -336,7 +337,7 @@ class StepDetectorTest {
             assertEquals(0.0, frozen.speed!!, 0.0)
             now += 60_000
             session.stop("Repeated end")
-            session.onSubscriptionState()
+            session.onSubscriptionState(ACC, SubscriptionStatus.STOPPED)
             session.refresh(session.state.value.generation)
             detector.refresh()
             assertEquals(frozen, detector.state.value)

@@ -5,6 +5,7 @@ import com.example.polarh10activityviewer.ble.HeartRateReading
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.session.SessionController
 import com.example.polarh10activityviewer.session.SessionStatus
+import com.example.polarh10activityviewer.session.SessionSummary
 
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.HR
 import kotlinx.coroutines.CompletableDeferred
@@ -31,11 +32,11 @@ class LiveChartLifecycleTest {
         val subscriptions = DataSubscriptions(scope) { type, status ->
             val eventTime = now
             charts.onSubscriptionState(type, status, session.elapsedAt(eventTime))
-            session.onSubscriptionState(eventTime)
+            session.onSubscriptionState(type, status, eventTime)
         }
         init {
             session = SessionController(subscriptions, { now }, charts::reset,
-                { charts.stop(session.state.value.elapsedMs) })
+                { charts.stop(session.state.value.elapsedMs) }, { SessionSummary() })
         }
         fun startStream(source: Flow<Int>): Boolean {
             val generation = session.state.value.generation
