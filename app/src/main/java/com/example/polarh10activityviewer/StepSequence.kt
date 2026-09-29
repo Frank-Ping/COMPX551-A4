@@ -28,7 +28,7 @@ internal class StepSequence {
 
     fun accept(candidate: StepCandidate): List<StepCandidate> {
         val previous = lastAcceptedAt
-        if (previous != null && candidate.timeStamp - previous < 200_000_000L) return emptyList()
+        if (previous != null && candidate.timeStamp - previous < 250_000_000L) return emptyList()
         if (expire(candidate.timeStamp)) return emptyList()
         lastAcceptedAt = candidate.timeStamp
         if (confirmed) {

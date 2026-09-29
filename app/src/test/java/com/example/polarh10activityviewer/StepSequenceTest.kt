@@ -25,15 +25,17 @@ class StepSequenceTest {
     @Test fun rejectedClosePeaksDoNotMoveReferenceOrBreakPendingSequence() {
         val sequence = StepSequence()
         sequence.accept(peak(0))
-        assertTrue(sequence.accept(peak(199_999_999)).isEmpty())
-        sequence.accept(peak(200_000_000))
         assertTrue(sequence.accept(peak(200_000_000)).isEmpty())
-        sequence.accept(peak(400_000_000))
-        val result = sequence.accept(peak(600_000_000))
-        assertEquals(listOf(0L, 200_000_000L, 400_000_000L, 600_000_000L), result.map { it.timeStamp })
+        assertTrue(sequence.accept(peak(249_999_999)).isEmpty())
+        sequence.accept(peak(250_000_000))
+        assertTrue(sequence.accept(peak(250_000_000)).isEmpty())
+        sequence.accept(peak(500_000_000))
+        val result = sequence.accept(peak(750_000_000))
+        assertEquals(listOf(0L, 250_000_000L, 500_000_000L, 750_000_000L), result.map { it.timeStamp })
         assertEquals(4L, sequence.totalSteps)
-        assertTrue(sequence.accept(peak(799_999_999)).isEmpty())
-        assertEquals(listOf(peak(800_000_000)), sequence.accept(peak(800_000_000)))
+        assertTrue(sequence.accept(peak(950_000_000)).isEmpty())
+        assertTrue(sequence.accept(peak(999_999_999)).isEmpty())
+        assertEquals(listOf(peak(1_000_000_000)), sequence.accept(peak(1_000_000_000)))
     }
 
     @Test fun exactTwoSecondIntervalsAcceptedButGreaterIntervalDiscardsSequence() {
@@ -76,7 +78,7 @@ class StepSequenceTest {
         val sequence = StepSequence()
         var submitted = 0
         repeat(10_000) {
-            val result = sequence.accept(peak(it * 200_000_000L))
+            val result = sequence.accept(peak(it * 250_000_000L))
             assertTrue(result.size <= 4)
             submitted += result.size
         }
