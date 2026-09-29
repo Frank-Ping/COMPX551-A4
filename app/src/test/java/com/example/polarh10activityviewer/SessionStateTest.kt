@@ -1,6 +1,7 @@
 package com.example.polarh10activityviewer
 
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
+import com.polar.sdk.api.PolarBleApi.PolarBleSdkFeature
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.*
 import com.polar.sdk.api.model.EcgSample
 import com.polar.sdk.api.model.PolarAccelerometerData
@@ -34,24 +35,25 @@ class SessionStateTest {
             hr.onSubscriptionState(type, status)
             acc.onSubscriptionState(type, status)
             ecg.onSubscriptionState(type, status)
-            session.onSubscriptionState(status)
+            session.onSubscriptionState()
         }
         init {
             session = SessionController(subscriptions, { now },
-                { hr.clear(); acc.clear(); ecg.clear() }, hr::clear)
+                { hr.reset(); acc.clear(); ecg.clear() }, hr::clear)
         }
         val state get() = session.state.value
         fun receive(type: PolarDeviceDataType, value: Int) {
             when (type) {
-                HR -> hr.receive(PolarHrData(listOf(
+                HR -> if (hr.receive(PolarHrData(listOf(
                     PolarHrData.PolarHrSample(value, 0, 0, emptyList(), emptyList(), false, true, true)
-                )), now)
+                )), now)) session.onValidData()
                 ACC -> acc.receive(PolarAccelerometerData(listOf(
                     PolarAccelerometerData.PolarAccelerometerDataSample(now, value, 0, 1000)
                 )))
                 ECG -> ecg.receive(listOf(EcgSample(now, value)))
                 else -> error("Unexpected test type")
             }
+            if (type != HR) session.onValidData()
         }
         fun startStream(type: PolarDeviceDataType, source: Flow<Int>): Boolean {
             val generation = state.generation
@@ -62,6 +64,47 @@ class SessionStateTest {
         fun start(types: List<PolarDeviceDataType> = checkedDataTypes) = session.start(connected) {
             types.forEach { startStream(it, running()) }
         }
+    }
+
+    @Test fun stopThenRecheckAllowsAnotherSessionWhenHrNotificationsAreDisabled() = runTest {
+        val f = Fixture(this)
+        val features = mutableSetOf(
+            PolarBleSdkFeature.FEATURE_HR, PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
+        )
+        var notificationsEnabled = true
+        var starts = 0
+        fun recheck() = features.toList().all { feature ->
+            features.confirmReadiness(feature) { notificationsEnabled }
+        }
+        fun start() = f.session.start(f.connected && recheck()) {
+            checkedDataTypes.forEach { type ->
+                f.startStream(type, flow {
+                    val feature = if (type == HR) PolarBleSdkFeature.FEATURE_HR
+                        else PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
+                    check(features.confirmReadiness(feature) { notificationsEnabled })
+                    if (type == HR) notificationsEnabled = true
+                    starts++
+                    try { emit(80); awaitCancellation() }
+                    finally { if (type == HR) notificationsEnabled = false }
+                })
+            }
+        }
+        assertTrue(start())
+        runCurrent()
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        f.session.stop("Stop")
+        runCurrent()
+        assertEquals(SessionStatus.STOPPED, f.state.status)
+        assertFalse(notificationsEnabled)
+        assertTrue(f.connected)
+        assertTrue(recheck())
+        assertTrue(start())
+        runCurrent()
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        assertEquals(6, starts)
+        assertEquals(2L, f.state.generation)
+        f.session.stop("Done")
+        runCurrent()
     }
 
     @Test fun prerequisitesRejectWithoutClearingAndCannotStartStreamsOutsideSession() = runTest {
@@ -115,6 +158,7 @@ class SessionStateTest {
         f.now = 1_000
         assertFalse(f.start())
         assertEquals(80, f.hr.reading.value?.bpm)
+        assertEquals(HeartRateStatistics(1, 80, 80, 80), f.hr.statistics.value)
         assertEquals(9, f.acc.samples.value.single().x)
         f.session.stop("User stopped")
         assertEquals(SessionStatus.STOPPING, f.state.status)
@@ -134,10 +178,12 @@ class SessionStateTest {
         assertEquals(SessionStatus.STOPPED, f.state.status)
         assertEquals(1_000L, f.state.elapsedMs)
         assertEquals(9, f.acc.samples.value.single().x)
+        assertEquals(HeartRateStatistics(1, 80, 80, 80), f.hr.statistics.value)
         assertTrue(f.session.start(true) { f.startStream(HR, flow { awaitCancellation() }) })
         assertEquals(generation + 1, f.state.generation)
         assertEquals(0L, f.state.elapsedMs)
         assertTrue(f.acc.samples.value.isEmpty())
+        assertEquals(HeartRateStatistics(), f.hr.statistics.value)
         f.session.stop("Done")
     }
 
@@ -269,6 +315,7 @@ class SessionStateTest {
         runCurrent()
         assertEquals(0L, f.state.elapsedMs)
         assertEquals(1, f.hr.reading.value?.bpm)
+        assertEquals(HeartRateStatistics(1, 1, 1, 1), f.hr.statistics.value)
         f.session.refresh(f.state.generation)
         assertEquals(1_000L, f.state.elapsedMs)
         f.session.stop("Done")
@@ -288,6 +335,7 @@ class SessionStateTest {
             assertEquals(reason, f.state.endReason)
             assertEquals(500L, f.state.elapsedMs)
             assertNull(f.hr.reading.value)
+            assertEquals(HeartRateStatistics(1, 1, 1, 1), f.hr.statistics.value)
             assertTrue(f.acc.samples.value.isNotEmpty())
             assertTrue(f.ecg.samples.value.isNotEmpty())
             assertTrue(checkedDataTypes.none(f.subscriptions::isActive))
@@ -297,5 +345,116 @@ class SessionStateTest {
             assertEquals(SessionStatus.STOPPED, f.state.status)
             assertEquals(500L, f.state.elapsedMs)
         }
+    }
+
+    @Test fun invalidHrIsReceivingButCannotStartTimingUntilValidDataArrives() = runTest {
+        val f = Fixture(this)
+        val source = MutableSharedFlow<Int>()
+        f.session.start(true) { f.startStream(HR, source) }
+        runCurrent()
+        f.now = 1_000
+        source.emit(0)
+        runCurrent()
+        assertEquals(SubscriptionStatus.RECEIVING, f.subscriptions.states.value.getValue(HR).status)
+        assertEquals(SessionStatus.STARTING, f.state.status)
+        assertEquals(0L, f.state.elapsedMs)
+        assertEquals(0L, f.hr.statistics.value.count)
+        f.now = 3_000
+        source.emit(80)
+        runCurrent()
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        f.now = 4_000
+        source.emit(-1)
+        runCurrent()
+        f.session.refresh(f.state.generation)
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        assertEquals(1_000L, f.state.elapsedMs)
+        assertNull(f.hr.reading.value)
+        assertEquals(1L, f.hr.statistics.value.count)
+        f.session.stop("Done")
+    }
+
+    @Test fun mixedHrBatchCanStartTimingEvenWithInvalidFinalSample() = runTest {
+        val f = Fixture(this)
+        val source = MutableSharedFlow<PolarHrData>()
+        f.session.start(true) {
+            val generation = f.state.generation
+            f.subscriptions.start(HR, { true }, { f.session.accepts(generation) }, { source }) {
+                if (f.hr.receive(it, f.now)) f.session.onValidData()
+            }
+        }
+        runCurrent()
+        f.now = 5_000
+        source.emit(PolarHrData(listOf(80, 0).map {
+            PolarHrData.PolarHrSample(it, 0, 0, emptyList(), emptyList(), false, true, true)
+        }))
+        runCurrent()
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        assertNull(f.hr.reading.value)
+        assertEquals(HeartRateStatistics(1, 80, 80, 80), f.hr.statistics.value)
+        f.now = 6_000
+        f.session.refresh(f.state.generation)
+        assertEquals(1_000L, f.state.elapsedMs)
+        f.session.stop("Done")
+    }
+
+    @Test fun accOrEcgCanStartWhileHrIsInvalidAndHrCannotResetTheirClock() = runTest {
+        for (type in listOf(ACC, ECG)) {
+            val f = Fixture(this)
+            val hrSource = MutableSharedFlow<Int>()
+            val otherSource = MutableSharedFlow<Int>()
+            f.session.start(true) { f.startStream(HR, hrSource); f.startStream(type, otherSource) }
+            runCurrent()
+            hrSource.emit(0)
+            runCurrent()
+            assertEquals(SessionStatus.STARTING, f.state.status)
+            f.now = 1_000
+            otherSource.emit(7)
+            runCurrent()
+            assertEquals(SessionStatus.RUNNING, f.state.status)
+            f.now = 2_000
+            hrSource.emit(80)
+            runCurrent()
+            f.session.refresh(f.state.generation)
+            assertEquals(1_000L, f.state.elapsedMs)
+            f.session.stop("Done")
+            runCurrent()
+        }
+    }
+
+    @Test fun failedHrRetryRetainsTotalsAndNewSessionWithoutHrResetsThem() = runTest {
+        val f = Fixture(this)
+        f.session.start(true) {
+            f.startStream(HR, flow { emit(80); error("HR failure") })
+            f.startStream(ACC, f.running(9))
+        }
+        runCurrent()
+        assertNull(f.hr.reading.value)
+        assertEquals(1L, f.hr.statistics.value.count)
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        f.now = 1_000
+        assertTrue(f.session.retry(HR, true) { f.startStream(HR, f.running(100)) })
+        runCurrent()
+        assertEquals(HeartRateStatistics(2, 180, 80, 100), f.hr.statistics.value)
+        assertFalse(f.session.retry(HR, true) { error("Duplicate retry") })
+        assertEquals(2L, f.hr.statistics.value.count)
+        assertEquals(9, f.acc.samples.value.single().x)
+        f.session.stop("Done")
+        runCurrent()
+        assertEquals(2L, f.hr.statistics.value.count)
+        assertTrue(f.start(listOf(ACC)))
+        runCurrent()
+        assertEquals(HeartRateStatistics(), f.hr.statistics.value)
+        f.session.stop("Done")
+    }
+
+    @Test fun invalidOnlyHrCompletionEndsAtZeroWithoutStatistics() = runTest {
+        val f = Fixture(this)
+        f.session.start(true) { f.startStream(HR, flow { emit(0); emit(-1) }) }
+        runCurrent()
+        assertEquals(SessionStatus.STOPPED, f.state.status)
+        assertEquals(0L, f.state.elapsedMs)
+        assertEquals(HeartRateStatistics(), f.hr.statistics.value)
+        assertNull(f.hr.message.value)
     }
 }

@@ -1,6 +1,7 @@
 package com.example.polarh10activityviewer
 
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
+import com.polar.sdk.api.PolarBleApi.PolarBleSdkFeature
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
 
 enum class DataReadinessStatus(val message: String) {
@@ -17,6 +18,17 @@ data class DataReadiness(
 )
 
 val checkedDataTypes = listOf(PolarDeviceDataType.HR, PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
+
+// Confirmed features last for this connection; stopping HR disables notifications, not support.
+internal fun MutableSet<PolarBleSdkFeature>.confirmReadiness(
+    feature: PolarBleSdkFeature,
+    sdkCheck: () -> Boolean
+): Boolean {
+    if (feature in this) return true
+    if (!sdkCheck()) return false
+    add(feature)
+    return true
+}
 
 // Keep selection policy separate from the temporary development UI.
 internal fun checkedSettings(type: PolarDeviceDataType, settings: Map<SettingType, Set<Int>>): DataReadiness {

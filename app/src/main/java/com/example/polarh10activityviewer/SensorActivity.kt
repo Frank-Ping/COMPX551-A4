@@ -93,6 +93,8 @@ class SensorActivity : ComponentActivity() {
             val savedDevicesState by bleManager.savedDevicesState.collectAsState()
             val dataReadiness by bleManager.dataReadiness.collectAsState()
             val heartRate by bleManager.heartRate.collectAsState()
+            val heartRateStatistics by bleManager.heartRateStatistics.collectAsState()
+            val heartRateMessage by bleManager.heartRateMessage.collectAsState()
             val accSamples by bleManager.accSamples.collectAsState()
             val ecgSamples by bleManager.ecgSamples.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
@@ -125,6 +127,8 @@ class SensorActivity : ComponentActivity() {
                         dataReadiness = dataReadiness,
                         onRecheckData = ::handleRecheckData,
                         heartRate = heartRate,
+                        heartRateStatistics = heartRateStatistics,
+                        heartRateMessage = heartRateMessage,
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
                         accSamples = accSamples,
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
@@ -307,6 +311,8 @@ internal fun SessionScreen(
     modifier: Modifier = Modifier,
     batteryLevel: Int? = null,
     heartRate: HeartRateReading? = null,
+    heartRateStatistics: HeartRateStatistics = HeartRateStatistics(),
+    heartRateMessage: String? = null,
     hrSubscription: SubscriptionState = SubscriptionState(),
     accSamples: List<AccSample> = emptyList(),
     accSubscription: SubscriptionState = SubscriptionState(),
@@ -335,7 +341,7 @@ internal fun SessionScreen(
         Text("Session: ${session.status.label}", style = MaterialTheme.typography.titleMedium)
         val seconds = session.elapsedMs / 1_000
         Text("Elapsed: ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}")
-        Text("Timing begins with the first received sample.")
+        Text("Timing begins with the first valid HR or actual ACC/ECG sample.")
         session.endReason?.let { Text(it) }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = onStartSession, enabled = connected &&
@@ -347,6 +353,8 @@ internal fun SessionScreen(
         }
         HeartRatePanel(
             reading = heartRate,
+            statistics = heartRateStatistics,
+            message = heartRateMessage,
             subscription = hrSubscription,
             canRetry = connected && session.ongoing,
             onRetry = { onRetryStream(PolarDeviceDataType.HR) }
@@ -464,6 +472,8 @@ internal fun SessionScreen(
 @Composable
 private fun HeartRatePanel(
     reading: HeartRateReading?,
+    statistics: HeartRateStatistics,
+    message: String?,
     subscription: SubscriptionState,
     canRetry: Boolean,
     onRetry: () -> Unit
@@ -480,12 +490,18 @@ private fun HeartRatePanel(
         }
         Text("HR stream: $status")
         Text("HR: ${reading?.let { "${it.bpm} bpm" } ?: "--"}")
+        Text("Minimum HR: ${statistics.min?.let { "$it bpm" } ?: "--"}")
+        Text("Maximum HR: ${statistics.max?.let { "$it bpm" } ?: "--"}")
+        val average = statistics.average?.let { String.format(Locale.ENGLISH, "%.1f bpm", it) } ?: "--"
+        Text("Mean HR: $average")
+        Text("Mean of valid HR samples")
         val receivedAt = reading?.let {
             DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH)
                 .format(Date(it.receivedAt))
         } ?: "--"
         Text("Last received on phone: $receivedAt")
-        Text("Shows the last received value; the time is not a sensor sampling timestamp.")
+        Text("Shows the latest sample when valid; the time is not a sensor sampling timestamp.")
+        message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         StreamRetryButton(PolarDeviceDataType.HR, subscription, canRetry, onRetry)
     }

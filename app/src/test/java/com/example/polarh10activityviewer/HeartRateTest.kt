@@ -34,7 +34,7 @@ class HeartRateTest {
         { source.filter { it.samples.isNotEmpty() } },
         { latest.receive(it, now()) })
 
-    @Test fun batchKeepsLastRawSampleAndRepeatedValueUpdatesTime() = runTest {
+    @Test fun batchKeepsLastValidSampleAndRepeatedValueUpdatesTimeAndStatistics() = runTest {
         val latest = LatestHeartRate()
         val subscriptions = DataSubscriptions(this, latest::onSubscriptionState)
         val source = MutableSharedFlow<PolarHrData>()
@@ -52,10 +52,13 @@ class HeartRateTest {
         runCurrent()
         assertEquals(HeartRateReading(72, 2_000), latest.reading.value)
         assertEquals(2, clockReads)
-        // HR validation and statistics are deferred to step 5.1.
+        val totals = latest.statistics.value
+        assertEquals(HeartRateStatistics(4, 285, 70, 72), totals)
         source.emit(batch(0))
         runCurrent()
-        assertEquals(0, latest.reading.value?.bpm)
+        assertNull(latest.reading.value)
+        assertEquals("Invalid HR sample", latest.message.value)
+        assertEquals(totals, latest.statistics.value)
         subscriptions.stopAll()
     }
 
@@ -90,6 +93,7 @@ class HeartRateTest {
         runCurrent()
         assertFalse(subscriptions.startHr(latest, source))
         assertEquals(HeartRateReading(75, 1_000), latest.reading.value)
+        assertEquals(1L, latest.statistics.value.count)
         subscriptions.stop(HR)
         assertNull(latest.reading.value)
         runCurrent()
@@ -105,6 +109,7 @@ class HeartRateTest {
         next.emit(batch(85))
         runCurrent()
         assertEquals(HeartRateReading(85, 2_000), latest.reading.value)
+        assertEquals(HeartRateStatistics(2, 160, 75, 85), latest.statistics.value)
         subscriptions.stopAll()
     }
 
@@ -130,6 +135,7 @@ class HeartRateTest {
         assertTrue(subscriptions.startHr(latest, flow { emit(batch(81)); awaitCancellation() }))
         runCurrent()
         assertEquals(81, latest.reading.value?.bpm)
+        assertEquals(HeartRateStatistics(3, 233, 76, 81), latest.statistics.value)
         assertNull(subscriptions.states.value.getValue(HR).error)
         subscriptions.stopAll()
     }
@@ -153,6 +159,7 @@ class HeartRateTest {
         runCurrent()
         assertNull(latest.reading.value)
         assertEquals(SubscriptionStatus.STOPPED, subscriptions.states.value.getValue(HR).status)
+        assertEquals(HeartRateStatistics(1, 90, 90, 90), latest.statistics.value)
     }
 
     @Test fun oldConnectionEventsCannotUpdateTheReading() = runTest {
@@ -171,6 +178,7 @@ class HeartRateTest {
         runCurrent()
         assertNull(latest.reading.value)
         assertNull(subscriptions.states.value.getValue(HR).error)
+        assertEquals(0L, latest.statistics.value.count)
     }
 
     @Test fun lateOldEmissionCannotOverwriteRestartedReading() = runTest {
@@ -192,6 +200,7 @@ class HeartRateTest {
         runCatching { oldCollector.emit(batch(61)) }
         runCurrent()
         assertEquals(HeartRateReading(82, 2_000), latest.reading.value)
+        assertEquals(HeartRateStatistics(2, 142, 60, 82), latest.statistics.value)
         subscriptions.stopAll()
     }
 
@@ -204,5 +213,78 @@ class HeartRateTest {
         runCurrent()
         assertEquals(HeartRateReading(88, 1_000), latest.reading.value)
         subscriptions.stopAll()
+    }
+
+    @Test fun mixedBatchCountsEveryValidSampleWithFloatingPointMean() {
+        val latest = LatestHeartRate()
+        assertNull(latest.statistics.value.average)
+        assertTrue(latest.receive(batch(80, 80, 0, 100), 1_000))
+        assertEquals(HeartRateStatistics(3, 260, 80, 100), latest.statistics.value)
+        assertEquals(86.6666667, latest.statistics.value.average!!, 0.000001)
+        assertEquals(HeartRateReading(100, 1_000), latest.reading.value)
+        assertNull(latest.message.value)
+        assertFalse(latest.receive(batch(-1), 2_000))
+        assertNull(latest.reading.value)
+        assertEquals(3L, latest.statistics.value.count)
+    }
+
+    @Test fun invalidLastSampleDoesNotFallBackButEarlierValidSampleStillCounts() {
+        val latest = LatestHeartRate()
+        assertTrue(latest.receive(batch(90, 0), 1_000))
+        assertNull(latest.reading.value)
+        assertEquals("Invalid HR sample", latest.message.value)
+        assertEquals(HeartRateStatistics(1, 90, 90, 90), latest.statistics.value)
+        assertEquals(90.0, latest.statistics.value.average!!, 0.0)
+        assertTrue(latest.receive(batch(85), 2_000))
+        assertEquals(HeartRateReading(85, 2_000), latest.reading.value)
+        assertNull(latest.message.value)
+    }
+
+    @Test fun contactIsRequiredOnlyWhenSupportedAndNoContactMessageTakesPriority() {
+        for (supported in listOf(false, true)) {
+            for (contact in listOf(false, true)) {
+                val latest = LatestHeartRate()
+                val sample = batch(80).samples.single().copy(
+                    contactStatusSupported = supported, contactStatus = contact
+                )
+                val valid = !supported || contact
+                assertEquals(valid, latest.receive(PolarHrData(listOf(sample)), 1_000))
+                assertEquals(if (valid) 1L else 0L, latest.statistics.value.count)
+                assertEquals(if (valid) null else "No sensor contact", latest.message.value)
+            }
+        }
+        val latest = LatestHeartRate()
+        val noContact = batch(0).samples.single().copy(contactStatus = false)
+        assertFalse(latest.receive(PolarHrData(listOf(noContact)), 1_000))
+        assertEquals("No sensor contact", latest.message.value)
+        assertEquals(HeartRateStatistics(), latest.statistics.value)
+    }
+
+    @Test fun invalidOnlyAndEmptyBatchesDoNotInventStatisticsOrClearExistingMessage() {
+        val latest = LatestHeartRate()
+        assertFalse(latest.receive(batch(0, -10), 1_000))
+        assertEquals(HeartRateStatistics(), latest.statistics.value)
+        assertNull(latest.statistics.value.average)
+        assertNull(latest.reading.value)
+        assertFalse(latest.receive(batch(), 2_000))
+        assertEquals("Invalid HR sample", latest.message.value)
+        assertTrue(latest.receive(batch(1, 300), 3_000))
+        assertEquals(HeartRateStatistics(2, 301, 1, 300), latest.statistics.value)
+    }
+
+    @Test fun clearingCurrentStateRetainsTotalsWhileResetRemovesEverything() {
+        val latest = LatestHeartRate()
+        latest.receive(batch(80, 100, 0), 1_000)
+        val totals = latest.statistics.value
+        latest.clear()
+        assertNull(latest.reading.value)
+        assertNull(latest.message.value)
+        assertEquals(totals, latest.statistics.value)
+        latest.reset()
+        assertEquals(HeartRateStatistics(), latest.statistics.value)
+        assertNull(latest.reading.value)
+        assertNull(latest.message.value)
+        latest.receive(batch(60), 2_000)
+        assertEquals(HeartRateStatistics(1, 60, 60, 60), latest.statistics.value)
     }
 }

@@ -57,13 +57,14 @@ internal class SessionController(
         return accepted
     }
 
-    fun onSubscriptionState(status: SubscriptionStatus) {
-        if (status == SubscriptionStatus.RECEIVING && state.value.status == SessionStatus.STARTING) {
+    fun onValidData() {
+        if (state.value.status == SessionStatus.STARTING) {
             startedAt = now()
             mutableState.value = state.value.copy(status = SessionStatus.RUNNING)
         }
-        finishIfIdle()
     }
+
+    fun onSubscriptionState() = finishIfIdle()
 
     fun refresh(generation: Long) {
         if (accepts(generation) && state.value.status == SessionStatus.RUNNING) {

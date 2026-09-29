@@ -99,6 +99,8 @@ class PolarBleManager(context: Context) {
     val dataReadiness = mutableDataReadiness.asStateFlow()
     private val latestHeartRate = LatestHeartRate()
     val heartRate = latestHeartRate.reading
+    val heartRateStatistics = latestHeartRate.statistics
+    val heartRateMessage = latestHeartRate.message
     private val accBuffer = AccBuffer()
     val accSamples = accBuffer.samples
     private val ecgBuffer = EcgBuffer()
@@ -110,11 +112,11 @@ class PolarBleManager(context: Context) {
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
         ecgBuffer.onSubscriptionState(type, status)
-        session.onSubscriptionState(status)
+        session.onSubscriptionState()
     }
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
-        clearAllReadings = { latestHeartRate.clear(); accBuffer.clear(); ecgBuffer.clear() },
+        clearAllReadings = { latestHeartRate.reset(); accBuffer.clear(); ecgBuffer.clear() },
         clearHr = latestHeartRate::clear)
     internal val sessionState = session.state
 
@@ -168,7 +170,9 @@ class PolarBleManager(context: Context) {
             checkFeature(source, identifier, PolarDeviceDataType.HR)
             source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
         },
-        onData = { latestHeartRate.receive(it, System.currentTimeMillis()) }
+        onData = {
+            if (latestHeartRate.receive(it, System.currentTimeMillis())) session.onValidData()
+        }
     )
 
     @MainThread
@@ -180,7 +184,7 @@ class PolarBleManager(context: Context) {
                 source.startAccStreaming(identifier, settings)
                     .filter { it.samples.isNotEmpty() }
             },
-            onData = accBuffer::receive
+            onData = { accBuffer.receive(it); session.onValidData() }
         )
     }
 
@@ -192,14 +196,14 @@ class PolarBleManager(context: Context) {
                 val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
                 source.startEcgStreaming(identifier, settings).h10EcgSamples()
             },
-            onData = ecgBuffer::receive
+            onData = { ecgBuffer.receive(it); session.onValidData() }
         )
     }
 
     private fun checkFeature(source: PolarBleApi, identifier: String, type: PolarDeviceDataType) {
         val feature = if (type == PolarDeviceDataType.HR) PolarBleSdkFeature.FEATURE_HR
             else PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
-        if (!source.isFeatureReady(identifier, feature)) {
+        if (!readyFeatures.confirmReadiness(feature) { source.isFeatureReady(identifier, feature) }) {
             setDataReadiness(type, DataReadiness(DataReadinessStatus.WAITING))
             error("$type feature is not ready. Retry when available.")
         }
@@ -527,8 +531,7 @@ class PolarBleManager(context: Context) {
             val types = if (feature == PolarBleSdkFeature.FEATURE_HR) listOf(PolarDeviceDataType.HR)
                 else listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
             try {
-                if (source.isFeatureReady(identifier, feature)) {
-                    readyFeatures.add(feature)
+                if (readyFeatures.confirmReadiness(feature) { source.isFeatureReady(identifier, feature) }) {
                     unavailableFeatures.remove(feature)
                     if (feature == PolarBleSdkFeature.FEATURE_HR) {
                         setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
@@ -749,15 +752,46 @@ internal data class SubscriptionState(
 
 data class HeartRateReading(val bpm: Int, val receivedAt: Long)
 
+data class HeartRateStatistics(
+    val count: Long = 0,
+    val sum: Long = 0,
+    val min: Int? = null,
+    val max: Int? = null
+) {
+    val average: Double? get() = if (count == 0L) null else sum.toDouble() / count
+}
+
 @MainThread
 internal class LatestHeartRate {
     private val mutableReading = MutableStateFlow<HeartRateReading?>(null)
     val reading = mutableReading.asStateFlow()
+    private val mutableStatistics = MutableStateFlow(HeartRateStatistics())
+    val statistics = mutableStatistics.asStateFlow()
+    private val mutableMessage = MutableStateFlow<String?>(null)
+    val message = mutableMessage.asStateFlow()
 
-    fun receive(batch: PolarHrData, receivedAt: Long) {
+    // Report valid reception separately from the final sample's display state.
+    fun receive(batch: PolarHrData, receivedAt: Long): Boolean {
+        var receivedValid = false
+        var totals = statistics.value
         batch.samples.forEach { sample ->
-            mutableReading.value = HeartRateReading(sample.hr, receivedAt)
+            val noContact = sample.contactStatusSupported && !sample.contactStatus
+            if (sample.hr > 0 && !noContact) {
+                receivedValid = true
+                totals = HeartRateStatistics(
+                    totals.count + 1, totals.sum + sample.hr,
+                    minOf(totals.min ?: sample.hr, sample.hr),
+                    maxOf(totals.max ?: sample.hr, sample.hr)
+                )
+                mutableReading.value = HeartRateReading(sample.hr, receivedAt)
+                mutableMessage.value = null
+            } else {
+                mutableReading.value = null
+                mutableMessage.value = if (noContact) "No sensor contact" else "Invalid HR sample"
+            }
         }
+        mutableStatistics.value = totals
+        return receivedValid
     }
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
@@ -766,7 +800,15 @@ internal class LatestHeartRate {
         }
     }
 
-    fun clear() { mutableReading.value = null }
+    fun clear() {
+        mutableReading.value = null
+        mutableMessage.value = null
+    }
+
+    fun reset() {
+        clear()
+        mutableStatistics.value = HeartRateStatistics()
+    }
 }
 
 // Confined to the main thread by the manager; tests use a single coroutine test scheduler.

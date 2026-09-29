@@ -1,11 +1,35 @@
 package com.example.polarh10activityviewer
 
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
+import com.polar.sdk.api.PolarBleApi.PolarBleSdkFeature
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
 import org.junit.Assert.*
 import org.junit.Test
 
 class DataReadinessTest {
+    @Test fun stoppedHrNotificationsDoNotInvalidateConfirmedHrOrOnlineFeatures() {
+        val features = mutableSetOf(
+            PolarBleSdkFeature.FEATURE_HR, PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
+        )
+        for (feature in features.toList()) {
+            assertTrue(features.confirmReadiness(feature) { false })
+        }
+        // Disconnect/SDK release clears the manager's same set, so new connections must recheck.
+        features.clear()
+        assertFalse(features.confirmReadiness(PolarBleSdkFeature.FEATURE_HR) { false })
+        assertFalse(features.confirmReadiness(PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING) { false })
+        assertTrue(features.isEmpty())
+    }
+
+    @Test fun unresolvedFeatureCanBeConfirmedLaterWithoutRepeatedNotificationChecks() {
+        val features = mutableSetOf<PolarBleSdkFeature>()
+        val hr = PolarBleSdkFeature.FEATURE_HR
+        assertFalse(features.confirmReadiness(hr) { false })
+        assertTrue(features.confirmReadiness(hr) { true })
+        assertTrue(features.confirmReadiness(hr) { error("Already confirmed for this connection") })
+        assertFalse(features.confirmReadiness(PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING) { false })
+    }
+
     @Test fun accSelectsConfirmed100HzAnd4g() {
         val result = checkedSettings(PolarDeviceDataType.ACC, mapOf(
             SettingType.SAMPLE_RATE to setOf(25, 100, 200),
