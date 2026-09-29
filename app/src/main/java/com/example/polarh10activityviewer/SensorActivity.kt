@@ -44,6 +44,7 @@ import kotlinx.coroutines.delay
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class SensorActivity : ComponentActivity() {
     private val permissions = arrayOf(
@@ -96,6 +97,7 @@ class SensorActivity : ComponentActivity() {
             val heartRateStatistics by bleManager.heartRateStatistics.collectAsState()
             val heartRateMessage by bleManager.heartRateMessage.collectAsState()
             val accSamples by bleManager.accSamples.collectAsState()
+            val steps by bleManager.stepState.collectAsState()
             val ecgSamples by bleManager.ecgSamples.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             val session by bleManager.sessionState.collectAsState()
@@ -131,6 +133,7 @@ class SensorActivity : ComponentActivity() {
                         heartRateMessage = heartRateMessage,
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
                         accSamples = accSamples,
+                        steps = steps,
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
                         ecgSamples = ecgSamples,
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
@@ -315,6 +318,7 @@ internal fun SessionScreen(
     heartRateMessage: String? = null,
     hrSubscription: SubscriptionState = SubscriptionState(),
     accSamples: List<AccSample> = emptyList(),
+    steps: StepState = StepState(),
     accSubscription: SubscriptionState = SubscriptionState(),
     ecgSamples: List<EcgSample> = emptyList(),
     ecgSubscription: SubscriptionState = SubscriptionState(),
@@ -359,6 +363,10 @@ internal fun SessionScreen(
             canRetry = connected && session.ongoing,
             onRetry = { onRetryStream(PolarDeviceDataType.HR) }
         )
+        Text("Steps (development check)", style = MaterialTheme.typography.titleMedium)
+        Text(steps.message)
+        Text("Total steps: ${steps.totalSteps ?: "--"}")
+        Text("Cadence: ${steps.cadence?.roundToInt() ?: "--"} steps/min")
         AccPanel(
             samples = accSamples,
             subscription = accSubscription,

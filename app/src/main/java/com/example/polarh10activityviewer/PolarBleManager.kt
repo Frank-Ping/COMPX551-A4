@@ -101,7 +101,8 @@ class PolarBleManager(context: Context) {
     val heartRate = latestHeartRate.reading
     val heartRateStatistics = latestHeartRate.statistics
     val heartRateMessage = latestHeartRate.message
-    private val stepDetector = StepDetector()
+    private val stepDetector = StepDetector(SystemClock::elapsedRealtime)
+    internal val stepState = stepDetector.state
     private val accBuffer = AccBuffer { stepDetector.receive(it) }
     val accSamples = accBuffer.samples
     private val ecgBuffer = EcgBuffer()
@@ -112,8 +113,8 @@ class PolarBleManager(context: Context) {
     ) { type, status ->
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
-        if (type == PolarDeviceDataType.ACC && status != SubscriptionStatus.RECEIVING) {
-            stepDetector.clearSegment()
+        if (type == PolarDeviceDataType.ACC && session.state.value.ongoing) {
+            stepDetector.onSubscriptionState(status, dataSubscriptions.states.value.getValue(type).error)
         }
         ecgBuffer.onSubscriptionState(type, status)
         session.onSubscriptionState()
@@ -126,7 +127,7 @@ class PolarBleManager(context: Context) {
             stepDetector.reset()
             ecgBuffer.clear()
         },
-        clearHr = latestHeartRate::clear)
+        clearHr = { latestHeartRate.clear(); stepDetector.stop() })
     internal val sessionState = session.state
 
     @MainThread
@@ -154,7 +155,10 @@ class PolarBleManager(context: Context) {
         startStream(type)
     }
 
-    fun refreshSessionTime(generation: Long) = session.refresh(generation)
+    fun refreshSessionTime(generation: Long) {
+        session.refresh(generation)
+        if (session.accepts(generation)) stepDetector.refresh()
+    }
 
     private fun connectedForData() = api != null &&
         mutableConnectionState.value.status == ConnectionStatus.CONNECTED && bluetoothAvailableForData()
@@ -193,7 +197,12 @@ class PolarBleManager(context: Context) {
                 source.startAccStreaming(identifier, settings)
                     .filter { it.samples.isNotEmpty() }
             },
-            onData = { accBuffer.receive(it); session.onValidData() }
+            onData = {
+                val receivedAt = SystemClock.elapsedRealtime()
+                accBuffer.receive(it)
+                stepDetector.receivedBatch(it.samples.last().timeStamp, receivedAt)
+                session.onValidData()
+            }
         )
     }
 

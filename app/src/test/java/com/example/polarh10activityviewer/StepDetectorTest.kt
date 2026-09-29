@@ -4,8 +4,13 @@ import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.ACC
 import com.polar.sdk.api.model.PolarAccelerometerData
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -18,6 +23,149 @@ class StepDetectorTest {
             in 10..19 -> 800
             else -> 1000
         })
+    }
+
+    @Test fun normalWarmupAndConfirmationShowZeroThenCadenceUsesBackfilledPeaks() {
+        val detector = StepDetector { 0L }
+        detector.reset()
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertTrue(detector.state.value.message.contains("Warming"))
+        walking().take(104).forEach(detector::receive)
+        detector.receivedBatch(1_030_000_000L, 0)
+        assertEquals(0L, detector.state.value.totalSteps)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertTrue(detector.state.value.message.contains("four"))
+        walking().drop(104).forEach(detector::receive)
+        detector.receivedBatch(3_030_000_000L, 0)
+        assertEquals(4L, detector.state.value.totalSteps)
+        assertEquals(120.0, detector.state.value.cadence!!, 1e-10)
+    }
+
+    @Test fun quarterSecondRefreshZerosCadenceWithoutResettingDetectorOrChangingPeaks() = runTest {
+        val detector = StepDetector { testScheduler.currentTime }
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        walking().forEach(detector::receive)
+        detector.receivedBatch(3_030_000_000L, 0)
+        val committed = detector.latestCommitted
+        val warmup = detector.preprocessor.warmupEndedAt
+        var ticks = 0
+        val ticker = launch {
+            while (true) { detector.refresh(); ticks++; delay(250) }
+        }
+        runCurrent()
+        advanceTimeBy(1500)
+        runCurrent()
+        assertTrue(detector.state.value.cadence!! > 0)
+        assertEquals(7, ticks)
+        advanceTimeBy(250)
+        runCurrent()
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertEquals(4L, detector.totalSteps)
+        assertEquals(committed, detector.latestCommitted)
+        assertEquals(warmup, detector.preprocessor.warmupEndedAt)
+        // A new batch reanchors display time without losing peaks to the earlier estimate.
+        detector.receive(raw(304, 1000))
+        detector.receivedBatch(3_040_000_000L, testScheduler.currentTime)
+        assertTrue(detector.state.value.cadence!! > 0)
+        ticker.cancel()
+    }
+
+    @Test fun gapAndRetryShowMissingUntilRewarmedAndRetainTotals() {
+        var now = 0L
+        val detector = StepDetector { now }
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        walking().forEach(detector::receive)
+        detector.receivedBatch(3_030_000_000L, now)
+        detector.receive(raw(308, 1000).copy(gapBeforeNs = 50_000_000L))
+        detector.receivedBatch(3_080_000_000L, now)
+        assertNull(detector.state.value.cadence)
+        assertTrue(detector.state.value.message.contains("interruption"))
+        now = 50_000
+        detector.refresh()
+        assertNull(detector.state.value.cadence)
+        assertEquals(4L, detector.state.value.totalSteps)
+        for (i in 309..411) detector.receive(raw(i, 1000))
+        detector.receivedBatch(4_110_000_000L, now)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        detector.onSubscriptionState(SubscriptionStatus.FAILED, "ACC failed in test")
+        detector.refresh()
+        assertNull(detector.state.value.cadence)
+        assertEquals("ACC failed in test", detector.state.value.message)
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        detector.refresh()
+        assertNull(detector.state.value.cadence)
+        assertEquals(4L, detector.state.value.totalSteps)
+        walking().forEach(detector::receive)
+        detector.receivedBatch(3_030_000_000L, now)
+        assertEquals(8L, detector.state.value.totalSteps)
+        assertEquals(120.0, detector.state.value.cadence!!, 1e-10)
+    }
+
+    @Test fun stoppedWithNoAccRemainsMissingButObservedSessionShowsZeroAndNewStartResets() {
+        val detector = StepDetector { 0L }
+        detector.reset()
+        detector.onSubscriptionState(SubscriptionStatus.IDLE, "ACC unavailable")
+        assertNull(detector.state.value.cadence)
+        assertEquals("ACC unavailable", detector.state.value.message)
+        detector.stop()
+        assertNull(detector.state.value.cadence)
+        assertNull(detector.state.value.totalSteps)
+        detector.reset()
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        walking().forEach(detector::receive)
+        detector.receivedBatch(3_030_000_000L, 0)
+        detector.stop()
+        detector.refresh()
+        assertEquals(4L, detector.state.value.totalSteps)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertEquals("Stopped.", detector.state.value.message)
+        detector.reset()
+        assertNull(detector.state.value.totalSteps)
+        assertEquals(0L, detector.totalSteps)
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+    }
+
+    @Test fun sessionStopOverridesAccCleanupAndOldSessionTicksCannotChangeNewDisplay() = runTest {
+        var now = 0L
+        val detector = StepDetector { now }
+        lateinit var session: SessionController
+        val subscriptions = DataSubscriptions(this) { type, status ->
+            if (type == ACC && session.state.value.ongoing) detector.onSubscriptionState(status)
+            session.onSubscriptionState()
+        }
+        session = SessionController(subscriptions, { now }, detector::reset, detector::stop)
+        fun start(): Boolean = session.start(true) {
+            detector.onSubscriptionState(SubscriptionStatus.STARTING)
+            val generation = session.state.value.generation
+            subscriptions.start(ACC, { session.accepts(generation) }, { session.accepts(generation) },
+                { flow { emit(walking()); awaitCancellation() } }, { samples ->
+                    samples.forEach(detector::receive)
+                    detector.receivedBatch(samples.last().timeStamp, now)
+                    session.onValidData()
+                })
+        }
+        assertTrue(start())
+        runCurrent()
+        val previousGeneration = session.state.value.generation
+        assertFalse(start())
+        assertEquals(4L, detector.state.value.totalSteps)
+        session.stop("User stopped")
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertEquals("Stopped.", detector.state.value.message)
+        runCurrent()
+        assertEquals("Stopped.", detector.state.value.message)
+        now = 20_000
+        assertTrue(start())
+        runCurrent()
+        val newDisplay = detector.state.value
+        assertEquals(4L, newDisplay.totalSteps)
+        now += 30_000
+        if (session.accepts(previousGeneration)) detector.refresh()
+        assertEquals(newDisplay, detector.state.value)
+        session.stop("Done")
+        runCurrent()
     }
 
     @Test fun realProcessingPathCommitsFourOriginalPeakTimesAcrossBatches() {
