@@ -57,22 +57,22 @@ internal class SessionController(
         return accepted
     }
 
-    fun onValidData() {
+    fun onValidData(at: Long = now()) {
         if (state.value.status == SessionStatus.STARTING) {
-            startedAt = now()
+            startedAt = at
             mutableState.value = state.value.copy(status = SessionStatus.RUNNING)
         }
     }
 
-    fun onSubscriptionState() = finishIfIdle()
+    fun onSubscriptionState(at: Long = now()) = finishIfIdle(at)
 
-    fun refresh(generation: Long) {
+    fun refresh(generation: Long, at: Long = now()) {
         if (accepts(generation) && state.value.status == SessionStatus.RUNNING) {
-            mutableState.value = state.value.copy(elapsedMs = elapsed())
+            mutableState.value = state.value.copy(elapsedMs = elapsed(at))
         }
     }
 
-    private fun elapsed() = startedAt?.let { now() - it } ?: 0L
+    private fun elapsed(at: Long = now()) = startedAt?.let { at - it } ?: 0L
 
     fun stop(reason: String) {
         if (!state.value.ongoing) return
@@ -84,13 +84,13 @@ internal class SessionController(
         finishIfIdle()
     }
 
-    private fun finishIfIdle() {
+    private fun finishIfIdle(at: Long = now()) {
         if (startingStreams || checkedDataTypes.any(subscriptions::isActive)) return
         if (state.value.ongoing) {
             val reason = if (startedAt == null) "No data received. All stream attempts ended."
                 else "All streams ended."
             mutableState.value = state.value.copy(
-                status = SessionStatus.STOPPED, elapsedMs = elapsed(), endReason = reason
+                status = SessionStatus.STOPPED, elapsedMs = elapsed(at), endReason = reason
             )
             clearHr()
         } else if (state.value.status == SessionStatus.STOPPING) {

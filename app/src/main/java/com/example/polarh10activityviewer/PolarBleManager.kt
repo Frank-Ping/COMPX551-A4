@@ -101,6 +101,8 @@ class PolarBleManager(context: Context) {
     val heartRate = latestHeartRate.reading
     val heartRateStatistics = latestHeartRate.statistics
     val heartRateMessage = latestHeartRate.message
+    private val heartRateZones = HeartRateZones()
+    internal val heartRateZoneState = heartRateZones.state
     private val stepDetector = StepDetector(SystemClock::elapsedRealtime)
     internal val stepState = stepDetector.state
     private val accBuffer = AccBuffer { stepDetector.receive(it) }
@@ -111,23 +113,30 @@ class PolarBleManager(context: Context) {
     private val dataSubscriptions: DataSubscriptions = DataSubscriptions(
         CoroutineScope(Dispatchers.Main.immediate)
     ) { type, status ->
+        val eventTime = SystemClock.elapsedRealtime()
+        if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING && session.state.value.ongoing) {
+            session.refresh(session.state.value.generation, eventTime)
+            heartRateZones.clearCurrent(session.state.value.elapsedMs)
+        }
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
         if (type == PolarDeviceDataType.ACC && session.state.value.ongoing) {
             stepDetector.onSubscriptionState(status, dataSubscriptions.states.value.getValue(type).error)
         }
         ecgBuffer.onSubscriptionState(type, status)
-        session.onSubscriptionState()
+        session.onSubscriptionState(eventTime)
     }
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
+            heartRateZones.reset()
             latestHeartRate.reset()
             accBuffer.clear()
             stepDetector.reset()
             ecgBuffer.clear()
         },
         clearHr = {
+            heartRateZones.clearCurrent(session.state.value.elapsedMs)
             latestHeartRate.clear()
             stepDetector.updateSessionTime(session.state.value.elapsedMs)
             stepDetector.stop()
@@ -162,6 +171,7 @@ class PolarBleManager(context: Context) {
     fun refreshSessionTime(generation: Long) {
         session.refresh(generation)
         if (session.accepts(generation)) {
+            heartRateZones.refresh(session.state.value.elapsedMs)
             stepDetector.updateSessionTime(session.state.value.elapsedMs)
             stepDetector.refresh()
         }
@@ -191,7 +201,11 @@ class PolarBleManager(context: Context) {
             source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
         },
         onData = {
-            if (latestHeartRate.receive(it, System.currentTimeMillis())) session.onValidData()
+            val receivedTime = SystemClock.elapsedRealtime()
+            val receivedValid = latestHeartRate.receive(it, System.currentTimeMillis())
+            if (receivedValid) session.onValidData(receivedTime)
+            session.refresh(session.state.value.generation, receivedTime)
+            heartRateZones.receive(latestHeartRate.reading.value, receivedValid, session.state.value.elapsedMs)
         }
     )
 

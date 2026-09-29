@@ -96,6 +96,7 @@ class SensorActivity : ComponentActivity() {
             val heartRate by bleManager.heartRate.collectAsState()
             val heartRateStatistics by bleManager.heartRateStatistics.collectAsState()
             val heartRateMessage by bleManager.heartRateMessage.collectAsState()
+            val heartRateZones by bleManager.heartRateZoneState.collectAsState()
             val accSamples by bleManager.accSamples.collectAsState()
             val steps by bleManager.stepState.collectAsState()
             val ecgSamples by bleManager.ecgSamples.collectAsState()
@@ -131,6 +132,7 @@ class SensorActivity : ComponentActivity() {
                         heartRate = heartRate,
                         heartRateStatistics = heartRateStatistics,
                         heartRateMessage = heartRateMessage,
+                        heartRateZones = heartRateZones,
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
                         accSamples = accSamples,
                         steps = steps,
@@ -316,6 +318,7 @@ internal fun SessionScreen(
     heartRate: HeartRateReading? = null,
     heartRateStatistics: HeartRateStatistics = HeartRateStatistics(),
     heartRateMessage: String? = null,
+    heartRateZones: HeartRateZoneState = HeartRateZoneState(),
     hrSubscription: SubscriptionState = SubscriptionState(),
     accSamples: List<AccSample> = emptyList(),
     steps: StepState = StepState(),
@@ -363,6 +366,8 @@ internal fun SessionScreen(
             canRetry = connected && session.ongoing,
             onRetry = { onRetryStream(PolarDeviceDataType.HR) }
         )
+        HeartRateZonePanel(heartRateZones,
+            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED)
         Text("Steps (development check)", style = MaterialTheme.typography.titleMedium)
         Text(steps.message)
         Text("Total steps: ${steps.totalSteps ?: "--"}")
