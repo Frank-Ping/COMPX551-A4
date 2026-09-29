@@ -38,10 +38,13 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
     private var maximumSpeed: Double? = null
     private var incompleteAcc = false
     val totalSteps: Long get() = sequence.totalSteps
+    var segment: Long = 0
+        private set
     var latestCommitted: List<StepCandidate> = emptyList()
         private set
 
     fun clearSegment() {
+        segment++
         preprocessor.clear()
         candidates.clear()
         sequence.clearSegment()

@@ -74,6 +74,10 @@ internal class SessionController(
 
     private fun elapsed(at: Long = now()) = startedAt?.let { at - it } ?: 0L
 
+    // Chart reads do not advance session state or resume a stopped viewport.
+    fun elapsedAt(at: Long = now()): Long =
+        if (state.value.status == SessionStatus.RUNNING) elapsed(at) else state.value.elapsedMs
+
     fun stop(reason: String) {
         if (!state.value.ongoing) return
         mutableState.value = state.value.copy(

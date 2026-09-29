@@ -109,11 +109,13 @@ class PolarBleManager(context: Context) {
     val accSamples = accBuffer.samples
     private val ecgBuffer = EcgBuffer()
     val ecgSamples = ecgBuffer.samples
+    internal val liveCharts = LiveCharts { ecgBuffer.samples.value }
     private val streamSettingsMutex = Mutex()
     private val dataSubscriptions: DataSubscriptions = DataSubscriptions(
         CoroutineScope(Dispatchers.Main.immediate)
     ) { type, status ->
         val eventTime = SystemClock.elapsedRealtime()
+        liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime))
         if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING && session.state.value.ongoing) {
             session.refresh(session.state.value.generation, eventTime)
             heartRateZones.clearCurrent(session.state.value.elapsedMs)
@@ -129,6 +131,7 @@ class PolarBleManager(context: Context) {
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
+            liveCharts.reset()
             heartRateZones.reset()
             latestHeartRate.reset()
             accBuffer.clear()
@@ -136,6 +139,7 @@ class PolarBleManager(context: Context) {
             ecgBuffer.clear()
         },
         clearHr = {
+            liveCharts.stop(session.state.value.elapsedMs)
             heartRateZones.clearCurrent(session.state.value.elapsedMs)
             latestHeartRate.clear()
             stepDetector.updateSessionTime(session.state.value.elapsedMs)
@@ -174,8 +178,16 @@ class PolarBleManager(context: Context) {
             heartRateZones.refresh(session.state.value.elapsedMs)
             stepDetector.updateSessionTime(session.state.value.elapsedMs)
             stepDetector.refresh()
+            if (session.state.value.status == SessionStatus.RUNNING) {
+                val elapsed = session.state.value.elapsedMs
+                liveCharts.recordMotion(elapsed, stepState.value,
+                    warmingUp = stepDetector.preprocessor.warmupEndedAt == null, segment = stepDetector.segment)
+                liveCharts.advance(elapsed)
+            }
         }
     }
+
+    internal fun chartSnapshot(kind: ChartKind) = liveCharts.snapshot(kind, session.elapsedAt())
 
     private fun connectedForData() = api != null &&
         mutableConnectionState.value.status == ConnectionStatus.CONNECTED && bluetoothAvailableForData()
@@ -206,6 +218,9 @@ class PolarBleManager(context: Context) {
             if (receivedValid) session.onValidData(receivedTime)
             session.refresh(session.state.value.generation, receivedTime)
             heartRateZones.receive(latestHeartRate.reading.value, receivedValid, session.state.value.elapsedMs)
+            if (session.state.value.status == SessionStatus.RUNNING) {
+                liveCharts.receiveHr(session.state.value.elapsedMs, latestHeartRate.reading.value)
+            }
         }
     )
 
@@ -237,7 +252,13 @@ class PolarBleManager(context: Context) {
                 val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
                 source.startEcgStreaming(identifier, settings).h10EcgSamples()
             },
-            onData = { ecgBuffer.receive(it); session.onValidData() }
+            onData = {
+                val receivedTime = SystemClock.elapsedRealtime()
+                ecgBuffer.receive(it)
+                session.onValidData(receivedTime)
+                liveCharts.receiveEcg(it, session.elapsedAt(receivedTime),
+                    mutableDataReadiness.value.getValue(PolarDeviceDataType.ECG).selected.getValue(PolarSensorSetting.SettingType.SAMPLE_RATE))
+            }
         )
     }
 

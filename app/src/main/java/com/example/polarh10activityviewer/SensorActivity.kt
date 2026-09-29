@@ -143,6 +143,7 @@ class SensorActivity : ComponentActivity() {
                         onStartSession = ::handleStartSession,
                         onStopSession = { bleManager.stopSession() },
                         onRetryStream = ::handleRetryStream,
+                        charts = { LiveChartPanel(bleManager) },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -328,7 +329,8 @@ internal fun SessionScreen(
     session: SessionState = SessionState(),
     onStartSession: () -> Unit = {},
     onStopSession: () -> Unit = {},
-    onRetryStream: (PolarDeviceDataType) -> Unit = {}
+    onRetryStream: (PolarDeviceDataType) -> Unit = {},
+    charts: @Composable () -> Unit = {}
 ) {
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -380,6 +382,7 @@ internal fun SessionScreen(
         if (steps.incompleteAcc) {
             Text("Incomplete ACC data. Missing distance may lower distance and average speed.")
         }
+        charts()
         AccPanel(
             samples = accSamples,
             subscription = accSubscription,
