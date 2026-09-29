@@ -127,7 +127,11 @@ class PolarBleManager(context: Context) {
             stepDetector.reset()
             ecgBuffer.clear()
         },
-        clearHr = { latestHeartRate.clear(); stepDetector.stop() })
+        clearHr = {
+            latestHeartRate.clear()
+            stepDetector.updateSessionTime(session.state.value.elapsedMs)
+            stepDetector.stop()
+        })
     internal val sessionState = session.state
 
     @MainThread
@@ -157,7 +161,10 @@ class PolarBleManager(context: Context) {
 
     fun refreshSessionTime(generation: Long) {
         session.refresh(generation)
-        if (session.accepts(generation)) stepDetector.refresh()
+        if (session.accepts(generation)) {
+            stepDetector.updateSessionTime(session.state.value.elapsedMs)
+            stepDetector.refresh()
+        }
     }
 
     private fun connectedForData() = api != null &&
@@ -202,6 +209,8 @@ class PolarBleManager(context: Context) {
                 accBuffer.receive(it)
                 stepDetector.receivedBatch(it.samples.last().timeStamp, receivedAt)
                 session.onValidData()
+                session.refresh(session.state.value.generation)
+                stepDetector.updateSessionTime(session.state.value.elapsedMs)
             }
         )
     }

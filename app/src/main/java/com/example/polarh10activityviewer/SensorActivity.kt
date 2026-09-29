@@ -367,6 +367,14 @@ internal fun SessionScreen(
         Text(steps.message)
         Text("Total steps: ${steps.totalSteps ?: "--"}")
         Text("Cadence: ${steps.cadence?.roundToInt() ?: "--"} steps/min")
+        Text("Estimated distance: ${steps.distance?.let { String.format(Locale.ENGLISH, "%.1f m", it) } ?: "--"}")
+        Text("Estimated speed: ${formatSpeed(steps.speed)}")
+        Text("Average speed: ${formatSpeed(steps.averageSpeed)}")
+        Text("Maximum speed: ${formatSpeed(steps.maximumSpeed)}")
+        Text("Maximum cadence: ${steps.maximumCadence?.roundToInt() ?: "--"} steps/min")
+        if (steps.incompleteAcc) {
+            Text("Incomplete ACC data. Missing distance may lower distance and average speed.")
+        }
         AccPanel(
             samples = accSamples,
             subscription = accSubscription,
@@ -475,6 +483,9 @@ internal fun SessionScreen(
         }
     }
 }
+
+private fun formatSpeed(value: Double?): String =
+    value?.let { String.format(Locale.ENGLISH, "%.1f km/h", it * 3.6) } ?: "--"
 
 // Detailed stream information remains temporary until the final layout.
 @Composable

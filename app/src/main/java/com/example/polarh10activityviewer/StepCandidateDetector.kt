@@ -2,7 +2,7 @@ package com.example.polarh10activityviewer
 
 import kotlin.math.max
 
-internal data class StepCandidate(val timeStamp: Long, val peak: Double)
+internal data class StepCandidate(val timeStamp: Long, val peak: Double, val length: Double? = null)
 
 // Candidates are not confirmed steps. All timing uses sensor nanoseconds.
 internal class StepCandidateDetector {

@@ -135,7 +135,10 @@ class StepDetectorTest {
             if (type == ACC && session.state.value.ongoing) detector.onSubscriptionState(status)
             session.onSubscriptionState()
         }
-        session = SessionController(subscriptions, { now }, detector::reset, detector::stop)
+        session = SessionController(subscriptions, { now }, detector::reset, {
+            detector.updateSessionTime(session.state.value.elapsedMs)
+            detector.stop()
+        })
         fun start(): Boolean = session.start(true) {
             detector.onSubscriptionState(SubscriptionStatus.STARTING)
             val generation = session.state.value.generation
@@ -151,18 +154,34 @@ class StepDetectorTest {
         val previousGeneration = session.state.value.generation
         assertFalse(start())
         assertEquals(4L, detector.state.value.totalSteps)
+        val distance = detector.state.value.distance!!
+        assertTrue(distance > 0)
+        assertNull(detector.state.value.averageSpeed)
+        now = 1000
         session.stop("User stopped")
+        assertEquals(distance, detector.state.value.averageSpeed!!, 1e-10)
         assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertEquals(0.0, detector.state.value.speed!!, 0.0)
         assertEquals("Stopped.", detector.state.value.message)
+        val frozen = detector.state.value
+        now = 2000
+        session.stop("Duplicate stop")
         runCurrent()
+        assertEquals(frozen, detector.state.value)
         assertEquals("Stopped.", detector.state.value.message)
         now = 20_000
         assertTrue(start())
         runCurrent()
         val newDisplay = detector.state.value
         assertEquals(4L, newDisplay.totalSteps)
+        assertEquals(distance, newDisplay.distance!!, 1e-10)
+        assertNull(newDisplay.averageSpeed)
         now += 30_000
-        if (session.accepts(previousGeneration)) detector.refresh()
+        session.refresh(previousGeneration)
+        if (session.accepts(previousGeneration)) {
+            detector.updateSessionTime(session.state.value.elapsedMs)
+            detector.refresh()
+        }
         assertEquals(newDisplay, detector.state.value)
         session.stop("Done")
         runCurrent()
@@ -236,6 +255,8 @@ class StepDetectorTest {
         runCurrent()
         source.emit(batch)
         runCurrent()
+        detector.receivedBatch(batch.samples.last().timeStamp, 0)
+        val distance = detector.state.value.distance!!
         assertEquals(4L, detector.totalSteps)
         assertFalse(start(source))
         assertNotNull(detector.preprocessor.warmupEndedAt)
@@ -248,10 +269,57 @@ class StepDetectorTest {
         source.emit(batch)
         assertNull(detector.preprocessor.latest)
         assertEquals(4L, detector.totalSteps)
+        assertEquals(distance, detector.state.value.distance!!, 0.0)
         retry.emit(batch)
         runCurrent()
+        detector.receivedBatch(batch.samples.last().timeStamp, 0)
+        assertEquals(distance * 2, detector.state.value.distance!!, 1e-10)
         assertEquals(8L, detector.totalSteps)
         subscriptions.stop(ACC)
         runCurrent()
+    }
+
+    @Test fun streamCompletionAndOverallInterruptionFreezeAverageBeforeCleanup() = runTest {
+        for (complete in listOf(false, true)) {
+            var now = 0L
+            val detector = StepDetector { now }
+            lateinit var session: SessionController
+            val subscriptions = DataSubscriptions(this) { type, status ->
+                if (type == ACC && session.state.value.ongoing) detector.onSubscriptionState(status)
+                session.onSubscriptionState()
+            }
+            session = SessionController(subscriptions, { now }, detector::reset, {
+                detector.updateSessionTime(session.state.value.elapsedMs)
+                detector.stop()
+                now += 5000 // Cleanup must not enter the settled Running duration.
+            })
+            assertTrue(session.start(true) {
+                val generation = session.state.value.generation
+                subscriptions.start(ACC, { session.accepts(generation) }, { session.accepts(generation) },
+                    { flow {
+                        emit(walking())
+                        now = 10_000
+                        if (!complete) awaitCancellation()
+                    } }, { samples ->
+                        samples.forEach(detector::receive)
+                        detector.receivedBatch(samples.last().timeStamp, now)
+                        session.onValidData()
+                    })
+            })
+            runCurrent()
+            if (!complete) session.stop("Connection interrupted")
+            runCurrent()
+            val frozen = detector.state.value
+            assertEquals(SessionStatus.STOPPED, session.state.value.status)
+            assertEquals(10_000L, frozen.durationMs)
+            assertEquals(frozen.distance!! / 10, frozen.averageSpeed!!, 1e-10)
+            assertEquals(0.0, frozen.speed!!, 0.0)
+            now += 60_000
+            session.stop("Repeated end")
+            session.onSubscriptionState()
+            session.refresh(session.state.value.generation)
+            detector.refresh()
+            assertEquals(frozen, detector.state.value)
+        }
     }
 }
