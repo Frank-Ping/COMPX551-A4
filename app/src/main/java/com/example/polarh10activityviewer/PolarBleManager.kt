@@ -101,7 +101,8 @@ class PolarBleManager(context: Context) {
     val heartRate = latestHeartRate.reading
     val heartRateStatistics = latestHeartRate.statistics
     val heartRateMessage = latestHeartRate.message
-    private val accBuffer = AccBuffer()
+    private val accPreprocessor = AccPreprocessor()
+    private val accBuffer = AccBuffer { accPreprocessor.receive(it) }
     val accSamples = accBuffer.samples
     private val ecgBuffer = EcgBuffer()
     val ecgSamples = ecgBuffer.samples
@@ -111,12 +112,13 @@ class PolarBleManager(context: Context) {
     ) { type, status ->
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
+        if (type == PolarDeviceDataType.ACC && status != SubscriptionStatus.RECEIVING) accPreprocessor.clear()
         ecgBuffer.onSubscriptionState(type, status)
         session.onSubscriptionState()
     }
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
-        clearAllReadings = { latestHeartRate.reset(); accBuffer.clear(); ecgBuffer.clear() },
+        clearAllReadings = { latestHeartRate.reset(); accBuffer.clear(); accPreprocessor.clear(); ecgBuffer.clear() },
         clearHr = latestHeartRate::clear)
     internal val sessionState = session.state
 

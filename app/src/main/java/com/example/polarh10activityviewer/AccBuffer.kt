@@ -16,7 +16,7 @@ data class AccSample(
 )
 
 @MainThread
-internal class AccBuffer {
+internal class AccBuffer(private val onSample: (AccSample) -> Unit = {}) {
     private val buffer = ArrayDeque<AccSample>()
     private var previousTimeStamp: Long? = null
     private val mutableSamples = MutableStateFlow<List<AccSample>>(emptyList())
@@ -37,7 +37,9 @@ internal class AccBuffer {
     fun receive(batch: PolarAccelerometerData) {
         batch.samples.forEach { sample ->
             val gap = previousTimeStamp?.let { sample.timeStamp - it }?.takeIf { it > 30_000_000L }
-            buffer.addLast(AccSample(sample.timeStamp, sample.x, sample.y, sample.z, gap))
+            val raw = AccSample(sample.timeStamp, sample.x, sample.y, sample.z, gap)
+            onSample(raw)
+            buffer.addLast(raw)
             previousTimeStamp = sample.timeStamp
             val cutoff = sample.timeStamp - 10_000_000_000L
             while (buffer.isNotEmpty() && (buffer.first().timeStamp <= cutoff || buffer.size > 1_000)) {
