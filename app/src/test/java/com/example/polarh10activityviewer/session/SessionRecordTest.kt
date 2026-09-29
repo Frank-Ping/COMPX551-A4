@@ -101,6 +101,17 @@ class SessionRecordTest {
             }
         }
         fun running(value: Int = 120) = flow { emit(value); awaitCancellation() }
+        fun accStream(source: Flow<PolarAccelerometerData>): Boolean {
+            val generation = session.state.value.generation
+            return subscriptions.start(ACC, { session.accepts(generation) }, { session.accepts(generation) },
+                { source }) { batch ->
+                acc.receive(batch)
+                motion.receivedBatch(batch.samples.last().timeStamp, now)
+                if (motion.state.value.incompleteAcc) session.markMissing(ACC)
+                session.onValidData(now, wall)
+                session.refresh(generation, now)
+            }
+        }
         fun start(type: PolarDeviceDataType = HR, source: Flow<Int> = running()) =
             session.start(true, device) { stream(type, source) }
         fun tick(generation: Long = session.state.value.generation) = session.refresh(generation, now)
@@ -202,7 +213,8 @@ class SessionRecordTest {
 
     @Test fun summaryCopiesUnroundedOwnerResultsAndDoesNotAliasZoneStorage() {
         val durations = mutableListOf(1L, 2L, 3L, 4L, 5L)
-        val motion = StepState(totalSteps = 7, distance = 3.14159265, maximumCadence = 96.0,
+        val motion = StepState(totalSteps = 7, receivedAcc = true, distance = 3.14159265,
+            minimumCadence = 60.0, maximumCadence = 96.0,
             maximumSpeed = 0.87654321, durationMs = 12345)
         val result = SessionSummary.from(HeartRateStatistics(3, 361, 120, 121),
             HeartRateZoneState(durationsMs = durations, unclassifiedMs = 19), motion)
@@ -213,8 +225,8 @@ class SessionRecordTest {
         assertEquals(motion.maximumCadence, result.maximumCadence)
         durations[0] = 999
         assertEquals(1L, result.zoneDurationsMs[0])
-        assertNull(result.meanCadence)
-        assertNull(result.minimumCadence)
+        assertEquals(motion.meanCadence, result.meanCadence)
+        assertEquals(motion.minimumCadence, result.minimumCadence)
     }
 
     @Test fun stopSettlesLastZoneIntervalOnceAndExcludesDelayedCleanup() = runTest {
@@ -333,6 +345,94 @@ class SessionRecordTest {
         assertEquals(120, frozen.summary.maximumHr)
         assertEquals(1000L, frozen.durationMs)
         assertNotEquals(frozen.id, fresh.id)
+        f.stop()
+    }
+
+    private fun walkingBatch() = PolarAccelerometerData((0..603).map { index ->
+        val x = if (index < 104) 1000 else when ((index - 104) % 50) {
+            in 0..9 -> 1800
+            in 10..19 -> 800
+            else -> 1000
+        }
+        PolarAccelerometerData.PolarAccelerometerDataSample(index * 10_000_000L, x, 0, 0)
+    })
+
+    @Test fun cadenceSummaryIncludesStationaryTimeAndFreezesOnEachEndingPath() = runTest {
+        for (reason in listOf<String?>(null, "Stopped by user.", "Foreground left")) {
+            val f = Fixture(this)
+            val end = CompletableDeferred<Unit>()
+            f.session.start(true, f.device) {
+                f.accStream(flow { emit(walkingBatch()); end.await() })
+            }; runCurrent()
+            f.now = 10_000; f.tick()
+            assertEquals(10L, f.record.summary.totalSteps)
+            assertEquals(60.0, f.record.summary.meanCadence!!, 0.0)
+            assertEquals(120.0, f.record.summary.minimumCadence!!, 0.0)
+            f.now = 20_000; f.tick()
+            assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)
+            assertSame(f.record, f.session.state.first().record)
+            f.cleanupMs = 5000
+            if (reason == null) { end.complete(Unit); runCurrent() }
+            else { f.session.stop(reason, interrupted = reason != "Stopped by user."); runCurrent() }
+            val frozen = f.record
+            assertEquals(30.0, frozen.summary.meanCadence!!, 0.0)
+            assertEquals(120.0, frozen.summary.minimumCadence!!, 0.0)
+            f.now = 99_000; f.tick(); f.stop()
+            assertEquals(frozen, f.record)
+        }
+    }
+
+    @Test fun cadenceSummaryKeepsTotalsAndExtremaDuringAccFailureAndRetry() = runTest {
+        val f = Fixture(this)
+        f.session.start(true, f.device) {
+            f.stream(HR, f.running())
+            f.accStream(flow { emit(walkingBatch()); error("ACC interrupted") })
+        }; runCurrent()
+        f.now = 10_000; f.tick()
+        val id = f.record.id
+        assertEquals(60.0, f.record.summary.meanCadence!!, 0.0)
+        assertEquals(120.0, f.record.summary.minimumCadence!!, 0.0)
+        assertTrue(f.record.streams.getValue(ACC).failed)
+        assertTrue(f.record.incomplete)
+        val recovered = MutableSharedFlow<PolarAccelerometerData>()
+        assertTrue(f.session.retry(ACC, true) { f.accStream(recovered) }); runCurrent()
+        f.now = 20_000; f.tick()
+        assertEquals(id, f.record.id)
+        assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)
+        assertEquals(120.0, f.record.summary.minimumCadence!!, 0.0)
+        // Fresh stationary data must rewarm and cover a full five seconds.
+        recovered.emit(PolarAccelerometerData((0..603).map {
+            PolarAccelerometerData.PolarAccelerometerDataSample(30_000_000_000L + it * 10_000_000L, 1000, 0, 0)
+        })); runCurrent()
+        assertEquals(0.0, f.record.summary.minimumCadence!!, 0.0)
+        assertEquals(120.0, f.record.summary.maximumCadence!!, 0.0)
+        assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)
+        f.stop()
+    }
+
+    @Test fun oldAccEventsCannotRestoreCadenceStatisticsAfterNewStart() = runTest {
+        val f = Fixture(this)
+        lateinit var old: FlowCollector<PolarAccelerometerData>
+        f.session.start(true, f.device) {
+            f.accStream(object : Flow<PolarAccelerometerData> {
+                override suspend fun collect(collector: FlowCollector<PolarAccelerometerData>) {
+                    old = collector
+                    collector.emit(walkingBatch())
+                    awaitCancellation()
+                }
+            })
+        }; runCurrent()
+        val generation = f.session.state.value.generation
+        f.now = 10_000; f.stop(); runCurrent()
+        val frozen = f.record
+        f.start(HR); runCurrent()
+        val fresh = f.record
+        runCatching { old.emit(walkingBatch()) }; f.tick(generation); runCurrent()
+        assertEquals(fresh, f.record)
+        assertNull(f.record.summary.meanCadence)
+        assertNull(f.record.summary.minimumCadence)
+        assertEquals(60.0, frozen.summary.meanCadence!!, 0.0)
+        assertEquals(120.0, frozen.summary.minimumCadence!!, 0.0)
         f.stop()
     }
 

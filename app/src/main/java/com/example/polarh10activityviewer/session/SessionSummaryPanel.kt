@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import com.example.polarh10activityviewer.heartrate.HeartRateZone
+import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.ACC
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -35,8 +36,16 @@ internal fun SessionSummaryPanel(record: SessionRecord?) {
     }
     Text("Unclassified: ${summary.unclassifiedMs} ms")
     Text("Total steps: ${summary.totalSteps ?: "--"}")
-    Text("Mean / minimum cadence: -- / -- (not implemented; step 6.1b)")
-    Text("Maximum cadence: ${number(summary.maximumCadence)} steps/min")
+    Text("Mean cadence: ${number(summary.meanCadence)} steps/min")
+    Text("Min cadence: ${number(summary.minimumCadence)} steps/min")
+    Text("Max cadence: ${number(summary.maximumCadence)} steps/min")
+    val acc = record.streams.getValue(ACC)
+    if (!acc.received) Text("No ACC observations. Cadence statistics are unavailable.")
+    else {
+        if (record.durationMs == 0L) Text("Mean cadence needs a positive Running duration.")
+        if (summary.minimumCadence == null) Text("No qualifying five-second ACC window yet.")
+        if (acc.missing || acc.failed) Text("Incomplete ACC data. Mean cadence includes missing time and may be lower.")
+    }
     Text("Estimated distance: ${number(summary.distanceMetres)} m")
     Text("Mean / maximum estimated speed: ${speed(summary.meanSpeedMetresPerSecond)} / ${speed(summary.maximumSpeedMetresPerSecond)}")
     record.streams.forEach { (type, observation) ->

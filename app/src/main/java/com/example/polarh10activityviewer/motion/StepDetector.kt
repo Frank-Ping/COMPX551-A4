@@ -13,11 +13,15 @@ internal data class StepState(
     val distance: Double? = null,
     val speed: Double? = null,
     val maximumCadence: Double? = null,
+    val minimumCadence: Double? = null,
     val maximumSpeed: Double? = null,
     val receivedAcc: Boolean = false,
     val incompleteAcc: Boolean = false,
     val durationMs: Long = 0
 ) {
+    // The full Running duration includes stationary and missing-data periods.
+    val meanCadence: Double? get() =
+        if (receivedAcc && durationMs > 0) totalSteps?.let { it * 60_000.0 / durationMs } else null
     val averageSpeed: Double? get() =
         if (durationMs > 0) distance?.let { it * 1000.0 / durationMs } else null
 }
@@ -38,6 +42,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
     private var receivedAt = 0L
     private var distance = 0.0
     private var maximumCadence: Double? = null
+    private var minimumCadence: Double? = null
     private var maximumSpeed: Double? = null
     private var incompleteAcc = false
     val totalSteps: Long get() = sequence.totalSteps
@@ -66,6 +71,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         collecting = false
         distance = 0.0
         maximumCadence = null
+        minimumCadence = null
         maximumSpeed = null
         incompleteAcc = false
         mutableState.value = StepState(message = "Waiting for ACC.")
@@ -124,7 +130,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         mutableState.value = state.value.copy(
             totalSteps = totalSteps.takeIf { receivedAcc }, cadence = cadence, message = message,
             distance = distance.takeIf { receivedAcc }, speed = speed,
-            maximumCadence = maximumCadence, maximumSpeed = maximumSpeed,
+            maximumCadence = maximumCadence, minimumCadence = minimumCadence, maximumSpeed = maximumSpeed,
             receivedAcc = receivedAcc, incompleteAcc = incompleteAcc
         )
     }
@@ -144,7 +150,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         val candidate = candidates.receive(prepared)
         val committed = candidate?.let { sequence.accept(it) { strides.accept(it.timeStamp) } } ?: emptyList()
         commitSteps(committed, sample.timeStamp)
-        updateWindowMaxima(sample.timeStamp)
+        updateWindowExtrema(sample.timeStamp)
         if (committed.isNotEmpty()) {
             latestCommitted = committed
             publish(sample.timeStamp)
@@ -157,12 +163,13 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         motionWindow.receive(committed, sensorTime)
     }
 
-    private fun updateWindowMaxima(sensorTime: Long) {
+    private fun updateWindowExtrema(sensorTime: Long) {
         preprocessor.warmupEndedAt?.let { warmup ->
             if (sensorTime - warmup >= 5_000_000_000L) {
                 val cadence = motionWindow.rawCadence(sensorTime)
                 val speed = motionWindow.rawSpeed(sensorTime)
                 maximumCadence = maximumCadence?.let { maxOf(it, cadence) } ?: cadence
+                minimumCadence = minimumCadence?.let { minOf(it, cadence) } ?: cadence
                 maximumSpeed = maximumSpeed?.let { maxOf(it, speed) } ?: speed
             }
         }

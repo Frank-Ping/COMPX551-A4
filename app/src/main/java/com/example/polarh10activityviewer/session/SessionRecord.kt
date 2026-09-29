@@ -36,6 +36,7 @@ internal data class SessionSummary(
             minimumHr = hr.min, maximumHr = hr.max, meanHr = hr.average, validHrCount = hr.count,
             zoneDurationsMs = zones.durationsMs.toList(), unclassifiedMs = zones.unclassifiedMs,
             totalSteps = motion.totalSteps, maximumCadence = motion.maximumCadence,
+            meanCadence = motion.meanCadence, minimumCadence = motion.minimumCadence,
             distanceMetres = motion.distance, meanSpeedMetresPerSecond = motion.averageSpeed,
             maximumSpeedMetresPerSecond = motion.maximumSpeed
         )

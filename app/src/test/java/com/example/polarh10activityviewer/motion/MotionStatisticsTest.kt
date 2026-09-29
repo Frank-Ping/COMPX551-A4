@@ -84,14 +84,17 @@ class MotionStatisticsTest {
         (0..602).forEach { detector.receive(sample(it)) }
         detector.receivedBatch(6_020_000_000, phone)
         assertNull(detector.state.value.maximumCadence)
+        assertNull(detector.state.value.minimumCadence)
         assertNull(detector.state.value.maximumSpeed)
         phone = 50_000
         detector.refresh()
         assertNull(detector.state.value.maximumCadence)
+        assertNull(detector.state.value.minimumCadence)
         assertNull(detector.state.value.maximumSpeed)
         detector.receive(sample(603))
         detector.receivedBatch(6_030_000_000, phone)
         assertEquals(120.0, detector.state.value.maximumCadence!!, 0.0)
+        assertEquals(120.0, detector.state.value.minimumCadence!!, 0.0)
         assertEquals(9 * 0.5 * 9.8.pow(0.25) / 5, detector.state.value.maximumSpeed!!, 1e-10)
         assertFalse(detector.state.value.incompleteAcc)
     }
@@ -152,6 +155,78 @@ class MotionStatisticsTest {
         assertNull(moving.copy(durationMs = 0).averageSpeed)
         assertNull(moving.copy(distance = null).averageSpeed)
         assertEquals(0.0, moving.copy(distance = 0.0).averageSpeed!!, 0.0)
+    }
+
+    @Test fun meanCadenceUsesAllRunningTimeAndKeepsUnknownSeparateFromZero() {
+        val moving = StepState(totalSteps = 7, receivedAcc = true, durationMs = 12_345,
+            minimumCadence = 60.0, maximumCadence = 120.0)
+        assertEquals(420_000.0 / 12_345, moving.meanCadence!!, 0.0)
+        assertTrue(moving.meanCadence!! < moving.minimumCadence!!)
+        assertEquals(21.0, moving.copy(durationMs = 20_000).meanCadence!!, 0.0)
+        assertEquals(21.0, moving.copy(durationMs = 20_000, incompleteAcc = true).meanCadence!!, 0.0)
+        assertNull(moving.copy(durationMs = 0).meanCadence)
+        assertNull(moving.copy(receivedAcc = false).meanCadence)
+        assertNull(moving.copy(totalSteps = null).meanCadence)
+        assertEquals(0.0, moving.copy(totalSteps = 0).meanCadence!!, 0.0)
+    }
+
+    @Test fun displayZeroAndStopDoNotLowerTheRawMinimum() {
+        var phone = 0L
+        val detector = StepDetector { phone }
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        (0..603).forEach { detector.receive(sample(it)) }
+        detector.receivedBatch(6_030_000_000, phone)
+        detector.updateSessionTime(6030)
+        val before = detector.state.value
+        assertEquals(120.0, before.minimumCadence!!, 0.0)
+        phone = 3000
+        detector.refresh()
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertEquals(before.minimumCadence, detector.state.value.minimumCadence)
+        detector.stop()
+        assertEquals(before.meanCadence, detector.state.value.meanCadence)
+        assertEquals(before.minimumCadence, detector.state.value.minimumCadence)
+        assertEquals(before.maximumCadence, detector.state.value.maximumCadence)
+        detector.reset()
+        assertNull(detector.state.value.meanCadence)
+        assertNull(detector.state.value.minimumCadence)
+    }
+
+    @Test fun genuineStationaryWindowsCanSetMinimumToZero() {
+        val detector = detector()
+        (0..602).forEach { detector.receive(sample(it, false)) }
+        detector.receivedBatch(6_020_000_000, 0)
+        assertNull(detector.state.value.minimumCadence)
+        detector.receive(sample(603, false))
+        detector.receivedBatch(6_030_000_000, 0)
+        assertEquals(0.0, detector.state.value.minimumCadence!!, 0.0)
+        assertEquals(0.0, detector.state.value.maximumCadence!!, 0.0)
+    }
+
+    @Test fun gapsAndRetryRetainExtremaUntilNewSegmentHasFiveSeconds() {
+        for (retry in listOf(false, true)) {
+            val detector = detector()
+            (0..603).forEach { detector.receive(sample(it)) }
+            detector.receivedBatch(6_030_000_000, 0)
+            val steps = detector.totalSteps
+            if (retry) {
+                detector.onSubscriptionState(SubscriptionStatus.FAILED)
+                detector.onSubscriptionState(SubscriptionStatus.STARTING)
+            }
+            // A new continuous stationary segment begins at 10 seconds.
+            (0..602).forEach {
+                detector.receive(sample(it, false).copy(timeStamp = 10_000_000_000L + it * 10_000_000L,
+                    gapBeforeNs = if (!retry && it == 0) 3_970_000_000L else null))
+            }
+            detector.receivedBatch(16_020_000_000L, 0)
+            assertTrue(detector.state.value.incompleteAcc)
+            assertEquals(120.0, detector.state.value.minimumCadence!!, 0.0)
+            assertEquals(steps, detector.totalSteps)
+            detector.receive(sample(603, false).copy(timeStamp = 16_030_000_000L))
+            detector.receivedBatch(16_030_000_000L, 0)
+            assertEquals(0.0, detector.state.value.minimumCadence!!, 0.0)
+            assertEquals(120.0, detector.state.value.maximumCadence!!, 0.0)
+        }
     }
 
     @Test fun stopFreezesObservedStatisticsButNeverCreatesUnobservedZeros() {

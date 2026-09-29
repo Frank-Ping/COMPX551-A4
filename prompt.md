@@ -1260,3 +1260,29 @@ Suggested commit message (not committed):
 ```text
 feat: add session identity and frozen summaries for step 6.1a
 ```
+
+
+## 2026-09-30 步骤 6.1b 实施结果 / Step 6.1b implementation results
+
+用户本轮指令：实施6.1b。按上文已保存的中英文 6.1b 提示词执行。
+User instruction: Implement step 6.1b, using the bilingual step 6.1b prompt recorded above.
+
+- 前置与范围：重新检查 5.3add 的真实运动统计/合格窗口、5.4add 心率区间、5.5add 曲线以及 6.1a 的摘要与单调时间接线，前置齐全。仅修改三个生产文件：motion/StepDetector.kt、session/SessionRecord.kt、session/SessionSummaryPanel.kt；未修改 SDK、依赖、采集设置、步伐/步长算法或会话控制路径。
+  Prerequisites/scope: Rechecked 5.3add motion/window outputs, 5.4add zones, 5.5add charts and 6.1a summary/monotonic timing. Modified only three production files: StepDetector.kt, SessionRecord.kt and SessionSummaryPanel.kt. SDK calls, dependencies, sampling, step/stride algorithms and session control are unchanged.
+- 平均步频：StepState.meanCadence 使用总确认步数 × 60000 / durationMs，包含完整 Running 内的静止和缺失时间；无 ACC 观测或零分母为 null，有观测无步为 0。保留小数，不使用当前显示步频或历史点求平均，不补步或扣除缺失时长。
+  Mean cadence: StepState.meanCadence uses total confirmed steps × 60000 / durationMs, including stationary and missing time throughout Running. No ACC observations or zero duration yields null; observed no-step activity yields zero. Internal precision is retained, with no averaging of displayed/history values or imputation.
+- 最小步频：在原最大步频/速度的合格窗口入口增加 minimumCadence，以同一个原始 N5 × 12 更新；未增加窗口。真实传感器时间从预热结束覆盖完整五秒后才更新，4.99 秒、预热、手机时间外推、两秒显示归零、Stop 人为零均不参与；真实合格静止可为 0。缺口/失败/Retry 清段但保留极值，重新预热并满五秒才继续更新；新 Start 清空。平均可能低于最小值，因为统计分母和范围不同。
+  Minimum cadence: The existing extrema entry point updates minimumCadence using the same raw N5 × 12 as maximum cadence, without another window. Only real five-second coverage since warm-up qualifies. Short/warm-up/display-extrapolated windows and forced display/Stop zeros are excluded; genuine stationary windows may yield zero. Gaps/failure/Retry retain extrema while rebuilding the segment. New Start resets them. The mean may be below the minimum because the measurement scopes differ.
+- 摘要/显示：SessionSummary.from 直接接入 meanCadence/minimumCadence。沿用既有刷新、Retry、结束冻结、旋转持有者和旧事件过滤。SessionSummaryPanel 改为英文 Mean cadence / Min cadence / Max cadence（steps/min），仅展示时保留两位小数，未知为 --；显示无 ACC、零时长、无合格窗口或已知 ACC 缺失原因。未新增整场历史、数据库或正式布局。
+  Summary/display: SessionSummary.from reads both fields from the current motion owner. Existing refresh, Retry, ending freeze, retained owner and stale-event guards remain in use. The English panel shows Mean/Min/Max cadence in steps/min, rounds only for display and explains unavailable/incomplete values. No full-session history, database or final layout was added.
+- 自动验证：扩展 MotionStatisticsTest.kt 和 SessionRecordTest.kt，新增 7 项测试并更新既有边界/摘要断言；覆盖平均公式/小数/静止/缺失分母、无 ACC/零分母、4.99/5 秒、显示零/Stop 零排除、真实静止零、缺口/Retry 重建、停止/中断/全部流结束冻结、新场及旧事件、摘要复制和持有者重订阅。执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug，BUILD SUCCESSFUL；168 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。使用受控数据，不是 H10 真机准确率或旋转验收。
+  Automated verification: Added seven tests and updated existing assertions in MotionStatisticsTest.kt and SessionRecordTest.kt. Coverage includes formula/precision/full duration, null/zero, 4.99/5-second boundaries, forced-zero exclusion, stationary windows, gap/Retry recovery, all ending paths, stale/new sessions, summary copying and retained-owner reattachment. :app:testDebugUnitTest :app:assembleDebug :app:lintDebug completed successfully: 168 tests, zero failures/errors/skips; lint 0 errors and 18 warnings. Controlled data does not establish device accuracy or actual rotation behavior.
+- 真机待验证：连接 H10 并 Start，检查无 ACC 时 --，收到 ACC 后平均值随总步数/完整时长变化；连续走路后静止，确认平均下降，Min 仅在真实合格窗口更新。Stop 后 Mean/Min/Max 固定；Retry 保留本场极值并显示缺失，新 Start 重置；旋转保留 ID/统计，断线或后台冻结。未安装 APK、未操作手机，实际界面、准确率和生命周期仍待验收。
+  Pending device checks: Start with H10; verify -- without ACC and mean cadence against total steps/full duration after reception. Walk then stand still: mean should decrease and minimum should update only from qualifying real windows. Stop freezes all three values; Retry retains extrema and missing flags; new Start resets them. Rotation retains identity/statistics, while disconnect/background freezes them. No APK installation or phone interaction was performed; UI, accuracy and lifecycle remain unverified.
+- 状态：6.1b 代码已写入、自动检查通过；两份 AGENTS.md 和两份 prompt.md 同步。6.1c、6.1d、6.2 未实施；未 commit/push。
+  Status: Step 6.1b is implemented and automated checks passed. Both AGENTS.md and prompt.md pairs are synchronized. Steps 6.1c, 6.1d and 6.2 remain unimplemented. No commit or push.
+
+Suggested commit message (not committed):
+```text
+feat: add mean and minimum cadence for step 6.1b
+```
