@@ -101,12 +101,8 @@ class PolarBleManager(context: Context) {
     val heartRate = latestHeartRate.reading
     val heartRateStatistics = latestHeartRate.statistics
     val heartRateMessage = latestHeartRate.message
-    private val accPreprocessor = AccPreprocessor()
-    private val stepCandidateDetector = StepCandidateDetector()
-    private val accBuffer = AccBuffer {
-        if (it.gapBeforeNs != null) stepCandidateDetector.clear()
-        stepCandidateDetector.receive(accPreprocessor.receive(it))
-    }
+    private val stepDetector = StepDetector()
+    private val accBuffer = AccBuffer { stepDetector.receive(it) }
     val accSamples = accBuffer.samples
     private val ecgBuffer = EcgBuffer()
     val ecgSamples = ecgBuffer.samples
@@ -117,8 +113,7 @@ class PolarBleManager(context: Context) {
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
         if (type == PolarDeviceDataType.ACC && status != SubscriptionStatus.RECEIVING) {
-            accPreprocessor.clear()
-            stepCandidateDetector.clear()
+            stepDetector.clearSegment()
         }
         ecgBuffer.onSubscriptionState(type, status)
         session.onSubscriptionState()
@@ -128,8 +123,7 @@ class PolarBleManager(context: Context) {
         clearAllReadings = {
             latestHeartRate.reset()
             accBuffer.clear()
-            accPreprocessor.clear()
-            stepCandidateDetector.clear()
+            stepDetector.reset()
             ecgBuffer.clear()
         },
         clearHr = latestHeartRate::clear)
