@@ -1,5 +1,27 @@
 package com.example.polarh10activityviewer
 
+import com.example.polarh10activityviewer.ble.checkedDataTypes
+import com.example.polarh10activityviewer.ble.ConnectionState
+import com.example.polarh10activityviewer.ble.ConnectionStatus
+import com.example.polarh10activityviewer.ble.DataReadiness
+import com.example.polarh10activityviewer.ble.DataReadinessStatus
+import com.example.polarh10activityviewer.ble.HeartRateReading
+import com.example.polarh10activityviewer.ble.HeartRateStatistics
+import com.example.polarh10activityviewer.ble.PolarBleManager
+import com.example.polarh10activityviewer.ble.SavedDevicesState
+import com.example.polarh10activityviewer.ble.ScanState
+import com.example.polarh10activityviewer.ble.ScanStatus
+import com.example.polarh10activityviewer.ble.SubscriptionState
+import com.example.polarh10activityviewer.ble.SubscriptionStatus
+import com.example.polarh10activityviewer.chart.LiveChartPanel
+import com.example.polarh10activityviewer.heartrate.HeartRateZonePanel
+import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
+import com.example.polarh10activityviewer.motion.StepState
+import com.example.polarh10activityviewer.sensor.AccSample
+import com.example.polarh10activityviewer.session.SensorViewModel
+import com.example.polarh10activityviewer.session.SessionState
+import com.example.polarh10activityviewer.session.SessionStatus
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
