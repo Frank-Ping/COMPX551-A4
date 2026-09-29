@@ -284,3 +284,952 @@ Use minimal code without a generic framework or unrelated refactoring. Preserve 
 Complete only step 3.2. Do not connect real HR, ACC or ECG streams or add session controls, algorithms, charts or storage. Test data must not enter the production UI or be presented as H10 data.
 Explain in Chinese and English, separating file changes, test/build results and device verification.
 ```
+
+# 步骤 2.3：读取并显示设备电量 / Step 2.3: Read and display device battery level
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.14 节实施步骤 2.3。先检查现有代码，再直接修改文件：
+
+1. 核对 Polar SDK 8.3.0 的电量接口，保留现有 SDK 功能并增加 FEATURE_BATTERY_INFO。
+2. 在 PolarBleManager.kt 接收 batteryLevelReceived 回调，仅接受当前有效 SDK 实例和已连接设备的 0—100 电量值，忽略旧回调和无效值。
+3. 在 SensorActivity.kt 的连接信息附近显示实际电量百分比。未收到有效值或断开后显示 Battery: --；0% 是有效值。
+4. 开始新连接、请求断开、连接丢失、蓝牙或权限不可用、离开前台或释放 SDK 时清空电量。旋转保持状态，重连后等待新值。
+5. 电量可用性与连接、数据就绪状态分开处理。不增加轮询、权限、依赖、持久化、低电量报警或数据采集。
+6. 使用受控测试验证边界值、无效值、状态清理和旧回调。运行相关测试、debug 构建及 lint，提供真机验证步骤，未执行的检查标记为待完成。
+7. 更新两份 AGENTS.md，记录实际改动及验证结果。
+
+使用最小代码、现有 Compose 主题和英文界面文字、注释，只完成步骤 2.3。
+中英文对照说明，分别列出文件修改、测试/构建结果和真机验证。
+```
+
+## English
+
+```text
+Implement step 2.3 according to Section 5.14 of the root AGENTS.md. Inspect the existing code, then modify the files directly:
+
+1. Verify the Polar SDK 8.3.0 battery APIs. Keep existing SDK features and add FEATURE_BATTERY_INFO.
+2. Receive batteryLevelReceived callbacks in PolarBleManager.kt. Accept only values from 0 to 100 for the current valid SDK instance and connected device. Ignore stale callbacks and invalid values.
+3. Show the actual percentage near the connection information in SensorActivity.kt. Display Battery: -- before receiving a valid value or after disconnection. Treat 0% as valid.
+4. Clear battery state when starting a new connection, requesting disconnection, losing the connection, Bluetooth or permissions, leaving the foreground, or releasing the SDK. Preserve state across rotation and wait for a new value after reconnection.
+5. Keep battery availability separate from connection and data-readiness states. Do not add polling, permissions, dependencies, persistence, low-battery alerts or data collection.
+6. Add controlled tests for boundary values, invalid values, state clearing and stale callbacks. Run relevant tests, a debug build and lint. Provide device verification steps and mark unperformed checks as pending.
+7. Update both AGENTS.md files with actual changes and verification results.
+
+Use minimal code, the existing Compose theme, and English UI text and comments. Complete only step 2.3.
+Explain in Chinese and English, separating file changes, test/build results and device verification.
+```
+
+# 步骤 4.1：接收真实心率 / Step 4.1: Receive real HR data
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.15 节实施步骤 4.1。先检查现有代码，再直接修改文件：
+
+1. 核对 Polar SDK 8.3.0 的心率采集与取消接口，复用现有连接、就绪检查、订阅管理和旧事件防护。
+2. 将 startHrStreaming 接入现有 HR 订阅，读取 sample.hr，单位为 bpm。只保留最新心率及手机接收时间 receivedAt，不增加历史缓存。
+3. 每批数据记录一次接收时间，按顺序处理样本，最终保留最后一个样本及该批时间；心率数值相同时也更新时间。不虚构传感器时间戳、HR 采样率设置，不根据 RR 间隔推算时间戳。
+4. 在 SensorActivity.kt 添加临时 Start HR 和 Stop HR 按钮，显示订阅状态、最新心率、最后接收时间和独立错误。实际收到心率样本后才能显示接收中；防止重复启动，清理完成后允许手动重试。
+5. 等待新数据时保留最后值并显示其接收时间，不增加无数据超时。新的有效启动前，以及停止、正常结束、失败或断线时清空心率和时间，显示占位符；拒绝重复启动不能清空正在接收的数据。替换固定的“数据采集尚未开始”提示。
+6. 复用蓝牙或权限丢失、离开前台、释放 SDK 时的清理；旋转保持订阅和数值。拒绝旧事件，重连后不自动启动；单独停止 HR 不断开蓝牙连接。
+7. 使用受控测试验证批次接收时间、相同心率更新、重复启动、清空、失败、重启及旧事件防护；适用时复用现有订阅测试。运行相关测试、debug 构建和 lint。
+8. 更新两份 AGENTS.md，记录实际改动及验证结果。提供真实心率接收、重复点击、停止/重启、旋转、断线及后台返回的真机检查步骤；未执行的项目标记为待完成。
+
+使用最小代码、现有 Compose 主题和英文界面文字、注释。
+只完成 4.1，不实现 ACC/ECG 采集、正式会话控制或计时、Pause/Resume、心率过滤或统计、图表、RR 处理或持久化。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证。
+```
+
+## English
+
+```text
+Implement step 4.1 according to Section 5.15 of the root AGENTS.md. Inspect the existing code, then modify the files directly:
+
+1. Verify the Polar SDK 8.3.0 HR streaming and cancellation APIs. Reuse the existing connection, readiness checks, subscription management and stale-event protection.
+2. Connect startHrStreaming to the existing HR subscription. Read sample.hr in bpm. Retain only the latest HR value and phone reception timestamp, receivedAt; do not add a history buffer.
+3. Record one reception timestamp per received batch. Process samples in order and retain the last sample with that batch's timestamp. Update the timestamp even when the HR value is unchanged. Do not invent sensor timestamps, HR sampling-rate settings or timestamps derived from RR intervals.
+4. Add temporary Start HR and Stop HR buttons in SensorActivity.kt. Show the subscription state, latest HR, last reception time and separate errors. Mark receiving only after an actual HR sample arrives. Prevent duplicate starts and allow manual retry after cleanup.
+5. While waiting for new data, retain the last value and show its reception time without adding a no-data timeout. Clear both fields before a new accepted start and on stop, normal completion, failure or disconnection; display placeholders. Rejecting a duplicate start must not clear an active reading. Replace the fixed text claiming that data collection has not started.
+6. Reuse cleanup for Bluetooth or permission loss, leaving the foreground and SDK release. Preserve the subscription and reading across rotation. Reject stale events and do not restart automatically after reconnection. Stopping HR alone must keep the Bluetooth connection.
+7. Add focused controlled tests for batch timestamps, repeated HR values, duplicate starts, clearing, failure, restart and stale events. Reuse existing subscription tests where applicable. Run relevant tests, a debug build and lint.
+8. Update both AGENTS.md files with actual changes and verification results. Provide device checks for real HR reception, repeated taps, stop/restart, rotation, disconnection and returning from the background. Mark unperformed checks as pending.
+
+Use minimal code, the existing Compose theme, and English UI text and comments.
+Complete only step 4.1. Do not implement ACC/ECG streaming, formal session controls or timing, Pause/Resume, HR filtering or statistics, charts, RR processing or persistence.
+Explain in Chinese and English, separating file changes, test/build results and device verification.
+```
+
+## 实现说明 / Implementation notes
+
+以下为实施方案，不代表代码已修改或验证已通过。
+The following describes the implementation plan, not completed code or verification.
+
+| 文件或环节 / File or area | 最小实现 / Minimal implementation |
+|---|---|
+| PolarBleManager.kt | 增加 HR 启停入口，复用 startDataSubscription 和 stopDataSubscription；维护可空的最新心率及 receivedAt，不另建订阅框架。 / Add HR start/stop methods using the existing subscription methods; retain a nullable latest HR reading and receivedAt without another subscription framework. |
+| 接收与清空 / Reception and clearing | 每批记录一次接收时间，保留最后样本；相同心率仍更新时间。停止、结束、失败或断线时清空，旧数据不得恢复已清空值。 / Timestamp each batch once and retain its last sample; update the time for repeated values. Clear on stop, completion, failure or disconnection and reject stale updates. |
+| SensorActivity.kt | 添加临时 Start HR、Stop HR 及数值、时间、状态和错误显示；修正“尚未采集”提示。正式统一控制留在 4.4。 / Add temporary HR controls and value, time, state and error displays; replace the outdated readiness-only message. Formal session controls remain in step 4.4. |
+| 生命周期 / Lifecycle | 沿用 ViewModel；旋转保持，离开前台或连接不可用时停止，返回后手动启动。 / Reuse the ViewModel; preserve collection during rotation, stop on foreground exit or connection unavailability, and restart manually. |
+| 验证 / Verification | 受控测试验证数据与状态逻辑，真机检查真实 H10 持续上报；构建通过不替代真机验收。 / Use controlled tests for data and state logic and a real H10 for continuous reception checks; a successful build does not replace device verification. |
+
+# 步骤 4.2：接收真实加速度 / Step 4.2: Receive real ACC data
+
+2026-09-29 补录：英文保留本次对话中实际提交的实施提示词，中文为对应翻译；这是历史记录，不是再次执行请求。
+Recorded on 2026-09-29: the English text preserves the implementation prompt submitted in this conversation, with a Chinese translation. This is a historical record, not a request to execute it again.
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.16 节实施步骤 4.2。先检查现有代码，再直接修改文件：
+
+1. 核对 Polar SDK 8.3.0 的 ACC 设置、采集、时间戳、单位及取消行为。复用现有连接、就绪检查、订阅管理和旧事件防护。
+2. 将 ACC 配置策略更新为选择 100 Hz 和 ±4 g（RANGE = 4）。每次启动或重试前重新查询当前设置；任一目标值不可用时，明确说明原因并阻止 ACC 启动，不选择替代值。其他必要参数只有一个可用值时直接采用，多选项未确定时请用户确认。
+3. 将 startAccStreaming 接入现有 ACC 订阅。按顺序处理每个样本，保留传感器 timeStamp（纳秒）及原始 x、y、z（mG，包含重力）；实际收到样本后才显示接收中。
+4. 比较连续样本的时间戳，包括跨批次比较。差值严格大于 30 ms 时建立新的连续数据段，保留段边界供后续处理。不插值、不虚构样本，不因缺口断开蓝牙或增加无数据超时。
+5. 使用有界内存缓存，保留 (t - 10 秒, t] 内的样本，t 为最新样本时间戳，同时最多保留 1,000 个样本。超过任一限制时移除最旧样本；收到数据立即处理，不等待缓存填满。
+6. 在 SensorActivity.kt 添加临时 Start ACC 和 Stop ACC 按钮。显示 ACC 状态、选定设置、最新 x/y/z 及单位、样本时间戳、缓存数量、缺口提示和独立错误。防止重复设置查询和订阅，包括启动或停止期间。
+7. 停止、正常结束、失败或断线后保留最后缓存，并标为非活动状态。新的启动或重试被接受后，清空缓存及前一样本/分段状态；拒绝重复启动不能清空正在接收的数据。复用生命周期清理，旋转保持采集，重连后不自动恢复。单独停止或失败 ACC 不停止 HR，也不断开蓝牙。
+8. 复用取消与清理，完成后才允许重新启动。核对 SDK 的异步设备停止行为，不将本地 Job 完成视为硬件停止已确认，不增加任意重启延迟。使用受控测试验证配置选择、批次处理、30 ms 边界、跨批次缺口、缓存限制、停止/重启和旧事件；复用现有订阅测试。
+9. 运行相关测试、debug 构建和 lint。更新两份 AGENTS.md，记录实际改动及结果。提供真实 ACC 接收、设置、三轴数值、削顶、重复点击、快速停止/重启、HR 与 ACC 同时运行、旋转和断线的真机检查步骤，未执行项目标记为待完成。
+
+使用最小代码、现有 Compose 主题，以及英文 UI 文本和代码注释。不引入通用缓存框架或无关重构。
+仅完成步骤 4.2，保留 4.1 的 HR 行为。不实现 ECG 采集、正式会话控制或计时、Pause/Resume、算法单位转换、平滑、步伐检测、统计、图表或持久化。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证。
+```
+
+## English
+
+```text
+Implement step 4.2 according to Section 5.16 of the root AGENTS.md. Inspect the existing code, then modify the files directly:
+
+1. Verify the Polar SDK 8.3.0 ACC settings, streaming, timestamps, units and cancellation behavior. Reuse the existing connection, readiness checks, subscription management and stale-event protection.
+2. Update the ACC configuration policy to select 100 Hz and ±4 g (RANGE = 4). Requery current settings before each start or retry. Block ACC with a clear reason if either value is unavailable; do not select alternatives. For other required parameters, accept a single available value and request confirmation for unresolved multiple options.
+3. Connect startAccStreaming to the existing ACC subscription. Process every sample in order, retaining its sensor timeStamp in nanoseconds and raw x, y and z in mG, including gravity. Mark receiving only after an actual sample arrives.
+4. Compare consecutive sample timestamps, including across batches. A difference strictly greater than 30 ms starts a new continuous segment. Preserve the segment boundary for later processing. Do not interpolate, fabricate samples, disconnect Bluetooth or add a no-data timeout because of a gap.
+5. Keep a bounded in-memory buffer containing samples in (t - 10 seconds, t], where t is the latest sample timestamp, with a maximum of 1,000 samples. Remove the oldest samples when either limit is exceeded. Process arrivals immediately without waiting for the buffer to fill.
+6. Add temporary Start ACC and Stop ACC buttons in SensorActivity.kt. Show the ACC state, selected settings, latest x/y/z with units, sample timestamp, buffer count and gap indication, with separate errors. Prevent duplicate settings queries and subscriptions, including while starting or stopping.
+7. Retain the final buffer on stop, completion, failure or disconnection and label it as inactive. Clear the buffer and previous-sample/segment state before a new accepted start or retry. Rejecting a duplicate start must not clear active data. Reuse lifecycle cleanup, preserve collection across rotation and do not resume automatically after reconnection. Stopping or failing ACC alone must not stop HR or disconnect Bluetooth.
+8. Reuse cancellation and cleanup before allowing restart. Verify the SDK's asynchronous device-stop behavior; do not treat local Job completion as confirmed hardware shutdown or add an arbitrary restart delay. Add controlled tests for configuration selection, batch processing, the 30 ms boundary, cross-batch gaps, buffer limits, stop/restart and stale events. Reuse existing subscription tests.
+9. Run relevant tests, a debug build and lint. Update both AGENTS.md files with actual changes and results. Provide device checks for real ACC reception, settings, axis values, clipping, repeated taps, rapid stop/restart, simultaneous HR and ACC, rotation and disconnection. Mark unperformed checks as pending.
+
+Use minimal code, the existing Compose theme, and English UI text and comments. Do not introduce a generic buffering framework or unrelated refactoring.
+Complete only step 4.2. Preserve step 4.1 HR behavior. Do not implement ECG streaming, formal session controls or timing, Pause/Resume, unit conversion for algorithms, smoothing, step detection, statistics, charts or persistence.
+Explain in Chinese and English, separating file changes, test/build results and device verification.
+```
+
+## 实施与验证记录 / Implementation and verification record
+
+- 已修改 PolarBleManager.kt、SensorActivity.kt、DataReadiness.kt、DataReadinessTest.kt；新增 AccBuffer.kt、AccBufferTest.kt。实现配置复核、原始样本处理、跨批次缺口标记及有界缓存，详见两份 AGENTS.md 第 5.16 节。 / Modified PolarBleManager.kt, SensorActivity.kt, DataReadiness.kt and DataReadinessTest.kt; added AccBuffer.kt and AccBufferTest.kt. Implemented configuration checks, raw sample processing, cross-batch gap markers and bounded buffering; see Section 5.16 of both AGENTS.md files.
+- 4.2 实施时验证：41 项测试通过，debug 构建成功，lint 0 errors、18 warnings。本次仅补录文档，没有重新运行测试或构建。 / At step 4.2, 41 tests passed, the debug build succeeded, and lint reported 0 errors and 18 warnings. No tests or builds were rerun for this documentation update.
+- 用户已反馈解除其他程序占用后 ACC 启动检查通过；削顶、快速启停、多流并行及完整生命周期等验收仍待完成。4.2 的独立临时按钮已在 4.4 被统一会话控制替代。 / The user reported that ACC startup passed after another application's access was removed; clipping, rapid restart, simultaneous streams and full lifecycle checks remain pending. Step 4.4 replaced the separate temporary controls with unified session controls.
+
+# 步骤 4.3：接收真实 ECG / Step 4.3: Receive real ECG data
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.17 节实施步骤 4.3。先检查现有代码，再直接修改文件：
+
+1. 核对 Polar SDK 8.3.0 的 ECG 设置、样本类型、单位、时间戳和取消行为。复用现有连接、就绪检查、订阅管理及旧事件防护。
+
+2. 每次接受 ECG 启动或重试后，重新查询当前可用设置。H10 官方 ECG 采样率为 130 Hz，但配置以实际查询结果为准。唯一选项自动采用；多选项展示并等待确认，不自动选择最大值。配置不完整时阻止 ECG 启动，不修改 HR 或 ACC 设置。
+
+3. 将 startEcgStreaming 接入现有 ECG 订阅。按顺序处理每个 H10 EcgSample，保留传感器 timeStamp（纳秒）和带正负号的 voltage（µV）。不用手机接收时间替代采样时间，不把其他 SDK 样本类型解释为 H10 ECG。收到实际 ECG 样本后才显示 Receiving。
+
+4. 新增 EcgBuffer.kt，在内存中保留 (t - 10 秒, t] 内的数据，t 为最新样本时间戳，同时最多保留 1,300 个样本。超过任一限制时移除最旧样本。收到数据立即逐样本处理，保留原始时间间隔，不插值，不将 ACC 的 30 ms 缺口规则套用于 ECG。
+
+5. 在 SensorActivity.kt 增加临时 Start ECG 和 Stop ECG 按钮。展示 ECG 状态、选定设置、最新电压及单位、传感器时间戳、缓存数量和独立错误。启动、接收或停止期间防止重复查询和重复订阅。协调 ECG、ACC 与就绪查询，避免冲突；设备支持时允许 HR、ACC、ECG 同时运行。
+
+6. 停止、正常结束、失败或断线后保留最后的 ECG 缓存，并标为非活动快照。只在新的 ECG 启动或重试被接受后清空；拒绝重复启动不能清空数据。复用生命周期清理，旋转保持采集，重连后不自动恢复。单独停止或失败 ECG 不停止 HR、ACC，也不断开蓝牙。
+
+7. 复用取消和本地清理，清理完成后才允许重启。不得将本地 Job 完成当作硬件停止已确认，不增加任意重启延迟或自动重试。增加针对性受控测试，覆盖样本提取、时间戳、带符号电压、空批次、缓存限制、重复启动、停止与重启、快照保留、失败隔离和旧事件；复用现有订阅测试。
+
+8. 运行相关测试、debug 构建和 lint。更新两份 AGENTS.md，记录实际实现与验证结果。提供真实 ECG 接收、设置、缓存上限、重复点击、快速停止/重启、HR/ACC/ECG 同时运行、旋转和断线的真机验收步骤，未执行项目标为待验证。记录用户反馈：此前 ACC 启动错误在解除其他程序占用后已解决，不将其记为已确认的本 App 缺陷或全部 ACC 验收通过。
+
+使用最小代码、现有 Compose 主题，以及英文 UI 文本和代码注释。不引入通用缓存框架或无关重构。
+仅完成步骤 4.3，保留 4.1 和 4.2 的行为。不实现正式会话控制或计时、Pause/Resume、ECG 滤波、波峰检测、医学解释、统计、图表或持久化。
+使用中英文说明，分别列出文件变更、测试与构建结果、真机验证。
+```
+
+## English
+
+```text
+Implement step 4.3 according to Section 5.17 of the root AGENTS.md. Inspect the existing code, then modify the files directly:
+
+1. Verify the Polar SDK 8.3.0 ECG settings, sample types, units, timestamps and cancellation behavior. Reuse the existing connection, readiness checks, subscription management and stale-event protection.
+
+2. Requery current ECG settings after each start or retry is accepted. H10 ECG is specified at 130 Hz, but use the actual available settings. Automatically accept single available options; display multiple options and wait for confirmation without selecting maximum values. Block incomplete ECG configuration without changing HR or ACC settings.
+
+3. Connect startEcgStreaming to the existing ECG subscription. Process every H10 EcgSample in order, retaining its sensor timeStamp in nanoseconds and signed voltage in µV. Do not substitute phone reception time or reinterpret other SDK sample types as H10 ECG. Mark Receiving only after an actual ECG sample arrives.
+
+4. Add EcgBuffer.kt to retain samples in (t - 10 seconds, t], where t is the latest sample timestamp, with a maximum of 1,300 samples. Remove the oldest samples when either limit is exceeded. Process samples immediately, preserve their original timing, do not interpolate, and do not apply ACC's 30 ms gap rule to ECG.
+
+5. Add temporary Start ECG and Stop ECG buttons in SensorActivity.kt. Show ECG state, selected settings, latest voltage with units, sensor timestamp, buffer count and separate errors. Prevent duplicate queries and subscriptions while starting, receiving or stopping. Coordinate ECG, ACC and readiness queries without preventing HR, ACC and ECG from running together when supported.
+
+6. Retain the final ECG buffer on stop, completion, failure or disconnection and label it as an inactive snapshot. Clear it only after a new ECG start or retry is accepted; rejecting a duplicate start must not clear data. Reuse lifecycle cleanup, preserve collection across rotation and do not resume automatically after reconnection. Stopping or failing ECG alone must not stop HR or ACC or disconnect Bluetooth.
+
+7. Reuse cancellation and local cleanup before allowing restart. Do not treat local Job completion as confirmed hardware shutdown, add arbitrary restart delays or retry automatically. Add focused controlled tests for sample extraction, timestamps, signed voltage, empty batches, buffer limits, duplicate starts, stop/restart, retained snapshots, failure isolation and stale events. Reuse existing subscription tests.
+
+8. Run relevant tests, a debug build and lint. Update both AGENTS.md files with actual implementation and verification results. Provide device checks for real ECG reception, settings, buffer limits, repeated taps, rapid stop/restart, simultaneous HR/ACC/ECG, rotation and disconnection. Mark unperformed checks as pending. Record the user's report that the previous ACC startup error was resolved after removing access by another application, without treating it as a confirmed app defect or full ACC acceptance.
+
+Use minimal code, the existing Compose theme, and English UI text and comments. Do not introduce a generic buffering framework or unrelated refactoring.
+Complete only step 4.3 and preserve steps 4.1 and 4.2. Do not implement formal session controls or timing, Pause/Resume, ECG filtering, peak detection, medical interpretation, statistics, charts or persistence.
+Explain in Chinese and English, separating file changes, test/build results and device verification.
+```
+
+## 实施与验证记录 / Implementation and verification record
+
+- 2026-09-29 补录本次实际使用的中英文提示词；代码和验证细节见两份 AGENTS.md 第 5.17 节。 / The bilingual prompt used for this implementation was recorded on 2026-09-29; implementation and verification details are in Section 5.17 of both AGENTS.md files.
+- 已修改 PolarBleManager.kt、SensorActivity.kt；新增 EcgBuffer.kt、EcgBufferTest.kt。 / Modified PolarBleManager.kt and SensorActivity.kt; added EcgBuffer.kt and EcgBufferTest.kt.
+- 最近一次实施验证：49 项测试通过，debug 构建成功，lint 0 errors、18 warnings；本次文档补录未重新构建。 / The implementation passed 49 tests, a debug build and lint with 0 errors and 18 warnings; no build was rerun for this documentation update.
+- ECG 真机接收、三路并行、快速启停及生命周期验收待完成。 / ECG device reception, simultaneous streaming, rapid restart and lifecycle checks remain pending.
+
+# 步骤 4.4：统一会话控制与计时 / Step 4.4: Unified session controls and timing
+
+2026-09-29 补录：英文保留本次对话中实际提交的实施提示词，中文为对应翻译；这是历史记录，不是再次执行请求。
+Recorded on 2026-09-29: the English text preserves the implementation prompt submitted in this conversation, with a Chinese translation. This is a historical record, not a request to execute it again.
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.18 节实施步骤 4.4。先检查现有代码，再直接修改文件：
+
+1. 复用 4.1—4.3 的真实 HR、ACC、ECG 数据流、配置检查、订阅管理和旧事件防护。保留 Polar SDK 8.3.0，不增加另一套订阅框架或无关依赖；使用 SDK API 时核对官方实现细节。
+
+2. 添加最小会话状态与计时逻辑，包括 Idle、Starting、Running、Stopping、Stopped 及结束原因。通过现有 SensorViewModel 保留会话；重组或旋转不能重新创建会话、重启数据流或重置计时。
+
+3. 仅在连接、蓝牙和权限有效、至少一路已就绪且配置完整、全部旧任务已完成清理时接受 Start。创建新的会话轮次、重置计时、清空 HR 读数和全部 ACC/ECG 缓存，包括本次会话不可用的数据流。默认尝试启动 HR、ACC、ECG，分别检查前提并复用 ACC/ECG 的最新设置查询；拒绝重复 Start 不能清空当前数据。
+
+4. Starting 不计时；当前会话任意一路收到第一条真实有效样本后才进入 Running，并使用 SystemClock.elapsedRealtime() 计算经过时间。开始时刻只设置一次，不使用系统日期时间、传感器时间戳或计时器触发次数累加时长。单路失败或数据缺口不停止会话计时；不增加启动或无数据超时，允许在 Starting 时 Stop。
+
+5. 分别显示不可用数据流和启动失败的原因，允许其他流继续。会话进行中，对已失败或未启动且清理完成的数据流提供手动 Retry，重新检查前提和当前设置；仅清空重试流的数据，不重置会话时间或其他流。不自动重试。必要时调整已有查询入口，避免正在运行的数据流永久阻止重新检查失败流。
+
+6. Stop 立即拒绝后续会话数据、冻结经过时间、清空当前 HR，并取消全部订阅；保留 ACC/ECG 缓存作为非活动快照。显示 Stopping，全部本地任务清理完成前禁用 Start 和 Retry，之后显示 Stopped。重复 Stop 不能重复结束会话；正常 Stop 保持蓝牙连接。不将本地清理称为硬件停止已确认，不增加任意重启延迟。
+
+7. 初始启动尝试全部处理后，若所有数据任务均已结束且没有活动任务，则结束会话并记录原因；未收到数据时时长保持零。不能因第一路立即失败而在其他流尚未尝试前提前结束。主动或意外断线、蓝牙或权限丢失、锁屏、后台、返回欢迎页及释放 SDK 时，立即结束会话、冻结时间并复用清理；旋转保留会话。返回后必须手动连接并 Start 新会话，不自动恢复。旧会话的数据、错误、结束事件和计时刷新不能影响新会话。
+
+8. 在 SensorActivity.kt 用统一 Start/Stop 控制替换三组临时独立启停按钮；保留必要的 Retry、各流状态、读数、设置和错误。显示会话状态、经过时间及结束原因；采集统一通过会话入口，不能在会话外启动数据流。不添加虚构统计、占位算法或 Saved 提示。
+
+9. 使用受控流和可控制的单调时钟，测试前提检查、重复 Start/Stop、首条样本开始计时、部分启动失败、单路重试、全部任务结束、立即冻结且不计清理耗时、新会话清空全部缓存、清理期间禁止重启、旧事件及生命周期中断。复用已有 HR、ACC、ECG 和订阅测试，运行相关测试、debug 构建和 lint。
+
+10. 更新两份 AGENTS.md，记录实际改动和验证结果。提供统一三路启动、计时起点、停止但不断开、再次启动、部分失败与重试、重复点击、旋转、断线及后台返回的真机检查步骤；未执行项目标记为待完成。
+
+使用最小代码、现有 Compose 主题，以及英文 UI 文本和代码注释。保留现有单位、时间戳、ACC 配置、缺口规则和缓存限制。
+仅完成步骤 4.4，不实现 Pause/Resume、算法、统计、图表、会话持久化、历史、后台采集或进程恢复，也不为这些后续功能添加框架。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证。
+```
+
+## English
+
+```text
+Implement step 4.4 according to Section 5.18 of the root AGENTS.md. Inspect the existing code, then modify the files directly:
+
+1. Reuse the real HR, ACC and ECG streams from steps 4.1–4.3, configuration checks, subscription management and stale-event protection. Keep Polar SDK 8.3.0 without adding another subscription framework or unrelated dependencies. Verify official implementation details when using SDK APIs.
+
+2. Add minimal session state and timing logic with Idle, Starting, Running, Stopping and Stopped states and an end reason. Retain the session through the existing SensorViewModel. Recomposition and rotation must not recreate the session, restart streams or reset timing.
+
+3. Accept Start only when connection, Bluetooth and permissions are valid, at least one stream is ready and fully configured, and all previous tasks have completed cleanup. Create a new session generation, reset timing and clear the HR reading and all ACC/ECG buffers, including streams unavailable for this session. Attempt HR, ACC and ECG by default, checking prerequisites separately and reusing fresh ACC/ECG settings queries. Rejecting duplicate Start must not clear current data.
+
+4. Do not count time while Starting. Enter Running only after the first actual valid sample from any stream in the current session, then calculate elapsed time using SystemClock.elapsedRealtime(). Set the start time only once. Do not use wall-clock time, sensor timestamps or timer tick counts to accumulate duration. A single-stream failure or data gap must not stop session timing. Add no startup or no-data timeout; allow Stop while Starting.
+
+5. Show separate reasons for unavailable streams and startup failures while allowing other streams to continue. During an ongoing session, offer manual Retry for failed or unstarted streams after their cleanup completes. Recheck prerequisites and current settings. Clear only the retried stream's data without resetting session time or other streams. Do not retry automatically. Where necessary, adjust existing query entry points so running streams do not permanently block rechecking a failed stream.
+
+6. Stop must immediately reject further session data, freeze elapsed time, clear current HR and cancel all subscriptions. Retain ACC/ECG buffers as inactive snapshots. Show Stopping and disable Start and Retry until all local tasks complete cleanup, then show Stopped. Repeated Stop must not end the session twice. Normal Stop must keep Bluetooth connected. Do not describe local cleanup as confirmed hardware shutdown or add arbitrary restart delays.
+
+7. End the session with a reason once initial startup attempts have all been processed and every data task has ended with no active tasks remaining. Keep elapsed time at zero if no data was received. Do not end prematurely when one stream fails immediately before the other streams have been attempted. Intentional or unexpected disconnection, Bluetooth or permission loss, locking, backgrounding, returning to the welcome screen and SDK release must immediately end the session, freeze time and reuse cleanup. Preserve the session during rotation. Require manual connection and a new Start after returning; do not resume automatically. Old-session data, errors, completion events and timer updates must not affect a new session.
+
+8. In SensorActivity.kt, replace the three temporary independent start/stop button pairs with unified Start/Stop controls. Retain necessary Retry actions, per-stream states, readings, settings and errors. Display session state, elapsed time and the end reason. Route collection through session entry points so streams cannot start outside a session. Do not add fabricated statistics, placeholder algorithms or Saved messages.
+
+9. Use controlled flows and a controllable monotonic clock to test prerequisites, duplicate Start/Stop, timing from the first sample, partial startup failure, per-stream retry, all tasks ending, immediate timing freeze excluding cleanup time, clearing all buffers for a new session, restart blocking during cleanup, stale events and lifecycle interruptions. Reuse existing HR, ACC, ECG and subscription tests. Run relevant tests, a debug build and lint.
+
+10. Update both AGENTS.md files with actual changes and verification results. Provide device checks for unified three-stream startup, timing onset, stopping without disconnecting, starting again, partial failure and retry, repeated taps, rotation, disconnection and returning from the background. Mark unperformed checks as pending.
+
+Use minimal code, the existing Compose theme, and English UI text and comments. Preserve existing units, timestamps, ACC configuration, gap rules and buffer limits.
+Complete only step 4.4. Do not implement Pause/Resume, algorithms, statistics, charts, session persistence, history, background collection or process recovery, or add frameworks for those future features.
+Explain in Chinese and English, separating file changes, test/build results and device verification.
+```
+
+## 实施与验证记录 / Implementation and verification record
+
+- 新增 SessionState.kt、SessionStateTest.kt；修改 PolarBleManager.kt、SensorActivity.kt、AccBuffer.kt、EcgBuffer.kt，并适配四份已有数据/订阅测试。详见两份 AGENTS.md 第 5.18 节。 / Added SessionState.kt and SessionStateTest.kt; modified PolarBleManager.kt, SensorActivity.kt, AccBuffer.kt and EcgBuffer.kt, and adapted four existing data/subscription test files. See Section 5.18 of both AGENTS.md files.
+- 已实现统一 Start/Stop、会话状态及轮次、首条数据开始的单调计时、单路手动 Retry、结束原因及生命周期清理。新会话清空全部旧读数；Stop 立即冻结并清除 HR，保留 ACC/ECG 快照，等待本地清理完成后才允许重新开始。 / Implemented unified Start/Stop, session states and generations, monotonic timing from the first sample, independent manual retry, end reasons and lifecycle cleanup. New sessions clear all readings; Stop immediately freezes time and clears HR, retains ACC/ECG snapshots and blocks restart until local cleanup completes.
+- 4.4 实施时验证：59 项测试通过（新增 10 项会话测试），debug 构建成功，lint 0 errors、18 warnings。本次仅补录文档，没有重新运行测试或构建。 / At step 4.4, 59 tests passed, including 10 new session tests; the debug build succeeded, and lint reported 0 errors and 18 warnings. No tests or builds were rerun for this documentation update.
+- 三路真机启动、计时起点、快速启停、部分失败/Retry、旋转及断线/后台返回验收均待完成。没有实现算法、统计、图表或会话持久化。 / Device checks for three-stream startup, timing onset, rapid restart, partial failure/retry, rotation and disconnection/background return remain pending. Algorithms, statistics, charts and session persistence are not implemented.
+
+# 步骤 5.1：有效心率与会话统计 / Step 5.1: Valid HR samples and session statistics
+
+2026-09-29：以下为已采用的 5.1 实施提示词，规则见两份 AGENTS.md 第 5.19 节。用户要求执行后，代码、单元测试、debug 构建及 lint 已完成；真机验收待完成，实际结果见本节末尾。
+2026-09-29: The following step 5.1 prompt has been adopted and executed at the user's request, following Section 5.19 of both AGENTS.md files. Code changes, unit tests, the debug build and lint are complete. Device verification remains pending; results follow below.
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.19 节实施开发步骤 5.1。先检查现有代码，再直接修改文件：
+
+1. 核对 Polar SDK 8.3.0 的 hr、contactStatus、contactStatusSupported 字段，复用当前 HR 接收、会话、订阅及旧事件防护。有效条件为 hr > 0 && (!contactStatusSupported || contactStatus)。不额外设置心率上下限，不做突变过滤、平滑、插值或 RR 处理。
+2. 按顺序处理每批全部样本，所有有效样本均参与当前整场 Session 的最小、最大和算术平均统计；相同数值的新样本也分别计入。只保存 count、sum、min、max 等固定数量的累计状态，平均值使用浮点 sum/count，不按时间加权、不补缺失值、不新增 HR 历史缓存。不得只统计批次末值或因重组、计时刷新重复累计。
+3. 保留每批一次的手机接收时间 receivedAt。当前显示由批次最后一个样本决定：有效则显示其 HR 和该批时间，无效则两者显示 --；不能回退到之前的有效样本。无接触且支持检测时显示 No sensor contact，否则对非正值显示 Invalid HR sample；与订阅错误分开。有效样本到达时清除该提示。空批次不改变状态；没有新数据时保留当前显示，不增加无数据超时。
+4. 区分订阅收到了数据与会话收到了有效数据。非空 HR 批次可显示 Receiving，但仅在包含有效 HR 样本时才可触发 Starting → Running；全部无效 HR 不能启动计时。混合批次中有效样本可以启动计时，即使末样本无效。保留 ACC/ECG 独立触发计时的行为；已运行后无效 HR 不停止或重置会话计时，也不影响其他流。
+5. HR 停止、正常结束、失败或接受 Retry 时，清空当前值、接收时间及临时无效样本提示，保留本场累计统计；Retry 后继续累计。Stop、断线及其他整体中断冻结统计并保留结果；接受新 Start 时清空全部 HR 统计，即使本场 HR 不可用。旋转保留，拒绝重复操作不清空或累计，旧事件不能更新新会话。
+6. 在 SensorActivity.kt 显示当前 HR、最小、最大、平均值及必要提示。当前/最小/最大显示整数，平均值显示一位小数，单位 bpm；只在显示时四舍五入，并说明 Mean of valid HR samples。没有有效样本时统计显示 --，首个有效样本到达后 min/max/average 均为该值。沿用现有 Compose 主题和英文界面/注释。
+7. 添加针对性受控测试：零/负值、支持与不支持接触检测、混合批次及末样本无效、重复数值、空批次、无有效样本、首个样本、均值精度、重复操作、Retry 保留累计、新 Start 清零、停止/断线冻结、旧事件，以及有效样本启动计时与其他流独立性。复用现有 HR、订阅和会话测试。验证输入 80、80、0、100（接触条件允许）得到 min=80、max=100、average≈86.7，随后无效样本只清空当前显示，不改变统计。
+8. 运行相关测试、debug 构建和 lint。更新两份 AGENTS.md，记录实际改动及结果；提供真实 HR、统计更新、接触状态（设备支持且能触发时）、Retry、Stop/新 Start、旋转及断线的真机检查步骤，未执行项目标为待验证。
+
+使用最小代码，复用现有数据与会话流程，不添加通用框架、新依赖或无关重构。
+仅完成步骤 5.1。保留现有 ACC/ECG 采集、配置、单位、时间戳、缺口及缓存规则；不实现步伐算法、速度、心率区间、图表、会话持久化、History、Pause/Resume 或进程恢复。不在本步决定仅有无效 HR 的会话是否保存。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证，不把此前的测试结果当作本步已验证。
+```
+
+## English
+
+```text
+Implement development step 5.1 according to Section 5.19 of the root AGENTS.md. Inspect the existing code, then modify the files directly:
+
+1. Verify the hr, contactStatus and contactStatusSupported fields in Polar SDK 8.3.0. Reuse the existing HR reception, session, subscription and stale-event protection. Accept a sample only when hr > 0 && (!contactStatusSupported || contactStatus). Do not add arbitrary HR limits, spike filtering, smoothing, interpolation or RR processing.
+2. Process every sample in each batch in order. Include all valid samples in the current session's minimum, maximum and arithmetic mean, counting newly received samples even when their values repeat. Retain only fixed-size aggregates such as count, sum, min and max. Calculate the mean using floating-point sum/count without time weighting, filling missing values or adding an HR history buffer. Do not process only the final sample or count readings again during recomposition or timer updates.
+3. Keep one phone reception timestamp, receivedAt, per batch. Let the final sample determine the current display: show its HR and batch timestamp if valid, or -- for both if invalid. Do not fall back to an earlier valid sample. Show No sensor contact when contact detection is supported and reports no contact; otherwise show Invalid HR sample for a non-positive value. Keep this message separate from subscription errors and clear it when a valid sample arrives. Empty batches change nothing. Retain the current display when no new data arrives without adding a no-data timeout.
+4. Separate subscription reception from valid data starting session timing. A non-empty HR batch can mark the subscription Receiving, but HR may trigger Starting → Running only when the batch contains a valid sample. All-invalid HR batches must not start timing. A valid sample in a mixed batch can start timing even if its final sample is invalid. Preserve independent timing onset from ACC/ECG samples. Once Running, invalid HR must not stop or reset timing or affect other streams.
+5. Clear the current HR, reception time and temporary invalid-sample message on HR stop, normal completion, failure or an accepted Retry, while retaining session aggregates. Continue accumulating after Retry. Freeze and retain statistics on Stop, disconnection or other session interruptions. Reset all HR aggregates on an accepted new Start, even if HR is unavailable for that session. Preserve them across rotation. Rejected duplicate actions must not clear or add data, and stale events must not update a new session.
+6. In SensorActivity.kt, show current HR, minimum, maximum, mean and necessary messages. Show current/minimum/maximum as integers and the mean to one decimal place, in bpm. Round only for display and explain Mean of valid HR samples. Show -- for statistics when no valid samples exist; the first valid sample sets min, max and mean to its value. Use the existing Compose theme and English UI text and comments.
+7. Add focused controlled tests for zero/negative HR, supported and unsupported contact detection, mixed batches and an invalid final sample, repeated values, empty batches, no valid samples, the first sample, mean precision, duplicate actions, aggregates retained across Retry, reset on new Start, freezing on stop/disconnection, stale events, valid-sample timing onset and stream independence. Reuse existing HR, subscription and session tests. Verify that 80, 80, 0, 100 with acceptable contact produces min=80, max=100 and mean approximately 86.7, and that a subsequent invalid sample clears only the current display without changing the statistics.
+8. Run relevant tests, a debug build and lint. Update both AGENTS.md files with actual changes and results. Provide device checks for real HR, statistics, contact status when supported and reproducible, Retry, Stop/new Start, rotation and disconnection. Mark unperformed checks as pending.
+
+Use minimal code and reuse the existing data and session flow without generic frameworks, new dependencies or unrelated refactoring.
+Complete only step 5.1. Preserve existing ACC/ECG streaming, configuration, units, timestamps, gap rules and buffer limits. Do not implement step detection, speed, HR zones, charts, session persistence, History, Pause/Resume or process recovery. Do not decide persistence eligibility for sessions containing only invalid HR in this step.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present earlier test results as verification of this step.
+```
+
+## 实现方向与当前状态 / Implementation direction and current status
+
+- 在 HR 实际接收路径逐样本累计；显示最新值与累计统计分开清理，复用会话轮次保护。 / Accumulate per sample in the HR reception path, clear current readings separately from aggregates, and reuse session-generation protection.
+- 订阅 Receiving 不再单独证明 HR 样本有效；会话计时使用有效 HR 或真实 ACC/ECG 数据触发。 / Receiving alone does not establish HR validity; valid HR or actual ACC/ECG data triggers session timing.
+- 2026-09-29 实施结果：修改 PolarBleManager.kt、SessionState.kt、SensorActivity.kt，扩展 HeartRateTest.kt 与 SessionStateTest.kt；逐样本统计、批末显示、无效提示、有效数据启动计时、Retry 保留累计及新 Start 清零已接入，没有新增依赖或历史缓存。 / Implemented per-sample statistics, final-sample display, invalid-sample messages, valid-data timing onset, aggregates retained across Retry and reset on new Start in the three production files; expanded the two existing test files without dependencies or history buffers.
+- 本次重新执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug，69 项测试通过（新增 10 项），0 failures/errors/skipped；debug 构建成功，lint 0 errors、18 warnings。首次沙箱下载被阻止后，通过权限流程在主机环境完成构建。 / Reran all three tasks: 69 tests passed, including 10 added tests, with no failures, errors or skips. The debug build passed; lint reported 0 errors and 18 warnings. After a sandbox download restriction, the build succeeded on the host through the permission flow.
+- 真机待验证：真实 HR 与统计、支持时的接触变化、故障后 Retry、Stop/新 Start、旋转、断线及后台返回；本次没有安装或操作手机。测试报告与具体步骤见两份 AGENTS.md 第 5.19 节及第 9 节。 / Device checks remain pending for real HR/statistics, supported contact changes, retry after failure, Stop/new Start, rotation, disconnection and returning from the background. No device was installed to or operated in this turn. See AGENTS.md Sections 5.19 and 9 for evidence and steps.
+
+# 步骤 5.3：步长、速度、距离与简单显示 / Step 5.3: Stride length, speed, distance and simple display
+
+2026-09-29：用户已确认方案，规则见两份 AGENTS.md 第 5.20 节。以下提示词尚未执行，实施前须检查 5.2a—5.2d 依赖；本次仅更新文档。
+2026-09-29: The user confirmed the plan in Section 5.20 of both AGENTS.md files. This prompt has not been executed. Check steps 5.2a–5.2d before implementation; this update changes documentation only.
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.20 节实施开发步骤 5.3。先检查现有代码及 5.2a—5.2d 的步伐输出；依赖未完成时说明缺口，不自动实现其他步骤。依赖满足后直接修改文件：
+
+1. 沿用 note/551a40924.docx 的步频、Weinberg 步长公式及 AGENTS.md 后续确认规则。按同段相邻接受候选峰之间的平滑最大/最小值计算 Li = 0.5 × (smax − smin)^0.25。连续四步确认前缓存，通过后仅提交一次；每段首峰没有步长，四步补计只有三段距离，不补造起始距离。
+2. 复用 5.4 的步频，速度使用最近五秒区间内已确认步长之和除以窗口秒数；不足五秒时用本段预热结束后的实际时长，禁止零分母。每段步长按后一个峰的原始时间归窗，不按补计时间归窗。复用每 250 ms 及新步伐刷新，不重复累计；正常初始预热/等待确认显示 0 和状态，ACC 正常可用且两秒无确认步伐时当前步频/速度归零。
+3. 平均速度为本场累计估计距离除以完整 Running 时长，包含静止和休息，不只统计移动时间、不对显示值求算术平均。Starting 或零时长显示 --，Stop 后冻结。仅保留 Start/Stop，不添加 Pause/Resume 或静止自动暂停。
+4. 最大步频和最大速度分别取整场完整、连续、无已知缺口的五秒窗口结果的最大值。从本连续段预热结束的传感器时间起算，真实 ACC 样本时间覆盖满五秒才有首个合格窗口，缺口或检测段重建后重新起算；端点使用实际处理到的样本时间，不以手机显示时钟补足窗口。短窗口只用于当前显示，不参与最大值；首次合格窗口前显示 --。最大值使用原始五秒统计（确认步数 × 12、确认步长之和 / 5），两秒无步归零只影响当前显示。使用未舍入值比较，停止或缺口不清除已有最大值。
+5. ACC 相邻时间差严格大于 30 ms 时复用分段，清空检测及当前步频/速度窗口，重新预热；不跨段计算步长、不插值或补算，保留本场累计步数、距离和最大值。ACC 不可用、失败或缺口后预热时显示 -- 及原因；接受 Retry 后重新预热和确认连续步伐，其他流与会话计时继续。沿用正常批次等待规则，不新增停流超时或自动重试。
+6. 本场发生已识别 ACC 缺口、不可用或失败时，保留 Incomplete ACC data 标记至会话结束；正常初始算法预热不是数据故障。仍可显示已有距离及其除以完整会话时长得到的平均速度，说明可能因遗漏距离而偏低；最大值仅代表记录完整的窗口。完全无 ACC 观测时统计显示 --，不把缺失当作静止。恢复不清除本场缺失标记。
+7. 在现有 SensorActivity.kt 用简单英文文本显示当前步频、估计速度、平均速度、最大步频、最大速度及必要距离/状态信息。步频显示整数 steps/min；速度内部以 m/s 计算、乘 3.6 后显示一位小数 km/h，仅显示时舍入。Stop/整体中断后标明 Stopped：本场曾收到正常 ACC 样本时当前值归零，整场没有 ACC 样本时当前值和相关统计保持 --；停止不更新最大值，累计统计冻结。接受新 Start 清空本场统计和缺失标记，重复操作不清空或累加，旋转保留并拒绝旧会话事件。
+8. 添加针对性受控测试，覆盖峰间步长、四步/三段补计、原时间归窗、窗口边界、短窗口、两秒归零、完整窗口最大值、静止计入平均、缺口及 Retry、新 Start、Stop 冻结和旧事件。检查真实覆盖 4.99 秒时手机时间不能补足最大值窗口、覆盖五秒后才参与，当前归零不改变原始窗口统计，以及整场没有 ACC 时停止仍显示 --。检查 100 米、运动 80 秒及静止 20 秒得到平均 3.6 km/h。运行相关测试、debug 构建和 lint，更新两份 AGENTS.md 的实际结果；提供已知距离、静止/走路/跑步、休息、缺失恢复和生命周期的真机检查，未执行标记待验证。
+
+使用最小代码、有界窗口、现有 Compose 主题及英文 UI/注释，复用现有会话和数据路径。仅完成步骤 5.3，保留 HR/ACC/ECG 行为；不实现正式布局、图表、心率区间、历史、持久化、自动校准、通用统计框架或无关重构，不增加依赖。
+用中英文分别说明文件修改、测试/构建结果及真机验证，不将已确认规划或以前的构建结果当作本步已完成。
+```
+
+## English
+
+```text
+Implement development step 5.3 according to Section 5.20 of the root AGENTS.md. Inspect the existing code and step outputs from 5.2a–5.2d first. If prerequisites are missing, report them without implementing other steps. Once prerequisites are satisfied, modify the files directly:
+
+1. Reuse the cadence and Weinberg stride-length formulas in note/551a40924.docx and the subsequently confirmed AGENTS.md rules. Calculate Li = 0.5 × (smax − smin)^0.25 from smoothed values between consecutive accepted candidate peaks in the same segment. Cache until four-step confirmation and submit each length once. The first peak has no length; four confirmed steps provide only three distance intervals. Do not fabricate initial distance.
+2. Reuse cadence from Section 5.4. Calculate speed as the sum of confirmed lengths in the latest five-second interval divided by its duration. For a shorter segment, use actual time since warm-up ended; never divide by zero. Assign each length to its later peak's original timestamp, not the confirmation time. Reuse updates on new steps and every 250 ms without accumulating distance again. Show 0 with a status during normal initial warm-up/confirmation; with available ACC, set current cadence and speed to zero after two seconds without a confirmed step.
+3. Calculate average speed as recorded session distance divided by the full Running duration, including stationary rest. Do not use moving time alone or average UI refresh values. Show -- during Starting or with zero duration, and freeze on Stop. Keep Start/Stop only; add neither Pause/Resume nor automatic pausing while stationary.
+4. Track session maximum cadence and speed separately using only complete, continuous five-second windows without known gaps. Measure from the current segment's warm-up completion timestamp; actual ACC sample timestamps must cover five seconds before the first eligible window. Restart this coverage after a gap or segment reset. Use the timestamp of the sample being processed as the endpoint; the phone display clock must not fill missing coverage. Short windows may update current values but not maxima. Show -- before the first eligible window. Use raw five-second statistics (confirmed steps × 12 and confirmed lengths summed / 5) for maxima; two-second zeroing affects current display only. Compare unrounded values and retain existing maxima across stopping or gaps.
+5. Reuse segmentation when consecutive ACC timestamps differ by strictly more than 30 ms. Clear detection and current cadence/speed windows and warm up again. Do not calculate lengths across gaps, interpolate or fabricate data; retain session steps, distance and maxima. Show -- and the reason while ACC is unavailable, failed or warming up after a gap. After an accepted Retry, repeat warm-up and consecutive-step confirmation while other streams and session timing continue. Preserve ordinary batch-waiting behavior without adding a no-data timeout or automatic retry.
+6. Retain Incomplete ACC data for the rest of a session after a known ACC gap, unavailability or failure. Normal initial algorithm warm-up is not a data fault. Existing distance and its average over full session time may remain visible, with an explanation that missing distance can lower the result; maxima describe only eligible recorded windows. Show -- for statistics when no ACC observations exist, and do not interpret missing data as stationary activity. Recovery must not clear the session's incomplete-data flag.
+7. Use simple English text in the existing SensorActivity.kt to show current cadence, estimated speed, average speed, maximum cadence/speed and necessary distance/status information. Display integer steps/min and one decimal place for km/h, converting internal m/s by multiplying by 3.6 and rounding only for display. On Stop or overall interruption, show Stopped: set current values to zero if normal ACC samples were received in this session, but retain -- for current values and related statistics if none were received. Do not update maxima on stopping; freeze aggregates. Clear session statistics and the incomplete-data flag on an accepted new Start. Duplicate actions must not clear or accumulate data; preserve state across rotation and reject old-session events.
+8. Add focused controlled tests for peak-interval lengths, four-step/three-interval backfill, original timestamps, window boundaries, short windows, two-second zeroing, complete-window maxima, rest included in averages, gaps, Retry, new Start, Stop freezing and stale events. Verify that phone time cannot complete a maximum window with only 4.99 seconds of actual coverage, five seconds permits evaluation, current-display zeroing does not change raw window statistics, and stopping a session without ACC retains --. Verify that 100 metres over 80 seconds of movement plus 20 seconds of rest gives 3.6 km/h average speed. Run relevant tests, a debug build and lint, and update both AGENTS.md files with actual results. Provide device checks for known distances, stationary/walking/running activity, rest, recovery and lifecycle behavior; mark unperformed checks as pending.
+
+Use minimal code, bounded windows, the existing Compose theme and English UI text/comments. Reuse current session and data paths. Complete only step 5.3 and preserve HR/ACC/ECG behavior. Do not add the final layout, charts, HR zones, history, persistence, automatic calibration, a generic statistics framework, unrelated refactoring or dependencies.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present confirmed plans or earlier builds as completion of this step.
+```
+
+# 步骤 5.4：固定心率区间与累计时长 / Step 5.4: Fixed HR zones and accumulated duration
+
+用户已确认以下规则，见两份 AGENTS.md 第 5.21 节。本提示词尚未执行；本次只更新文档，未实施代码或运行测试、构建和真机验证。
+The user confirmed these rules in Section 5.21 of both AGENTS.md files. This prompt has not been executed. This update changes documentation only; no implementation, tests, builds or device checks were performed.
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.21 节实施开发步骤 5.4。先检查现有代码及 5.1 的有效 HR 处理和会话计时；依赖未满足时说明缺口，不自动实施其他步骤。依赖满足后直接修改文件：
+
+1. 复用有效条件 hr > 0 && (!contactStatusSupported || contactStatus)。固定区间为 <110、[110,125)、[125,140)、[140,155)、≥155 bpm，标签为 Very light、Light、Moderate、High、Very high，颜色依次为蓝、绿、黄、橙、红。无效 HR 不归区，不增加年龄、最大心率、平滑或滞回设置。
+2. 当前标签和之后的计时区间由最新非空批次的最后一个样本决定。末样本无效时显示 Heart rate intensity: -- 并保留对应原因；同批更早的有效值仍参与 5.1 统计，但不能替代批末值作为当前区间。空批次不改变状态；相同 HR 再次收到时正常结算，不按值去重。
+3. 采用最近有效读数保持法，以每批一次 SystemClock.elapsedRealtime 接收时刻计算区间时长。先结算旧区间到事件时刻，再切换区间和起点。同批样本不分摊时长，不按样本数量计时，不使用系统日期、RR 或伪造的 HR 传感器时间；保持既有 receivedAt 的含义。仅统计 Running，HR 区间起点不得早于会话起点；ACC/ECG 先启动时，首个有效批末 HR 前的时间未归类，不回填。
+4. 无效 HR、无接触、HR 失败、正常结束或接受 Retry 时，结算旧区间并清除当前区间/起点，保留已有累计值。新有效批末 HR 到达后再继续，不补算中间空白，不停止其他流或会话时间。拒绝的重复操作不重复结算。静止但 HR 有效时照常计时；无新批次且无无效/结束通知时继续保持最后区间，不增加超时或自动重试，并用 Estimated from received HR 说明静默停流可能使旧区间时间偏多。
+5. 仅维护五区间累计毫秒数、当前可空区间和起点，复用会话轮次与现有 250 ms 刷新。UI 刷新展示已累计值加当前未结算时长，不写回累计值、不固定加 250 ms、不新增定时器。Unclassified time 为同一时刻 Running 时长减五区间显示时长之和，单列文字，不增加第六根柱形或强行补齐五区间。
+6. 在现有 Compose 页面添加简单心率强度标签及五根时长柱形；英文标题统一为 Heart rate intensity，仅表示 HR 分档，不表示已确认正在运动。横轴 Zone 1—5 并注明 bpm 范围，纵轴为时长，五柱使用相同且随最大累计时长统一调整的比例尺；显示 mm:ss，内部保留毫秒，仅显示时取整秒。未进入区间为 00:00；完全没有有效 HR 时附 No valid HR data。颜色和文字共同说明区间，不只靠颜色，不增加图表库；正式布局留到第 8 阶段。
+7. Stop 或整体中断时结算至会话停止时刻，冻结柱形和未归类时间，不包含清理耗时；当前心率强度显示 -- 和停止状态。接受新 Start 才清零全部区间状态，HR Retry 保留累计，旋转保留；拒绝重复操作和旧事件，不自动恢复旧会话。沿用后台、锁屏、返回欢迎页和断线结束会话的规则。
+8. 添加受控测试，覆盖 109/110、124/125、139/140、154/155 的边界，无效和混合批次、末样本无效、空批次、相同 HR、先由其他流启动、切区与结束/Retry 结算、静止、无新批次保持、刷新不重复计时、系统日期变化、未归类时间、Stop 冻结、新 Start 和旧事件。验证第 10 秒收到 120、第 13 秒收到 130 时，3 秒归 Zone 2。运行相关测试、debug 构建和 lint，更新两份 AGENTS.md 实际结果；提供真实 HR 标签、柱形、时长、静止、可复现的接触变化、重试、旋转与断线检查，未执行标记待验证。不能自然触发的心率边界使用受控测试。
+
+仅完成步骤 5.4，使用最小代码、现有 Compose 主题及英文 UI/注释。保留既有 HR/ACC/ECG、步伐和速度行为，不增加 HR 历史缓存、个体化训练算法、警报、通用框架、Pause/Resume、曲线、持久化、History、依赖或无关重构。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证，不把规划或旧测试结果作为本步完成证据。
+```
+
+## English
+
+```text
+Implement development step 5.4 according to Section 5.21 of the root AGENTS.md. Inspect the existing code, step 5.1 HR validation and session timing first. If prerequisites are missing, report them without implementing other steps. Once prerequisites are satisfied, modify the files directly:
+
+1. Reuse hr > 0 && (!contactStatusSupported || contactStatus). Use fixed zones <110, [110,125), [125,140), [140,155) and >=155 bpm, labelled Very light, Light, Moderate, High and Very high, with blue, green, yellow, orange and red respectively. Invalid HR belongs to no zone. Do not add age, maximum-HR, smoothing or hysteresis settings.
+2. Use the final sample of the latest nonempty batch to determine the current label and subsequent timing zone. An invalid final sample shows Heart rate intensity: -- with the appropriate reason. Earlier valid samples still contribute to step 5.1 statistics but must not replace the final sample for the current zone. Empty batches do not change state. Settle repeated HR values normally without deduplicating by value.
+3. Hold the latest valid reading and calculate zone duration using one SystemClock.elapsedRealtime reception timestamp per batch. Settle the old zone to the event time before changing the zone and timing anchor. Do not divide batch time among samples, count samples as time, or use wall-clock dates, RR intervals or invented HR sensor timestamps. Preserve receivedAt semantics. Count only Running time; zone timing must not precede the session start. If ACC/ECG starts the session first, time before the first valid final HR sample is unclassified and must not be backfilled.
+4. On invalid HR, lost contact, HR failure, normal completion or an accepted Retry, settle the old zone and clear the current zone/anchor while retaining accumulated durations. Resume only from a new valid final HR sample without filling the interruption or stopping other streams/session timing. Rejected duplicate actions must not settle twice. Continue counting while stationary with valid HR. With no new batch and no invalid/end notification, keep estimating the last zone without adding a timeout or automatic retry. Show Estimated from received HR and explain that silent stream loss can overestimate the last zone's duration.
+5. Keep only five accumulated millisecond durations, the nullable current zone and its timing anchor, reusing session-generation protection and the existing 250 ms refresh. Refreshes display accumulated values plus the current unsettled interval without writing back, adding a fixed 250 ms or creating another timer. Calculate Unclassified time as Running duration minus the sum of the five displayed zone durations at the same instant. Show it separately as text, not a sixth bar, and do not force the five zones to cover the session.
+6. Add a simple heart rate intensity label and five duration bars to the existing Compose screen. Use the title Heart rate intensity to describe the HR zone, without implying detected movement. Use Zone 1–5 and bpm ranges on the horizontal axis and duration on the vertical axis. All bars share one scale adjusted to the largest accumulated duration. Display mm:ss while retaining milliseconds internally and truncating only display seconds. Unvisited zones show 00:00; show No valid HR data when none exists. Use text as well as colour. Add no chart library; leave final layout integration to stage 8.
+7. On Stop or overall interruption, settle to the session stop time and freeze bars and unclassified time, excluding cleanup duration. Show -- with the stopped status for current heart rate intensity. Clear all zone state only on an accepted new Start; retain accumulations across HR Retry and rotation. Reject duplicate actions and stale events, and do not resume old sessions. Preserve existing background, lock, welcome-screen and disconnection behavior.
+8. Add controlled tests for boundaries 109/110, 124/125, 139/140 and 154/155; invalid/mixed batches, invalid final samples, empty batches, repeated HR, another stream starting first, zone changes, completion/Retry settlement, stationary time, holding without new batches, refreshes without double counting, wall-clock changes, unclassified time, Stop freezing, new Start and stale events. Verify that HR 120 at second 10 and HR 130 at second 13 assign three seconds to Zone 2. Run relevant tests, a debug build and lint, and update both AGENTS.md files with actual results. Provide device checks for real HR labels, bars, durations, stationary activity, reproducible contact changes, retry, rotation and disconnection; mark unperformed checks as pending. Use controlled tests for HR boundaries that cannot naturally be reproduced.
+
+Complete only step 5.4 with minimal code, the existing Compose theme and English UI text/comments. Preserve HR/ACC/ECG, step and speed behavior. Do not add HR history buffers, personalized training algorithms, alerts, generic frameworks, Pause/Resume, curves, persistence, History, dependencies or unrelated refactoring.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present plans or older test results as evidence of this step's completion.
+```
+
+# 步骤 5.5：曲线数据与时间窗口 / Step 5.5: Chart data and time windows
+
+规则已确认，详见两份 AGENTS.md 第 5.22 节。以下为尚未执行的中英文实施提示词；本次只更新文档，未实施代码或运行测试/构建、真机验证。
+The rules are confirmed in Section 5.22 of both AGENTS.md files. These implementation prompts have not been executed; this update changes documentation only, without code changes, tests, builds or device verification.
+
+## 中文
+
+```text
+按照根目录 AGENTS.md 第 5.22 节实施开发步骤 5.5。先检查现有代码、真实 HR/ACC/ECG 采集、5.1 有效性处理、5.2—5.3 步频/速度输出和会话时间；缺少依赖时说明，不自动推进其他步骤。依赖满足后直接修改文件：
+
+1. 为 HR 提供最近 60 秒、最多 61 个显示记录，每个会话整数秒保留最后真实非空批次的末样本及实际接收时间，不取平均。沿用批末有效性，无效值留空并断段，不画成 0；桶内替换不能抹掉断段。无新 HR 不新增点，相同值的新接收仍是数据。该处理只用于曲线，不改变逐样本心率统计或区间计时。
+2. 为步频和速度分别保留最近 60 秒、最多 241 点，复用每 250 ms 的已有计算/刷新入口记录一次当前结果，不在绘图、重组或每次候选步事件中重复追加或重算算法。预热/不可用留空，正常 ACC 下静止零值可绘制。所有显示缓存同时按时间及点数移除最旧记录，不补点、不无限累计；断段信息随记录保持有界。
+3. ECG 显示最近 5 秒，复用现有 10 秒/最多 1,300 样本原始缓存，不另建长期原始缓存。130 Hz 下窗口约 650 点，绘制窗口内全部样本，不合并、平均、隔点抽取或平滑；保留实际配置，不硬改采样率。HR、步频/速度最多每 250 ms 刷新画面，ECG 可见时最多每 100 ms 刷新；刷新频率不是采样频率，不能每次只取一个 ECG 样本。
+4. 横轴统一为 Running 起点后的经过秒数，显示 mm:ss。HR 用批次 elapsedRealtime 接收时刻减会话起点；步频/速度用结果记录时的会话经过时间。保留 receivedAt 日期时间原义，不用系统日期计算横轴；ACC 算法仍使用原始传感器时间。
+5. ECG 每个有效订阅仅用首个非空批次建立固定锚点：S0 为批末传感器 ns，P0 为批次手机 elapsedRealtime ms，T0 为会话起点 ms。每个样本 x = (P0 − T0)/1000 + (timeStamp − S0)/1,000,000,000，先做整数时间差再转换浮点秒。保留样本间隔，不把整批画在同一时刻、不逐批移动锚点；负 x 不绘制、不挤到零点。Retry 重建锚点但保留 T0，说明这是含传输延迟的近似对齐，不承诺多流精确同步。
+6. HR 遇无效/无接触、失败或结束时断段，合并前相邻真实批次接收时间差严格大于 3 秒也不连线；这只影响绘图，不改变 5.4 区间保持计时。步频/速度复用 ACC 严格大于 30 ms 的缺口、算法段重建和订阅中断，预热后新段开始。ECG 使用原始相邻样本时间差严格大于 3/实际采样率 秒作为绘图断段阈值，130 Hz 时约 23.1 ms；跨批次也检查，不套用 ACC 阈值或触发额外断开/重试。全部曲线不跨缺口连线、不插值或补零，不延长没有新数据的 HR 水平线。
+7. 单路失败/正常结束保留并冻结曲线快照；普通缺口只断段。接受 Retry 清空对应曲线和显示锚点/分段，ACC 同时清空步频和速度，其他曲线及本场累计统计保留，会话横轴不归零；拒绝操作不清空。Stop/整体中断冻结曲线及视窗，不添加人为归零点或滚动到空白；接受新 Start 清空全部。旋转、切图保留状态和数据，不重启订阅；未显示的图继续更新有界数据但不持续绘制，拒绝旧会话/旧订阅事件。
+8. 使用现有 Compose 主题做简单绘图验收，提供 HR、步频/速度、ECG 切换，步频与速度在同一区域内单独切换，不共用不同单位的纵轴。单位为 bpm、steps/min、km/h、µV，ECG 保留正负值。完整布局留到第 8 阶段，不增加图表依赖、通用缓存框架、历史回放或持久化。
+9. 添加针对性受控测试，覆盖末点非平均、无新数据不造点、桶内断段、时间/点数双上限、ECG 五秒子集保留所有样本、固定锚点与单位换算、负 x 排除、系统日期变化、三类断段边界、Retry 范围、Stop 冻结无尾部零点、新 Start、切图/旋转及旧事件。运行相关测试、debug 构建和 lint，更新两份 AGENTS.md 实际结果；提供真实曲线、滚动、ECG 刷新性能、静止、缺口、Retry、切图和旋转检查，未执行标记待验证。
+
+仅完成步骤 5.5，使用最小代码和英文 UI/注释，保留原始数据、算法、区间计时、会话及资源释放规则，不增加滤波、自动重试、Pause/Resume、进程恢复、无关依赖或重构。60 秒曲线缓存不是完整会话存储。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证，不把规划或旧构建结果当作本步验收通过。
+```
+
+## English
+
+```text
+Implement development step 5.5 according to Section 5.22 of the root AGENTS.md. Inspect the existing code, real HR/ACC/ECG reception, step 5.1 validation, cadence/speed outputs from steps 5.2–5.3 and session timing first. Report missing prerequisites without implementing other steps. Once prerequisites are satisfied, modify the files directly:
+
+1. Retain the latest 60 seconds of HR chart data, capped at 61 display records. Within each integer session-second bucket, keep the final sample of the latest real nonempty batch and its actual reception time, without averaging. Preserve final-sample validity: invalid values create a gap rather than zero. Bucket replacement must not erase a segment break. Add no points without new HR; repeated values in new batches remain real data. This selection affects charts only, not per-sample HR statistics or zone timing.
+2. Retain the latest 60 seconds of cadence and speed, capped at 241 points each. Reuse the existing 250 ms calculation/refresh entry point to record the current results once. Do not append again or rerun algorithms during drawing, recomposition or every candidate-step event. Leave warm-up/unavailable intervals blank; plot genuine stationary zeros with available ACC. Enforce both time and count limits, remove the oldest records, never pad points, and keep segment markers bounded with their records.
+3. Show the latest five seconds of ECG using the existing ten-second/1,300-sample raw buffer, without another long-lived raw copy. At 130 Hz this is approximately 650 points. Draw every sample in the visible window without merging, averaging, skipping or smoothing. Preserve actual confirmed settings instead of forcing a sampling rate. Refresh HR/cadence/speed charts at most every 250 ms and visible ECG at most every 100 ms. Drawing frequency is not sampling frequency; do not select only one ECG sample per refresh.
+4. Use elapsed seconds since Running began for the horizontal axis, labelled mm:ss. For HR, subtract the session origin from batch elapsedRealtime reception time. For cadence/speed, use session time when recording the calculated output. Preserve wall-clock receivedAt semantics but do not use dates for chart timing. ACC algorithms continue to use original sensor timestamps.
+5. Establish one fixed ECG anchor per valid subscription from its first nonempty batch: S0 is the last sample's sensor timestamp in ns, P0 is batch elapsedRealtime reception time in ms, and T0 is the session origin in ms. Map each sample as x = (P0 − T0)/1000 + (timeStamp − S0)/1,000,000,000, subtracting integer timestamps before converting to floating-point seconds. Preserve sample spacing rather than placing a whole batch at one instant or shifting the anchor each batch. Omit negative x values instead of piling them at zero. Retry establishes a new anchor while retaining T0. Describe this as approximate alignment including transport delay, not exact synchronization between streams.
+6. Break HR lines on invalid samples, lost contact, failure or completion, and when consecutive real batch receptions before display reduction are strictly more than three seconds apart. This affects drawing only, not step 5.4 zone-duration holding. Cadence/speed reuse ACC gaps strictly over 30 ms, detection-segment resets and subscription interruptions, starting a new line after warm-up. For ECG, break when original adjacent sample timestamps differ by strictly more than 3/actualSampleRate seconds, approximately 23.1 ms at 130 Hz, including across batches. Do not reuse ACC's threshold or trigger extra disconnection/retry. Never connect across gaps, interpolate or fill missing values with zero, or extend HR horizontally without new data.
+7. Retain and freeze chart snapshots on individual stream failure/completion; ordinary gaps only break lines. An accepted Retry clears the corresponding chart and display anchor/segments; ACC clears both cadence and speed. Preserve other charts and session aggregates without resetting the session time axis. Rejected actions must not clear data. Stop or overall interruption freezes chart data and viewport without appending artificial zero points or scrolling to an empty view. An accepted new Start clears all charts. Preserve data/state across rotation and chart selection without restarting subscriptions. Hidden charts maintain bounded data but do not continuously draw. Reject old-session and old-subscription events.
+8. Provide simple chart verification using the existing Compose theme, with HR, cadence/speed and ECG selection. Select cadence or speed within their shared area rather than plotting different units on one vertical axis. Use bpm, steps/min, km/h and µV, preserving signed ECG values. Leave final layout integration to stage 8. Add no chart dependency, generic buffering framework, history replay or persistence.
+9. Add focused controlled tests for last-point selection rather than averaging, no fabricated points, intra-bucket gaps, time/count limits, the five-second ECG subset retaining every sample, fixed anchors and unit conversion, negative x exclusion, wall-clock changes, gap boundaries for each chart, Retry scope, Stop freezing without trailing zeros, new Start, chart selection/rotation and stale events. Run relevant tests, a debug build and lint. Update both AGENTS.md files with actual results and provide device checks for real curves, scrolling, ECG refresh performance, stationary activity, gaps, Retry, chart switching and rotation. Mark unperformed checks as pending.
+
+Complete only step 5.5 with minimal code and English UI text/comments. Preserve raw data, algorithms, zone timing, sessions and resource cleanup. Do not add filtering, automatic retry, Pause/Resume, process recovery, unrelated dependencies or refactoring. A 60-second chart buffer is not full-session storage.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present plans or older builds as this step's acceptance results.
+```
+
+# 第 5 阶段 Fix：心率强度命名 / Stage 5 fix: Heart rate intensity naming
+
+## 中文
+
+```text
+遵循根目录 AGENTS.md，仅统一第 5 阶段的强度命名。先检查现有代码，再修改适用文件：
+
+1. 将表示固定 HR 分档的“运动强度”统一为“心率强度”，英文界面使用 Heart rate intensity。有效标签示例：Heart rate intensity: Moderate · Zone 3；无有效读数或结束时显示 Heart rate intensity: --，保留原有原因和状态。
+2. 保留现有五档 HR 阈值、有效性判断、区间时长和生命周期规则。该名称只表示心率分档，不表示已由 ACC 确认运动，不添加运动/静止分类。
+3. 若代码已实现强度展示，只修改相关文案；若尚未实现 5.4，则只更新规划和提示词，不新增占位界面或提前实现 5.4。
+4. 同步两份 AGENTS.md 和本提示词，记录实际修改范围。修改代码时运行 debug 构建；仅修改文档时说明未运行构建。真机未执行的检查标为待验证。
+
+使用最小改动，保留英文 UI 与注释，不重构其他功能。说明中英文对照，区分文档修改、代码修改、构建与真机验证。
+```
+
+## English
+
+```text
+Follow the root AGENTS.md and fix only stage 5 intensity naming. Inspect the existing code before modifying applicable files:
+
+1. Use Heart rate intensity for the fixed HR-zone label, with the Chinese documentation term 心率强度 instead of 运动强度. Example: Heart rate intensity: Moderate · Zone 3. Show Heart rate intensity: -- when no valid reading is available or the session has ended, retaining existing reasons and status.
+2. Preserve the five HR thresholds, validity checks, zone durations and lifecycle rules. This label describes an HR zone, not movement confirmed by ACC. Do not add movement or stationary classification.
+3. If intensity display exists, change only the relevant wording. If step 5.4 is not implemented, update only the plan and prompt; do not add placeholder UI or implement step 5.4 early.
+4. Update both AGENTS.md files and this prompt with the actual scope. Run a debug build if code changes; state that no build was run for documentation-only changes. Mark unperformed device checks as pending.
+
+Use minimal changes, English UI text and comments, and no unrelated refactoring. Explain in Chinese and English, separating documentation, code changes, build results and device verification.
+```
+
+## 实施记录 / Implementation record
+
+- 已检查 app/src 下的源码与资源：目前没有强度标签或分档实现，没有可替换的旧强度文案。本次同步两份 AGENTS.md 和根目录 prompt.md，未修改 Kotlin 或资源文件，也未提前实施 5.4。
+- Inspected source and resources under app/src: no intensity label or zone implementation exists to rename. Updated both AGENTS.md files and the root prompt.md only; no Kotlin or resource changes, and step 5.4 remains unimplemented.
+- 本次未运行测试、构建或真机检查；5.4 实施后再验证实际标签。/ No tests, build or device checks were run for this documentation update. Verify the actual label after step 5.4 is implemented.
+
+# 第 6 阶段：SQLite 与最简单 History 验收 / Stage 6: SQLite and minimal History verification
+
+2026-09-29：用户已采用全部推荐方案。以下提示词已记录但尚未执行；本次只修改两份 AGENTS.md 和两份 prompt.md，没有修改应用代码、运行测试/构建或进行真机验证。规则以 AGENTS.md 第 5.23 节为准。
+2026-09-29: The user accepted the complete proposed design. The prompts below are recorded but not executed. This update changes only the two AGENTS.md files and two prompt.md files; no application code, tests, build or device verification. Section 5.23 of AGENTS.md defines the rules.
+
+按 6.1a → 6.1b → 6.1c → 6.1d → 6.2 分步实施，每次只执行一个用户指定编号。先检查 5.3—5.5 依赖，缺少时说明，不自动补做；当前仅准备文档，不因下面出现“修改文件”而执行代码任务。此前两份 prompt.md 历史内容不同；2026-09-30 已核对项目副本没有独有记录，并以包含完整历史的根目录版同步两份最新版。
+Execute 6.1a → 6.1b → 6.1c → 6.1d → 6.2, one user-requested step at a time. Inspect prerequisites from 5.3–5.5 and report missing work without implementing it automatically. This turn is documentation only; the future instructions to modify files are not authorization to execute them now. The copies previously differed in historical coverage. On 2026-09-30 the project copy was verified to contain no unique records, and both were synchronized from the root copy containing the complete history.
+
+## 步骤 6.1a：会话身份与摘要 / Step 6.1a: Session identity and summary
+
+### 中文
+
+```text
+按照根目录 AGENTS.md 第 5.23 节，仅实施 6.1a。先检查现有代码及 5.3—5.5；缺少依赖时说明并停止实施，不自动补做。依赖满足后直接修改文件：
+
+1. 复用现有会话控制，每次接受 Start 才生成 UUID；重复/拒绝的 Start 不改变 ID。记录 startRequestedAt、startedAt、endedAt 的 Unix 毫秒及单调 durationMs，startedAt 对应首次进入 Running。保存设备名称/ID 快照；曲线时间结构使用 Running 起点后的 elapsedMs，不用系统日期相减。
+2. 定义未来对应 sessions、hr_points、motion_points 的最小数据结构，不创建数据库或收集曲线。摘要包含 HR min/max/mean 和有效样本数、五区间及未归类毫秒、总步数、平均/最大/最小步频、累计估计距离、平均/最大估计速度、会话时间/设备/结束原因、各流观测及已知缺失/失败标记。历史点包含会话秒桶、实际 elapsedMs、可空值和断段信息。保存未舍入 ms/m/m·s^-1 数值，未知用 null，真实零用 0。
+3. 接入已有摘要来源，不重复计算已有统计。平均/最小步频本步仅定义可空字段，显示未实施/--，不得填零或宣称已测得；计算留到 6.1b。区分收到 HR 和收到有效 HR。至少一个有效 HR 或真实 ACC/ECG 样本才具备保存资格，完全无数据/仅无效 HR 不具备资格，不设最短时长。
+4. 在 Stop、整体中断或全部流终止时，复用既有结算顺序，冻结本场元信息和已有摘要，不把清理耗时计入；不因重复结束再次结算。Retry 保留本场 ID/累计摘要，旋转保留，新 Start 创建新记录，旧会话事件不能更新新记录。不提前增加保存失败状态、数据库任务或四小时自动结束。
+5. 只加英文测试文本：Session ID、开始/结束/时长、设备、Eligible for saving 及已有摘要。使用现有 Compose 主题，不加历史列表、正式布局或 Saved 状态。
+6. 受控测试覆盖新/重复 Start、时间职责和日期变化、有效性资格、设备快照、null/0、Stop/中断冻结、Retry/旋转/旧事件。运行相关单元测试、debug 构建及 lint；同步两份 AGENTS.md 和两份 prompt.md 的本步实际结果，真机未执行标待验证，不引用旧检查作为本步通过证据。
+
+仅完成 6.1a，最小代码、英文 UI/注释；不实施 6.1b—6.1d、6.2，不新增依赖、通用框架或无关重构。中英文区分文件修改、自动验证和真机结果。
+```
+
+### English
+
+```text
+Implement only 6.1a under Section 5.23 of the root AGENTS.md. Inspect current code and steps 5.3–5.5 first. Report missing prerequisites and stop implementation without completing other steps automatically. Once satisfied, modify files directly:
+
+1. Reuse session control and generate a UUID only on accepted Start. Rejected/duplicate Start must not change it. Record Unix millisecond startRequestedAt, startedAt and endedAt plus monotonic durationMs; startedAt is entry into Running. Snapshot device name/ID. Define chart elapsedMs relative to Running, not wall-clock differences.
+2. Define minimal future sessions, hr_points and motion_points data structures without creating a database or collecting curves. Include HR min/max/mean and valid count; five zone and unclassified durations; total steps and mean/max/min cadence; estimated distance and mean/max speed; times/device/end reason and per-stream observation/known missing/failure flags. History records contain a session-second bucket, actual elapsedMs, nullable values and breaks. Preserve unrounded ms/metres/metres-per-second values; distinguish null from genuine zero.
+3. Populate existing summary fields from their current owners without recalculating statistics. Only define nullable mean/min cadence fields here; label them unimplemented/-- rather than zero or observed results. Calculation belongs to 6.1b. Distinguish received HR from valid HR. Eligibility requires at least one valid HR or real ACC/ECG sample; exclude no-data and invalid-HR-only attempts without imposing a minimum duration.
+4. On Stop, overall interruption or all-stream termination, reuse existing settlement order and freeze metadata/existing summary without cleanup duration or duplicate settlement. Retain identity/accumulations across Retry and rotation; create a fresh record on new Start and reject stale events. Add no save-failure state, database tasks or automatic four-hour ending.
+5. Add only simple English text for session ID, times/duration, device, save eligibility and existing summary, using the current Compose theme. Add no History list, final layout or Saved state.
+6. Test new/duplicate Start, clock responsibilities/date changes, eligibility, device snapshots, null/zero, ending, Retry/rotation/stale events. Run relevant unit tests, a debug build and lint. Update both AGENTS.md and both prompt.md files with this step's actual results; mark unperformed device checks pending rather than reusing old evidence.
+
+Complete only 6.1a with minimal code and English UI/comments. Do not implement 6.1b–6.1d or 6.2, add dependencies/frameworks or refactor unrelated code. Explain file changes, automated verification and device results in Chinese and English.
+```
+
+## 步骤 6.1b：平均与最小步频 / Step 6.1b: Mean and minimum cadence
+
+### 中文
+
+```text
+按照根目录 AGENTS.md 第 5.23.2 节，仅实施 6.1b。先检查 5.3—5.5 和 6.1a 的摘要/时间字段；缺少依赖时说明，不自动补做。依赖满足后直接修改文件：
+
+1. 平均步频 = 总确认步数 × 60 / Running 秒数，包含静止和完整 Running 分母，不对显示值或历史点求平均。分母零或无 ACC 观测时为 null；存在 ACC 缺失时保留已记录结果并标不完整，不补步、不扣除缺失时间。
+2. 最小步频复用 5.3 最大步频的同一批合格窗口：从检测段预热结束起，由真实 ACC 传感器时间覆盖完整连续五秒且无已知缺口，取原始 N5 × 12 的最小值。保留既有最大值口径，不创建第二套窗口；不使用短窗口、手机显示时钟补足的窗口、两秒强制归零或 Stop 人为零。合格静止可为 0，无合格窗口为 null，不要求平均位于极值之间。
+3. 将真实计算结果接入 6.1a 摘要。缺口/Retry 保留累计及已有极值，新段重新满五秒后才更新极值；Stop 冻结、新 Start 清零、旋转保留、旧事件无效。不增加历史点收集或更改步数/步长算法。
+4. 只增加最简单英文 Mean cadence、Min cadence，复用 Max cadence，并显示 -- 或不完整原因；内部保留小数，只在展示时舍入，单位 steps/min，不做正式布局。
+5. 受控测试平均公式/静止/无 ACC/零分母、4.99/5 秒真实窗口边界、短窗口及强制归零排除、静止零、缺口/Retry/Stop/新 Start/旧事件和摘要更新。运行相关测试、debug 构建、lint；同步两份 AGENTS.md 和两份 prompt.md 的实际结果，真机未执行标待验证。
+
+仅完成 6.1b，最小代码、英文 UI/注释；不自动推进 6.1c、6.1d 或 6.2，不增加依赖、通用框架或无关重构。中英文分别说明修改、自动验证及真机结果。
+```
+
+### English
+
+```text
+Implement only 6.1b under Section 5.23.2 of the root AGENTS.md. Inspect steps 5.3–5.5 and 6.1a summary/time fields first. Report missing prerequisites without implementing them automatically. Once satisfied, modify files directly:
+
+1. Mean cadence = total confirmed steps × 60 / Running seconds, including stationary time and the full denominator. Do not average display/chart values. Return null with no ACC observations or a zero denominator. Retain recorded results with an incomplete flag after missing ACC, without imputing steps or subtracting missing duration.
+2. Reuse exactly the qualifying windows used by step 5.3 maximum cadence: genuine continuous five-second ACC coverage since segment warm-up completion, with no known gap. Minimum cadence is the minimum raw N5 × 12. Preserve existing maximum semantics without another window pipeline. Exclude short/display-extrapolated windows, two-second forced display zeros and Stop zeros. Genuine stationary windows may yield zero; no qualifying window means null. Do not force the mean between extrema.
+3. Populate the 6.1a summary with actual results. Retain accumulated values/extrema across gaps and Retry; wait for a fresh full window after segment reset. Freeze on Stop, reset on new Start, retain rotation and reject stale events. Do not collect history or change step/stride detection.
+4. Add only simple English Mean cadence and Min cadence text, reusing Max cadence, with -- or incomplete reasons. Preserve internal precision, round only display values and use steps/min. Add no final layout.
+5. Test the mean formula, stationary time, no ACC/zero denominator, genuine 4.99/5-second boundaries, short/forced-zero exclusions, stationary zero, gaps/Retry/Stop/new Start/stale events and summary updates. Run relevant tests, a debug build and lint. Update both AGENTS.md and both prompt.md files with actual results and mark unperformed device checks pending.
+
+Complete only 6.1b with minimal code and English UI/comments. Do not advance to 6.1c, 6.1d or 6.2, add dependencies/frameworks or refactor unrelated code. Explain changes, automated verification and device results in Chinese and English.
+```
+
+## 步骤 6.1c：整场心率历史 / Step 6.1c: Full-session HR history
+
+### 中文
+
+```text
+按照根目录 AGENTS.md 第 5.23.3 节，仅实施 6.1c 的 HR 历史部分。检查 5.3—5.5、6.1a—6.1b 已完成；缺少依赖时说明，不自动补做。依赖满足后直接修改文件：
+
+1. 复用 6.1a 的 HR 点结构，从真实非空 HR 接收事件收集整场记录，不重放最后 60 秒实时缓存。以 Running 起点后的 elapsedMs 整数秒分桶，每秒保留最后真实批次的末样本及实际接收时刻，不取平均；无新 HR 不造点，相同值的新真实批次仍更新。
+2. 保留批末有效性，无效值为 null 并断段，不写 0。沿用 5.22 的无效/接触丢失/订阅中断及相邻真实批次严格超过三秒断段，桶内替换不能抹掉已有断段；不补点、不插值，不改变全部有效样本的 HR 统计或区间保持计时。
+3. 只收集前四小时，最多 14,401 个秒桶，保留实际 elapsedMs，拒收超出截止的数据；不预分配、不填满、不删早期点伪装整场。超过 60 秒仍保留早期历史。四小时自动结束/保存属于 6.2，本步不接入。
+4. 本步完成 HR 历史自身生命周期：接受新 Start 清空，Stop/中断冻结且保留最后部分秒已有记录，不造终点；HR Retry 保留旧段，恢复后沿用原会话横轴，实时缓存清理规则不变。旋转保留，拒绝旧会话/旧订阅数据。此时不收集步频/速度历史，完整组合快照留 6.1d。
+5. 仅添加英文 HR history points、首末 elapsedMs 和必要状态文本，使用现有主题；不画正式 History、不写数据库、不显示 Saved。
+6. 测试末点非平均、无新数据/重复值、混合批次末值、null/断段、三秒边界、桶内中断、超过 60 秒历史保留、Retry、部分秒、Stop/旋转/旧事件及四小时/数量上限。使用受控时钟，不等待四小时。运行相关测试、debug 构建、lint；同步两份 AGENTS.md 和两份 prompt.md 实际结果，未执行真机检查标待验证。
+
+仅完成 6.1c，最小代码、英文 UI/注释；不推进 6.1d/6.2，不增加框架、依赖、原始 ACC/ECG 历史或无关重构。中英文区分文件修改、自动验证和真机结果。
+```
+
+### English
+
+```text
+Implement only the HR history part of 6.1c under Section 5.23.3 of the root AGENTS.md. Verify completion of 5.3–5.5 and 6.1a–6.1b first. Report missing prerequisites without implementing them automatically. Once satisfied, modify files directly:
+
+1. Reuse the 6.1a HR point structure and collect full-session records from real nonempty HR events, not by replaying the final 60-second buffer. Bucket by integer elapsed seconds since Running. Keep the final sample of the latest real batch and its actual reception elapsedMs per bucket without averaging. Add no points without new HR; repeated values in new batches still update the bucket.
+2. Preserve final-sample validity: invalid values are null with a break, not zero. Follow 5.22 breaks for invalid/contact loss/subscription interruption and real batch gaps strictly over three seconds. Retain intra-bucket breaks during replacement. Do not pad/interpolate or change all-valid-sample HR statistics or zone holding durations.
+3. Collect only the first four hours, capped at 14,401 second buckets, retaining actual timestamps and rejecting later records. Do not preallocate, pad or discard early records to pretend completeness. Retain records beyond the 60-second real-time window. Automatic ending/saving at four hours belongs to 6.2.
+4. Complete the HR history lifecycle here: clear on accepted new Start; freeze on Stop/interruption with the existing partial-second record and no fabricated endpoint. Retain pre-Retry segments and the original session axis while preserving real-time cache clearing. Retain rotation and reject stale session/subscription events. Do not collect motion history; combined final snapshots belong to 6.1d.
+5. Add only simple English HR history point counts, first/last elapsedMs and necessary status text using the current theme. Add no final History view, database writes or Saved state.
+6. Test last-point selection, no new data/repeated values, final samples in mixed batches, null/breaks, three-second boundaries, intra-bucket interruptions, history beyond 60 seconds, Retry, partial seconds, Stop/rotation/stale events and four-hour/count limits. Use a controlled clock without waiting four hours. Run relevant tests, a debug build and lint. Update both AGENTS.md and both prompt.md files with actual results; mark unperformed device checks pending.
+
+Complete only 6.1c with minimal code and English UI/comments. Do not advance to 6.1d/6.2, add frameworks/dependencies, raw ACC/ECG history or unrelated refactoring. Explain file changes, automated verification and device results in Chinese and English.
+```
+
+## 步骤 6.1d：整场步频/速度历史与完整快照 / Step 6.1d: Motion history and complete snapshot
+
+### 中文
+
+```text
+按照根目录 AGENTS.md 第 5.23 节，仅实施 6.1d。检查 5.3—5.5、6.1a—6.1c 已完成，缺少依赖时说明，不自动补做。依赖满足后直接修改文件：
+
+1. 复用 6.1a 的 motion_points 数据结构及已有 250 ms 结果记录入口，每个会话整数秒保留最后一组步频/速度及实际 elapsedMs。从实时计算结果收集整场，不在 Stop 重放最后 60 秒，不在绘图/重组中重复记录，不增加定时器，不重算检测算法；未执行刷新不补点。
+2. 预热/不可用留空，正常 ACC 下真实静止可为 0。沿用 ACC 严格超过 30 ms 缺口、检测段重建及订阅中断规则；秒桶替换保留断段，不插值/补零。当前显示的两秒无步规则保持原样，不从这些降频显示记录反算均值或极值。
+3. 运动历史自身限定前四小时及最多 14,401 条，不预分配、不填满、不删除早期数据；和 HR 共用同一个 Running 时间基准及截止边界，但不强制点数/时间逐点相同。四小时自动结束及保存仍留 6.2。
+4. 完成运动历史的 Start/Stop/Retry/旋转/旧事件接线；Retry 保留此前历史并断段，实时清理规则不变；Stop 保留已有部分秒，不追加人为零或终点。复用 6.1a 摘要冻结和 6.1c HR 接线，在同一次会话结束时组装同 ID 的摘要、HR 和运动历史冻结快照，不重复结算/追加；后续新 Start 或迟到数据不得修改旧快照。
+5. 只增加英文 Motion history points、首末 elapsedMs 和快照状态文本，并复用已有 ID、摘要及 HR 点数显示。暂时只是内存快照，不显示 Saved，不创建数据库、保存任务、失败重试或 History 页面；应用级待保存快照管理留 6.2。
+6. 测试每秒末组、跳过刷新、null/真实零、缺口及段重建、Retry 保留旧段、部分秒、Stop/新 Start/旋转/旧事件和四小时/数量边界；检查组合快照三部分同一会话、只冻结一次、后续操作不修改旧值。不改已有 HR/区间/步数/距离/极值口径，不持久化原始 ACC/ECG。
+7. 运行相关测试、debug 构建及 lint；同步两份 AGENTS.md 和两份 prompt.md 实际结果。提供简单文本真机验收步骤，未执行标待验证，不将内存历史称为重启后保留。
+
+仅完成 6.1d，最小代码、英文 UI/注释；不推进 6.2，不增加依赖、通用框架或无关重构。中英文区分文件修改、自动验证和真机结果。
+```
+
+### English
+
+```text
+Implement only 6.1d under Section 5.23 of the root AGENTS.md. Verify completion of 5.3–5.5 and 6.1a–6.1c first. Report missing prerequisites without implementing them automatically. Once satisfied, modify files directly:
+
+1. Reuse the 6.1a motion point structure and existing 250 ms result-recording entry point. Keep the last cadence/speed pair and actual elapsedMs per integer session-second bucket. Collect live calculated results across the session rather than replaying the last 60 seconds on Stop. Do not duplicate recording during drawing/recomposition, add timers, rerun detection or backfill skipped refreshes.
+2. Keep warm-up/unavailable values null and genuine stationary ACC results zero. Follow ACC gaps strictly over 30 ms, detection-segment resets and subscription interruptions. Preserve breaks during bucket replacement without interpolation/zero filling. Retain current two-second display behavior; never derive summary means/extrema from downsampled display records.
+3. Bound motion history to the first four hours and 14,401 records without preallocation, padding or discarding early history. Share the same Running origin/cutoff with HR but do not force matching counts or timestamps. Automatic ending/saving remains in 6.2.
+4. Complete motion history Start/Stop/Retry/rotation/stale-event handling. Retain and break pre-Retry history while preserving real-time clearing. Freeze the existing partial-second record on Stop without artificial zeros/endpoints. Reuse 6.1a summary freezing and 6.1c HR lifecycle wiring to assemble one same-session snapshot containing summary, HR and motion history at ending. Do not settle/append twice. New Start and late data must not mutate the previous snapshot.
+5. Add only simple English motion point counts, first/last elapsedMs and snapshot status, reusing identity/summary/HR count text. This is an in-memory snapshot: add no Saved state, database, save task, failure retry or History page. Application-level pending-save snapshot management belongs to 6.2.
+6. Test last pair per second, skipped refreshes, null/genuine zero, gaps/segment resets, pre-Retry retention, partial seconds, Stop/new Start/rotation/stale events and four-hour/count limits. Verify all snapshot parts belong to the same session, freeze once and cannot be mutated by later operations. Preserve existing HR/zone/step/distance/extrema semantics and persist no raw ACC/ECG.
+7. Run relevant tests, a debug build and lint. Update both AGENTS.md and both prompt.md files with actual results. Provide simple-text device verification steps and mark unperformed checks pending; do not describe memory history as surviving restart.
+
+Complete only 6.1d with minimal code and English UI/comments. Do not advance to 6.2, add dependencies/frameworks or refactor unrelated code. Explain file changes, automated verification and device results in Chinese and English.
+```
+
+## 步骤 6.2：事务保存与最简单 History / Step 6.2: Transactional saving and minimal History
+
+### 中文
+
+```text
+按照根目录 AGENTS.md 第 5.23 节实施步骤 6.2。先检查 6.1a—6.1d 全部完成及 5.3—5.5 依赖，缺失时说明，不自动补做；依赖满足后直接修改文件：
+
+1. 使用 Android SQLiteOpenHelper，在 App 私有目录创建 sessions、hr_points、motion_points 三表，IO 线程读写；会话 UUID 主键，曲线按会话 ID 和秒桶唯一，保留实际 elapsedMs、可空值及断段。保存 5.23 全部摘要，不漏掉平均/最小步频、未归类时长、设备快照和完整性。已有 SharedPreferences 设备记录不迁移，不新增 Room 或通用 Repository 框架。
+2. 复用 Start/Stop 和全部中断/流终止路径。有至少一个有效 HR 或真实 ACC/ECG 样本才保存，完全无数据/仅无效 HR 不保存。先结算区间并冻结时长、摘要及整场历史，再用一个 SQLite 事务写入全部三表；成功提交才 Saved，失败回滚，不留部分记录。重复结束不重结算、重复重试不新增会话，也不覆盖累计来掩盖重复事件。
+3. 接入四小时 Running 上限，提前显示限制；复用现有刷新/事件入口检查，到达后正常结束、清理并保存，结束原因为 TIME_LIMIT，提示 Session time limit reached。逻辑截止四小时，超出截止不再累计或收集，不将迟到刷新/异步清理时间计入，不补造边界点，也不承诺定时器精确调度。使用受控时钟验证，不要求等待四小时。
+4. 显示 Saving… / Saved / Save failed。应用级持有一个冻结待保存快照和任务，不持有 Activity，不因页面离开或 ViewModel 清除主动取消；返回界面可查看及处理。Saving 时禁止重复提交；保存中或失败未处理时禁止新 Start。失败可 Retry save 同一快照/UUID，或明确 Discard session 后丢弃未保存快照并解锁新 Start。不自动重试、不静默丢弃，不添加服务或崩溃恢复；注明进程在成功提交前被杀可能丢失未保存记录。
+5. 添加最简单的 SQLite History 测试入口，复用现有 Compose 主题、英文 UI/注释。列表按 Running 开始日期时间倒序，每次 20 条，显示开始时间、时长、总步数、累计估计距离及不完整提示；空列表提示、Load more、按 ID 查看详情和 Back 足够，不加筛选、卡片设计、动画或复杂导航。切换测试视图不销毁活跃会话持有者；真正离开前台/欢迎页继续按既定规则结束。第 7 阶段复用这些查询，第 8 阶段再整合正式布局。
+6. 详情从数据库读取整场 HR 和步频曲线、HR min/max/mean、五区间时长和 Running 占比及未归类时间、步频 mean/max/min、Running 时长、总步数、累计估计距离、平均/最大估计速度、设备、结束原因及完整性。基础 Canvas 折线/柱形和文本即可；各曲线使用实际 elapsedMs，仅同段连线，不插值或补零。速度曲线保存但首版无需展示，不做整场 ECG 回放或缩放/拖动。未知显示 --，无有效 HR 提示 No valid HR data；区间注明 Estimated from received HR，未归类不摊入五区间，零分母不算百分比。
+7. 历史不自动过期或限条删除。提供单场 Delete 及确认/取消，同一事务删除摘要和两类时序；不清空其他会话。数据只存本机，不上传；根据当前 Manifest/适用 XML 明确排除会话数据库的系统云备份和设备迁移，不能只依赖 allowBackup，不改变已保存设备规则。简单说明卸载/清除数据丢失历史，首版不提供导出。
+8. 验证实际 SQLite 事务成功/失败回滚、重复保存/重试、NULL 与真实零、关闭重开读取、会话 ID 对应、20 条分页/排序、删除/取消。验证失败快照跨页面保留、新 Start 限制、重试/丢弃、保存中重复点击和四小时结束；检查备份排除。数据库测试不能只 mock 成功；若实际 SQLite 需模拟器/真机且未运行，要单列未验证，不能宣称全部通过。
+9. 运行相关测试、debug 构建和 lint，同步两份 AGENTS.md 和本提示词的实际结果。提供采集→Stop/中断→Saved→重启 History、简单曲线/摘要、缺失、Retry 前后历史、失败恢复及删除的真机步骤；未执行标待验证，性能未测不宣称流畅。6.1a—6.1d/6.2 测试数据只用于测试，不作为真实 H10 会话呈现在正式历史中。
+
+只完成第 6 阶段及上述明确授权的最简单查询/详情/删除测试入口，最小代码实现；不改 SDK、采样配置、检测阈值或正式布局，不增加原始数据持久化、自动校准、云同步、导出、后台采集、Pause/Resume、进程恢复、无关依赖或重构。用中英文区分代码修改、测试/构建、真实 SQLite 结果及真机验收，不能将规划当成完成。
+```
+
+### English
+
+```text
+Implement step 6.2 according to Section 5.23 of the root AGENTS.md. Inspect completion of all steps 6.1a–6.1d and prerequisites from 5.3–5.5 first. Report missing prerequisites without implementing them automatically. Once they are satisfied, modify the files directly:
+
+1. Use Android SQLiteOpenHelper with three tables in the app-private directory: sessions, hr_points and motion_points. Read/write on IO threads. Use the session UUID as primary key and unique session-ID/second-bucket pairs for curves, retaining actual elapsedMs, nullable values and breaks. Save every summary in 5.23, including mean/min cadence, unclassified time, device snapshot and completeness. Do not migrate existing SharedPreferences device records or add Room/generic Repository frameworks.
+2. Reuse Stop and all interruption/stream-ending paths. Save only after at least one valid HR or real ACC/ECG sample; exclude no-data and invalid-HR-only attempts. Settle zones and freeze duration, summary and full-session history before writing all three tables in one SQLite transaction. Show Saved only after successful commit. Roll back failures without partial history. Duplicate endings must not settle twice, retries must not create another session, and overwrites must not hide duplicated accumulation.
+3. Wire the four-hour Running limit and show it in advance. Reuse existing refresh/event checks; end, clean up and save normally at the limit with reason TIME_LIMIT and message Session time limit reached. The logical cutoff is four hours: exclude later accumulation/records and delayed refresh/cleanup duration. Do not fabricate boundary points or promise exact timer scheduling. Verify with a controlled clock rather than waiting four hours.
+4. Show Saving… / Saved / Save failed. Keep one frozen pending snapshot and save task at application scope without an Activity reference; do not actively cancel them on navigation or ViewModel clearing. Make their status/actions accessible on return. Reject duplicate submissions while saving and block new Start while saving or after an unresolved failure. Retry save uses the same snapshot/UUID; an explicit Discard session removes the unsaved snapshot and unlocks Start. Add no automatic retry, silent discard, service or crash recovery. Explain that process termination before successful commit can lose unsaved data.
+5. Add the simplest SQLite History verification entry point using the existing Compose theme and English UI/comments. List by Running start date/time descending, 20 records per load, showing start, duration, total steps, accumulated estimated distance and incomplete status. An empty message, Load more, detail-by-ID and Back are sufficient; add no filtering, designed cards, animation or complex navigation. Switching test views must not destroy the active session holder; actual background/welcome navigation retains existing ending rules. Reuse these queries in stage 7 and leave final layout integration to stage 8.
+6. Read detail from SQLite: full-session HR and cadence curves; HR min/max/mean; five zone durations and percentages of Running time plus separate unclassified time; cadence mean/max/min; Running duration; total steps; accumulated estimated distance; mean/max estimated speed; device; end reason; and completeness. Simple Canvas lines/bars and text suffice. Plot actual elapsedMs and connect only within valid segments, without interpolation/zero filling. Save speed history but need not display its curve initially. Add no full-session ECG replay or zoom/pan. Show -- for unknowns, No valid HR data where appropriate and Estimated from received HR for zones. Do not redistribute unclassified time or divide by zero.
+7. Retain saved history without automatic expiry or count-based deletion. Offer single-session Delete with confirmation/cancellation, deleting its summary and both series in one transaction without affecting other sessions. Store locally without upload. Inspect the current Manifest/applicable XML and explicitly exclude the session database from cloud backup and device transfer rather than relying only on allowBackup; leave saved-device rules unchanged. Explain that uninstalling/clearing app data loses history. Add no export.
+8. Verify actual SQLite commit/rollback, duplicate saves/retries, NULL versus genuine zero, closing/reopening the database, detail identity, 20-record pagination/sorting, deletion/cancellation. Verify pending-state retention across navigation, Start blocking, retry/discard, duplicate save clicks and four-hour ending, and inspect backup exclusions. Do not only mock successful database behavior. If actual SQLite testing requires an emulator/device and was not run, state that separately instead of claiming full verification.
+9. Run relevant tests, a debug build and lint, updating both AGENTS.md files and this prompt with actual results. Provide device steps for acquisition → Stop/interruption → Saved → restart History; simple curves/summaries; missing data; pre/post-Retry history; save-failure recovery; and deletion. Mark unperformed checks and unmeasured performance as pending. Test fixtures must remain test-only, not appear as genuine H10 sessions in production History.
+
+Complete only stage 6 and the explicitly authorized minimal list/detail/delete verification entry points using minimal code. Do not change SDK, sampling configuration, detection thresholds or final layout. Add no raw-data persistence, automatic calibration, cloud sync, export, background collection, Pause/Resume, process recovery, unrelated dependencies or refactoring. Explain code changes, test/build results, actual SQLite results and device verification in Chinese and English without presenting plans as completed work.
+```
+
+## 本次文档记录 / Documentation record
+
+- 采用：用户明确采用 SQLite 和全部推荐规则，并要求未来实现最小代码、最简单显示；新增 6.1、6.2 中英文待执行提示词及 AGENTS.md 5.23，补齐原待定项。
+- Accepted: The user selected SQLite and all proposed rules, with minimal future implementation and simple verification UI. Added bilingual pending prompts for 6.1/6.2 and Section 5.23, replacing relevant undecided entries.
+- 修改范围：仅两份 AGENTS.md 和两份 prompt.md；没有实施数据库、统计、History 或任何应用代码。未运行测试、构建或真机检查；文档一致性另行核对，不等于功能验收。
+- Scope: Only both AGENTS.md and both prompt.md files. No database, statistics, History or application implementation; no tests, build or device checks. Document consistency checks do not establish functional acceptance.
+
+## 2026-09-30 拆分记录 / Split record
+
+- 用户确认将原 6.1 拆成 6.1a 会话身份与摘要、6.1b 平均与最小步频、6.1c 整场心率历史、6.1d 整场步频/速度历史与完整快照；以上四组中英文提示词替代原整段 6.1，均待执行。先完成 5.3—5.5，再按子步骤顺序推进，每步仅最简单英文测试显示。
+- The user approved splitting 6.1 into identity/summary (6.1a), mean/min cadence (6.1b), full-session HR history (6.1c), and motion history/complete snapshot (6.1d). These four bilingual prompts replace the original combined prompt and remain unexecuted. Complete 5.3–5.5 first, then advance one substep at a time with minimal English verification text.
+- 6.2 仅更新前置条件引用，功能范围不变：SQLite 保存、失败重试、四小时自动结束及最简单 History 查询。同步两份 AGENTS.md 与两份 prompt.md；没有修改应用代码，也未运行测试、构建或真机验证。
+- Only prerequisite references changed for 6.2; SQLite saving, failure retry, automatic four-hour ending and minimal History queries remain its scope. Updated both AGENTS.md and both prompt.md files only, without application changes, tests, builds or device verification.
+
+## 2026-09-30 6.1a 前置检查结果 / Step 6.1a prerequisite check
+
+- 本次用户请求实施 6.1a，并明确要求依赖缺失时停止、不得自动补做。已检查当前源码而非只依据规划：StepState 仍仅有总步数、当前步频与状态；管理器没有距离/速度及合格窗口最大步频、HR 五区间/未归类计时、5.5 曲线输出；页面仍为开发文本显示。
+- The user requested 6.1a and explicitly required stopping if prerequisites were missing. Current source was inspected, not only the plan: StepState still contains only total steps, current cadence and status; the manager has no distance/speed or qualifying-window maximum cadence, HR zone/unclassified timing, or step 5.5 chart outputs; the screen remains a development text display.
+- 结果：5.3 距离/速度/极值、5.4 心率区间和 5.5 曲线/时间轴尚未实施，因此没有开始 6.1a，也没有自动补做其他步骤。下一依赖顺序为 5.3 → 5.4 → 5.5，之后重新检查 6.1a。
+- Result: Steps 5.3 (distance/speed/extrema), 5.4 (HR zones) and 5.5 (curves/time axes) are missing. Step 6.1a was not implemented and no other step was implemented automatically. Complete 5.3 → 5.4 → 5.5 before rechecking 6.1a.
+- 文件：仅更新两份 AGENTS.md 与两份 prompt.md 的前置检查记录。未修改应用代码，未执行单元测试、debug 构建、lint、安装或真机验收；未创建 Git commit。建议的文档提交信息为 docs: record missing prerequisites for step 6.1a，不得写成 6.1a 功能已实现。
+- Files: Updated only both AGENTS.md and both prompt.md files with this prerequisite check. No application changes, unit tests, debug build, lint, installation or device verification; no Git commit was created. Suggested documentation commit message: docs: record missing prerequisites for step 6.1a. Do not describe this as a completed 6.1a feature.
+
+# 第 5 阶段补充实施入口 / Stage 5 supplemental implementation prompts
+
+2026-09-30：针对 6.1a 前置检查发现的缺失，新增 5.3add、5.4add、5.5add，分别对应原开发步骤 5.3、5.4、5.5。这些是完成既定功能的最新版实施入口，不是要求原步骤先完成的额外阶段；原功能尚未实现时，在对应 add 中按下列完整规则实现。已有部分实现时先检查，仅补缺失或修正不符合规则的部分，不能建立第二套重复路径。
+2026-09-30: Added 5.3add, 5.4add and 5.5add to address missing prerequisites identified for 6.1a. They are the latest implementation entry points for original development steps 5.3, 5.4 and 5.5, not extra stages requiring those same steps to be implemented first. Implement the specified original functionality where absent; inspect and complete/correct existing portions without creating duplicate pipelines.
+
+执行顺序：5.3add → 5.4add → 5.5add → 重新检查 6.1a。每次只执行用户指定的一项；前置步骤缺失时报告并停止，不自动连做。初次记录仅保存提示词；2026-09-30 按后续分别授权已完成三项 add 的代码与各自自动检查，真机待验证。6.1a 尚未实施，执行前须重新检查当前前置输出。原 5.3—5.5 提示词保留作为历史记录，后续使用对应 add。
+Execution order: 5.3add → 5.4add → 5.5add → recheck 6.1a. Execute only the requested item per turn; report missing preceding prerequisites and stop without automatically implementing them. The initial update recorded prompts only. Separately authorized requests on 2026-09-30 have now completed code and fresh automated checks for all three add steps; device checks remain pending. Step 6.1a is unimplemented and requires a fresh prerequisite check. Keep the original prompts as historical records and use the corresponding add entry going forward.
+
+# 步骤 5.3add：步长、距离、速度及最大值补全 / Complete stride, distance, speed and maxima
+
+2026-09-30：本提示词及用户随后提供的完整 5.3add 指令已执行；完整规则见 AGENTS.md 第 5.20 节及 5.24。代码与本轮自动检查已完成，真机待验证，实际结果见本节末尾。
+2026-09-30: This prompt and the user's subsequent full 5.3add instructions have been executed. Full rules are in AGENTS.md Sections 5.20 and 5.24. Code and this run's automated checks are complete; device verification remains pending. Actual results follow below.
+
+## 中文
+
+```text
+补充要求（5.3add）：本次用于补齐 6.1a 所需的原 5.3 输出；不要求尚未实现的原 5.3 自身先完成。先检查 5.2a—5.2d 及当前会话路径，已实现部分复用，缺失部分按下列规则实现。相邻接受候选峰的峰间统计必须包含两端并按原峰值时间截取，不能把回落确认后的数据混入；小于 0.25 秒而被拒绝的峰不移动已接受峰的参考起点。保留 0.25—2 秒间隔、100 Hz、A_min 和四步确认规则，使用有界缓存/累计量。以当前统计持有者的最小只读结果提供累计距离、当前/平均/最大速度、最大步频、ACC 观测及不完整状态，供本页和后续摘要复用；不新增 SessionRecord、数据库结构或为未来建立框架。平均/最小步频明确留到 6.1b，不在本步实现。
+
+按照根目录 AGENTS.md 第 5.20 节实施补充步骤 5.3add（对应原开发步骤 5.3）。先检查现有代码及 5.2a—5.2d 的步伐输出；依赖未完成时说明缺口，不自动实现其他步骤。依赖满足后直接修改文件：
+
+1. 沿用 note/551a40924.docx 的步频、Weinberg 步长公式及 AGENTS.md 后续确认规则。按同段相邻接受候选峰之间的平滑最大/最小值计算 Li = 0.5 × (smax − smin)^0.25。连续四步确认前缓存，通过后仅提交一次；每段首峰没有步长，四步补计只有三段距离，不补造起始距离。
+2. 复用 5.4 的步频，速度使用最近五秒区间内已确认步长之和除以窗口秒数；不足五秒时用本段预热结束后的实际时长，禁止零分母。每段步长按后一个峰的原始时间归窗，不按补计时间归窗。复用每 250 ms 及新步伐刷新，不重复累计；正常初始预热/等待确认显示 0 和状态，ACC 正常可用且两秒无确认步伐时当前步频/速度归零。
+3. 平均速度为本场累计估计距离除以完整 Running 时长，包含静止和休息，不只统计移动时间、不对显示值求算术平均。Starting 或零时长显示 --，Stop 后冻结。仅保留 Start/Stop，不添加 Pause/Resume 或静止自动暂停。
+4. 最大步频和最大速度分别取整场完整、连续、无已知缺口的五秒窗口结果的最大值。从本连续段预热结束的传感器时间起算，真实 ACC 样本时间覆盖满五秒才有首个合格窗口，缺口或检测段重建后重新起算；端点使用实际处理到的样本时间，不以手机显示时钟补足窗口。短窗口只用于当前显示，不参与最大值；首次合格窗口前显示 --。最大值使用原始五秒统计（确认步数 × 12、确认步长之和 / 5），两秒无步归零只影响当前显示。使用未舍入值比较，停止或缺口不清除已有最大值。
+5. ACC 相邻时间差严格大于 30 ms 时复用分段，清空检测及当前步频/速度窗口，重新预热；不跨段计算步长、不插值或补算，保留本场累计步数、距离和最大值。ACC 不可用、失败或缺口后预热时显示 -- 及原因；接受 Retry 后重新预热和确认连续步伐，其他流与会话计时继续。沿用正常批次等待规则，不新增停流超时或自动重试。
+6. 本场发生已识别 ACC 缺口、不可用或失败时，保留 Incomplete ACC data 标记至会话结束；正常初始算法预热不是数据故障。仍可显示已有距离及其除以完整会话时长得到的平均速度，说明可能因遗漏距离而偏低；最大值仅代表记录完整的窗口。完全无 ACC 观测时统计显示 --，不把缺失当作静止。恢复不清除本场缺失标记。
+7. 在现有 SensorActivity.kt 用简单英文文本显示当前步频、估计速度、平均速度、最大步频、最大速度及必要距离/状态信息。步频显示整数 steps/min；速度内部以 m/s 计算、乘 3.6 后显示一位小数 km/h，仅显示时舍入。Stop/整体中断后标明 Stopped：本场曾收到正常 ACC 样本时当前值归零，整场没有 ACC 样本时当前值和相关统计保持 --；停止不更新最大值，累计统计冻结。接受新 Start 清空本场统计和缺失标记，重复操作不清空或累加，旋转保留并拒绝旧会话事件。
+8. 添加针对性受控测试，覆盖峰间步长、四步/三段补计、原时间归窗、窗口边界、短窗口、两秒归零、完整窗口最大值、静止计入平均、缺口及 Retry、新 Start、Stop 冻结和旧事件。检查真实覆盖 4.99 秒时手机时间不能补足最大值窗口、覆盖五秒后才参与，当前归零不改变原始窗口统计，以及整场没有 ACC 时停止仍显示 --。检查 100 米、运动 80 秒及静止 20 秒得到平均 3.6 km/h。运行相关测试、debug 构建和 lint，更新两份 AGENTS.md 的实际结果；提供已知距离、静止/走路/跑步、休息、缺失恢复和生命周期的真机检查，未执行标记待验证。
+
+使用最小代码、有界窗口、现有 Compose 主题及英文 UI/注释，复用现有会话和数据路径。仅完成 5.3add 对应的原步骤 5.3，保留 HR/ACC/ECG 行为；不实现正式布局、图表、心率区间、历史、持久化、自动校准、通用统计框架或无关重构，不增加依赖。
+用中英文分别说明文件修改、测试/构建结果及真机验证，不将已确认规划或以前的构建结果当作本步已完成。
+补充交付：本步实现后，按新运行的结果同步两份 AGENTS.md 与两份 prompt.md，保持各自副本一致；分别列出代码修改、测试/debug 构建/lint、真机待验证项，并给出与实际改动匹配的英文 commit message，不自动创建提交或推送。不得因本步完成就宣称其他 add 或 6.1a 已通过；本步未执行则维持待实施。
+```
+
+## English
+
+```text
+Supplement (5.3add): Complete the original step 5.3 outputs required by 6.1a; do not require original 5.3 itself to be implemented already. Inspect 5.2a–5.2d and current session paths, reuse existing portions and implement missing behavior below. Peak-to-peak extrema must include both accepted peaks and be cut at their original timestamps, excluding data after the later peak during delayed fallback confirmation. A peak rejected for an interval below 0.25 seconds must not move the accepted reference peak. Preserve the 0.25–2-second interval, 100 Hz, A_min and four-step rules, with bounded storage/accumulators. Expose minimal read-only results from the existing statistics owner: distance, current/mean/max speed, maximum cadence, ACC observation and incomplete status for the screen and later summary. Add no SessionRecord, database structure or future framework. Leave mean/min cadence to 6.1b.
+
+Implement supplemental step 5.3add (original development step 5.3) according to Section 5.20 of the root AGENTS.md. Inspect the existing code and step outputs from 5.2a–5.2d first. If prerequisites are missing, report them without implementing other steps. Once prerequisites are satisfied, modify the files directly:
+
+1. Reuse the cadence and Weinberg stride-length formulas in note/551a40924.docx and the subsequently confirmed AGENTS.md rules. Calculate Li = 0.5 × (smax − smin)^0.25 from smoothed values between consecutive accepted candidate peaks in the same segment. Cache until four-step confirmation and submit each length once. The first peak has no length; four confirmed steps provide only three distance intervals. Do not fabricate initial distance.
+2. Reuse cadence from Section 5.4. Calculate speed as the sum of confirmed lengths in the latest five-second interval divided by its duration. For a shorter segment, use actual time since warm-up ended; never divide by zero. Assign each length to its later peak's original timestamp, not the confirmation time. Reuse updates on new steps and every 250 ms without accumulating distance again. Show 0 with a status during normal initial warm-up/confirmation; with available ACC, set current cadence and speed to zero after two seconds without a confirmed step.
+3. Calculate average speed as recorded session distance divided by the full Running duration, including stationary rest. Do not use moving time alone or average UI refresh values. Show -- during Starting or with zero duration, and freeze on Stop. Keep Start/Stop only; add neither Pause/Resume nor automatic pausing while stationary.
+4. Track session maximum cadence and speed separately using only complete, continuous five-second windows without known gaps. Measure from the current segment's warm-up completion timestamp; actual ACC sample timestamps must cover five seconds before the first eligible window. Restart this coverage after a gap or segment reset. Use the timestamp of the sample being processed as the endpoint; the phone display clock must not fill missing coverage. Short windows may update current values but not maxima. Show -- before the first eligible window. Use raw five-second statistics (confirmed steps × 12 and confirmed lengths summed / 5) for maxima; two-second zeroing affects current display only. Compare unrounded values and retain existing maxima across stopping or gaps.
+5. Reuse segmentation when consecutive ACC timestamps differ by strictly more than 30 ms. Clear detection and current cadence/speed windows and warm up again. Do not calculate lengths across gaps, interpolate or fabricate data; retain session steps, distance and maxima. Show -- and the reason while ACC is unavailable, failed or warming up after a gap. After an accepted Retry, repeat warm-up and consecutive-step confirmation while other streams and session timing continue. Preserve ordinary batch-waiting behavior without adding a no-data timeout or automatic retry.
+6. Retain Incomplete ACC data for the rest of a session after a known ACC gap, unavailability or failure. Normal initial algorithm warm-up is not a data fault. Existing distance and its average over full session time may remain visible, with an explanation that missing distance can lower the result; maxima describe only eligible recorded windows. Show -- for statistics when no ACC observations exist, and do not interpret missing data as stationary activity. Recovery must not clear the session's incomplete-data flag.
+7. Use simple English text in the existing SensorActivity.kt to show current cadence, estimated speed, average speed, maximum cadence/speed and necessary distance/status information. Display integer steps/min and one decimal place for km/h, converting internal m/s by multiplying by 3.6 and rounding only for display. On Stop or overall interruption, show Stopped: set current values to zero if normal ACC samples were received in this session, but retain -- for current values and related statistics if none were received. Do not update maxima on stopping; freeze aggregates. Clear session statistics and the incomplete-data flag on an accepted new Start. Duplicate actions must not clear or accumulate data; preserve state across rotation and reject old-session events.
+8. Add focused controlled tests for peak-interval lengths, four-step/three-interval backfill, original timestamps, window boundaries, short windows, two-second zeroing, complete-window maxima, rest included in averages, gaps, Retry, new Start, Stop freezing and stale events. Verify that phone time cannot complete a maximum window with only 4.99 seconds of actual coverage, five seconds permits evaluation, current-display zeroing does not change raw window statistics, and stopping a session without ACC retains --. Verify that 100 metres over 80 seconds of movement plus 20 seconds of rest gives 3.6 km/h average speed. Run relevant tests, a debug build and lint, and update both AGENTS.md files with actual results. Provide device checks for known distances, stationary/walking/running activity, rest, recovery and lifecycle behavior; mark unperformed checks as pending.
+
+Use minimal code, bounded windows, the existing Compose theme and English UI text/comments. Reuse current session and data paths. Complete only 5.3add (original step 5.3) and preserve HR/ACC/ECG behavior. Do not add the final layout, charts, HR zones, history, persistence, automatic calibration, a generic statistics framework, unrelated refactoring or dependencies.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present confirmed plans or earlier builds as completion of this step.
+Additional delivery: After implementation, synchronize both AGENTS.md and both prompt.md files using fresh results and keep each pair identical. Separately report code changes, tests/debug build/lint and pending device checks. Provide an English commit message matching actual changes, without automatically committing or pushing. Completing this item does not establish completion of other add items or 6.1a; keep unexecuted work pending.
+```
+
+## 5.3add 实际结果 / Actual results — 2026-09-30
+
+- 前置检查：5.2a—5.2d 的逐样本预处理、候选峰、四步确认、步频窗口以及当前会话/订阅路径均已存在，复用实现。此前 6.1a 检查缺少的 5.3 功能由本步补齐；5.4、5.5 及第 6 阶段没有自动实施。
+  Prerequisites: Existing per-sample preprocessing, candidate detection, four-step confirmation, cadence windows and session/subscription control from 5.2a–5.2d were inspected and reused. This step completes the missing 5.3 functionality identified during the earlier 6.1a check. It does not implement 5.4, 5.5 or stage 6.
+- 文件与算法：新增 StrideLengthEstimator.kt，以最近两秒/最多 201 个平滑点截取相邻接受峰间区段，包含两端，排除后峰确认回落后的点。StepSequence 只在接受峰后取步长，随原待确认列表缓存；首次四步只提交三段距离。CadenceWindow 复用原峰时间存储可空步长，提供五秒/短窗口速度及不受显示归零影响的原始五秒统计。
+  Files and algorithm: Added StrideLengthEstimator.kt with a two-second/201-point smoothed buffer, inclusive accepted-peak endpoints and exclusion of samples after the later peak. StepSequence calculates lengths only for admitted peaks and uses its existing pending list; the first four steps commit exactly three lengths. CadenceWindow carries nullable lengths at original peak times and exposes full/short-window speed plus raw five-second statistics independent of display zeroing.
+- 统计与接线：StepDetector/StepState 增加距离、速度、最大值、ACC 观测和不完整状态；平均速度读取完整 Running 毫秒，100 米 / 100 秒 = 3.6 km/h。PolarBleManager 复用原 250 ms 刷新及会话结束结算，Stop、整体中断和全部流结束后冻结，不含清理耗时；缺口/Retry 只清窗口并保留累计。SensorActivity 增加简单英文距离、当前/平均/最大速度、最大步频和缺失提示。内部保留未舍入的米、m/s，速度 UI 为一位小数 km/h。
+  Statistics and integration: StepDetector/StepState expose distance, speed, maxima, ACC observations and incomplete status. Average speed uses full Running milliseconds: 100 metres / 100 seconds = 3.6 km/h. PolarBleManager reuses the existing 250 ms refresh and settled session duration; Stop, overall interruption and termination of all streams freeze results before cleanup time. Gaps/Retry reset windows while retaining aggregates. SensorActivity adds simple English verification text; internal metres and m/s stay unrounded, with one decimal place for displayed km/h.
+- 本轮验证：新增 StrideLengthEstimatorTest 4 项、MotionStatisticsTest 9 项，StepDetectorTest 新增 1 项并扩展原生命周期测试；执行 `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`，BUILD SUCCESSFUL。本轮 XML 共 119 项测试，0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。包含真实 4.99 秒不能由手机外推补满、5 秒可比较最大值、两秒显示零与原始窗口分离、无 ACC 停止仍空、重复操作/旧事件隔离及清理耗时排除。
+  Verification in this run: Added four StrideLengthEstimatorTest cases, nine MotionStatisticsTest cases and one StepDetectorTest case, and extended existing lifecycle tests. Ran `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`: BUILD SUCCESSFUL. Current XML reports contain 119 tests, zero failures/errors/skips; lint reports zero errors and 18 warnings. Coverage includes real 4.99 versus 5-second windows, no phone-time completion of maxima, display-zero/raw-window separation, no-ACC placeholders after Stop, duplicate/stale-event isolation and exclusion of cleanup time.
+- 真机与局限：未安装 APK、未操作手机。静止/走路/跑步、已知距离误差、运动后静止 20 秒、缺口/Retry、Stop/新 Start、旋转、断线/锁屏/后台检查均待完成，具体步骤见 AGENTS.md 第 9 节。K = 0.5 未校准；每段首峰无距离，缺失不补算，可能低估距离与平均速度；构建与受控测试不证明真实准确率或设备生命周期通过。
+  Device checks and limitations: No APK was installed and no phone was operated. Stationary/walking/running activity, known-distance error, 20 seconds of rest, gaps/Retry, Stop/new Start, rotation, disconnection, lock and background behavior remain pending; procedures are in AGENTS.md Section 9. K = 0.5 remains uncalibrated. Each segment's first peak contributes no length and missing distance is not estimated, so distance and average speed may be low. Automated checks do not establish real accuracy or device lifecycle acceptance.
+- 记录与范围：两份 AGENTS.md、两份 prompt.md 分别保持相同；仅完成 5.3add，未新增依赖、通用框架、平均/最小步频、心率区间、曲线、History 或持久化。没有自动 commit 或 push。
+  Records and scope: Both AGENTS.md copies and both prompt.md copies are synchronized. Only 5.3add is completed; no dependencies, generic framework, mean/min cadence, HR zones, curves, History or persistence were added. No commit or push was performed.
+
+英文提交信息 / English commit message:
+
+```text
+feat: implement step 5.3add motion distance and speed statistics
+
+- Estimate stride lengths between accepted peaks and commit confirmed distance
+- Add current and average speed, full-window maxima, and ACC missing-data flags
+- Preserve aggregates across Retry and freeze statistics when sessions end
+- Add English verification text and controlled motion/lifecycle tests
+- Synchronize AGENTS and bilingual prompt records with validation results
+```
+
+# 步骤 5.4add：心率强度、区间时长及未归类时间补全 / Complete HR intensity, zone durations and unclassified time
+
+2026-09-30：用户要求“给我 5.4 的 prompt 和实现”，已按本 5.4add 入口完成原步骤 5.4。完整规则见 AGENTS.md 第 5.21 节及 5.24；代码与本轮自动检查完成，真机待验证，实际结果见本节末尾。
+2026-09-30: The user requested the prompt and implementation for step 5.4. Original step 5.4 has been implemented through this 5.4add entry point. Full rules are in AGENTS.md Sections 5.21 and 5.24. Code and fresh automated checks are complete; device verification remains pending. Actual results follow below.
+
+## 中文
+
+```text
+补充要求（5.4add）：本次完成原 5.4，先检查 5.3add 对应的 5.3 已完成，并检查 5.1 有效 HR、会话计时与真实数据路径；不要求原 5.4 自身先完成。复用已有有效性/统计，缺失区间功能按下列规则实现，部分已有则最小补齐。统一英文 Heart rate intensity，提供五区间累计毫秒、同一时刻未归类毫秒、当前可空区间和有效 HR 观测状态的最小只读结果，不让 UI 重算或改变累计。整体结束先按同一结束时刻结算，再清当前读数/订阅，防止最后一段时长丢失；重复结束不得重复提交。后续 6.1a 可读取已冻结结果，但本步不新增会话记录结构或数据库。
+
+按照根目录 AGENTS.md 第 5.21 节实施补充步骤 5.4add（对应原开发步骤 5.4）。先检查现有代码及 5.1 的有效 HR 处理和会话计时；依赖未满足时说明缺口，不自动实施其他步骤。依赖满足后直接修改文件：
+
+1. 复用有效条件 hr > 0 && (!contactStatusSupported || contactStatus)。固定区间为 <110、[110,125)、[125,140)、[140,155)、≥155 bpm，标签为 Very light、Light、Moderate、High、Very high，颜色依次为蓝、绿、黄、橙、红。无效 HR 不归区，不增加年龄、最大心率、平滑或滞回设置。
+2. 当前标签和之后的计时区间由最新非空批次的最后一个样本决定。末样本无效时显示 Heart rate intensity: -- 并保留对应原因；同批更早的有效值仍参与 5.1 统计，但不能替代批末值作为当前区间。空批次不改变状态；相同 HR 再次收到时正常结算，不按值去重。
+3. 采用最近有效读数保持法，以每批一次 SystemClock.elapsedRealtime 接收时刻计算区间时长。先结算旧区间到事件时刻，再切换区间和起点。同批样本不分摊时长，不按样本数量计时，不使用系统日期、RR 或伪造的 HR 传感器时间；保持既有 receivedAt 的含义。仅统计 Running，HR 区间起点不得早于会话起点；ACC/ECG 先启动时，首个有效批末 HR 前的时间未归类，不回填。
+4. 无效 HR、无接触、HR 失败、正常结束或接受 Retry 时，结算旧区间并清除当前区间/起点，保留已有累计值。新有效批末 HR 到达后再继续，不补算中间空白，不停止其他流或会话时间。拒绝的重复操作不重复结算。静止但 HR 有效时照常计时；无新批次且无无效/结束通知时继续保持最后区间，不增加超时或自动重试，并用 Estimated from received HR 说明静默停流可能使旧区间时间偏多。
+5. 仅维护五区间累计毫秒数、当前可空区间和起点，复用会话轮次与现有 250 ms 刷新。UI 刷新展示已累计值加当前未结算时长，不写回累计值、不固定加 250 ms、不新增定时器。Unclassified time 为同一时刻 Running 时长减五区间显示时长之和，单列文字，不增加第六根柱形或强行补齐五区间。
+6. 在现有 Compose 页面添加简单心率强度标签及五根时长柱形；英文标题统一为 Heart rate intensity，仅表示 HR 分档，不表示已确认正在运动。横轴 Zone 1—5 并注明 bpm 范围，纵轴为时长，五柱使用相同且随最大累计时长统一调整的比例尺；显示 mm:ss，内部保留毫秒，仅显示时取整秒。未进入区间为 00:00；完全没有有效 HR 时附 No valid HR data。颜色和文字共同说明区间，不只靠颜色，不增加图表库；正式布局留到第 8 阶段。
+7. Stop 或整体中断时结算至会话停止时刻，冻结柱形和未归类时间，不包含清理耗时；当前心率强度显示 -- 和停止状态。接受新 Start 才清零全部区间状态，HR Retry 保留累计，旋转保留；拒绝重复操作和旧事件，不自动恢复旧会话。沿用后台、锁屏、返回欢迎页和断线结束会话的规则。
+8. 添加受控测试，覆盖 109/110、124/125、139/140、154/155 的边界，无效和混合批次、末样本无效、空批次、相同 HR、先由其他流启动、切区与结束/Retry 结算、静止、无新批次保持、刷新不重复计时、系统日期变化、未归类时间、Stop 冻结、新 Start 和旧事件。验证第 10 秒收到 120、第 13 秒收到 130 时，3 秒归 Zone 2。运行相关测试、debug 构建和 lint，更新两份 AGENTS.md 实际结果；提供真实 HR 标签、柱形、时长、静止、可复现的接触变化、重试、旋转与断线检查，未执行标记待验证。不能自然触发的心率边界使用受控测试。
+
+仅完成 5.4add 对应的原步骤 5.4，使用最小代码、现有 Compose 主题及英文 UI/注释。保留既有 HR/ACC/ECG、步伐和速度行为，不增加 HR 历史缓存、个体化训练算法、警报、通用框架、Pause/Resume、曲线、持久化、History、依赖或无关重构。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证，不把规划或旧测试结果作为本步完成证据。
+补充交付：本步实现后，按新运行的结果同步两份 AGENTS.md 与两份 prompt.md，保持各自副本一致；分别列出代码修改、测试/debug 构建/lint、真机待验证项，并给出与实际改动匹配的英文 commit message，不自动创建提交或推送。不得因本步完成就宣称其他 add 或 6.1a 已通过；本步未执行则维持待实施。
+```
+
+## English
+
+```text
+Supplement (5.4add): Complete original step 5.4. First verify completion of the step 5.3 functionality addressed by 5.3add, plus step 5.1 valid HR, session timing and real data paths; do not require original 5.4 itself to exist already. Reuse HR validity/statistics and minimally complete the behavior below. Use Heart rate intensity consistently. Expose minimal read-only five-zone millisecond totals, same-instant unclassified time, nullable current zone and valid-HR observation state without UI-driven accumulation. On overall ending, settle to the same stop instant before clearing current readings/subscriptions so the final interval is retained; repeated endings must not settle twice. Later 6.1a may read the frozen result, but do not add session-record structures or a database here.
+
+Implement supplemental step 5.4add (original development step 5.4) according to Section 5.21 of the root AGENTS.md. Inspect the existing code, step 5.1 HR validation and session timing first. If prerequisites are missing, report them without implementing other steps. Once prerequisites are satisfied, modify the files directly:
+
+1. Reuse hr > 0 && (!contactStatusSupported || contactStatus). Use fixed zones <110, [110,125), [125,140), [140,155) and >=155 bpm, labelled Very light, Light, Moderate, High and Very high, with blue, green, yellow, orange and red respectively. Invalid HR belongs to no zone. Do not add age, maximum-HR, smoothing or hysteresis settings.
+2. Use the final sample of the latest nonempty batch to determine the current label and subsequent timing zone. An invalid final sample shows Heart rate intensity: -- with the appropriate reason. Earlier valid samples still contribute to step 5.1 statistics but must not replace the final sample for the current zone. Empty batches do not change state. Settle repeated HR values normally without deduplicating by value.
+3. Hold the latest valid reading and calculate zone duration using one SystemClock.elapsedRealtime reception timestamp per batch. Settle the old zone to the event time before changing the zone and timing anchor. Do not divide batch time among samples, count samples as time, or use wall-clock dates, RR intervals or invented HR sensor timestamps. Preserve receivedAt semantics. Count only Running time; zone timing must not precede the session start. If ACC/ECG starts the session first, time before the first valid final HR sample is unclassified and must not be backfilled.
+4. On invalid HR, lost contact, HR failure, normal completion or an accepted Retry, settle the old zone and clear the current zone/anchor while retaining accumulated durations. Resume only from a new valid final HR sample without filling the interruption or stopping other streams/session timing. Rejected duplicate actions must not settle twice. Continue counting while stationary with valid HR. With no new batch and no invalid/end notification, keep estimating the last zone without adding a timeout or automatic retry. Show Estimated from received HR and explain that silent stream loss can overestimate the last zone's duration.
+5. Keep only five accumulated millisecond durations, the nullable current zone and its timing anchor, reusing session-generation protection and the existing 250 ms refresh. Refreshes display accumulated values plus the current unsettled interval without writing back, adding a fixed 250 ms or creating another timer. Calculate Unclassified time as Running duration minus the sum of the five displayed zone durations at the same instant. Show it separately as text, not a sixth bar, and do not force the five zones to cover the session.
+6. Add a simple heart rate intensity label and five duration bars to the existing Compose screen. Use the title Heart rate intensity to describe the HR zone, without implying detected movement. Use Zone 1–5 and bpm ranges on the horizontal axis and duration on the vertical axis. All bars share one scale adjusted to the largest accumulated duration. Display mm:ss while retaining milliseconds internally and truncating only display seconds. Unvisited zones show 00:00; show No valid HR data when none exists. Use text as well as colour. Add no chart library; leave final layout integration to stage 8.
+7. On Stop or overall interruption, settle to the session stop time and freeze bars and unclassified time, excluding cleanup duration. Show -- with the stopped status for current heart rate intensity. Clear all zone state only on an accepted new Start; retain accumulations across HR Retry and rotation. Reject duplicate actions and stale events, and do not resume old sessions. Preserve existing background, lock, welcome-screen and disconnection behavior.
+8. Add controlled tests for boundaries 109/110, 124/125, 139/140 and 154/155; invalid/mixed batches, invalid final samples, empty batches, repeated HR, another stream starting first, zone changes, completion/Retry settlement, stationary time, holding without new batches, refreshes without double counting, wall-clock changes, unclassified time, Stop freezing, new Start and stale events. Verify that HR 120 at second 10 and HR 130 at second 13 assign three seconds to Zone 2. Run relevant tests, a debug build and lint, and update both AGENTS.md files with actual results. Provide device checks for real HR labels, bars, durations, stationary activity, reproducible contact changes, retry, rotation and disconnection; mark unperformed checks as pending. Use controlled tests for HR boundaries that cannot naturally be reproduced.
+
+Complete only 5.4add (original step 5.4) with minimal code, the existing Compose theme and English UI text/comments. Preserve HR/ACC/ECG, step and speed behavior. Do not add HR history buffers, personalized training algorithms, alerts, generic frameworks, Pause/Resume, curves, persistence, History, dependencies or unrelated refactoring.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present plans or older test results as evidence of this step's completion.
+Additional delivery: After implementation, synchronize both AGENTS.md and both prompt.md files using fresh results and keep each pair identical. Separately report code changes, tests/debug build/lint and pending device checks. Provide an English commit message matching actual changes, without automatically committing or pushing. Completing this item does not establish completion of other add items or 6.1a; keep unexecuted work pending.
+```
+
+## 5.4add 实际结果 / Actual results — 2026-09-30
+
+- 前置检查：已检查当前 5.3add、5.1 HR 有效性和整场统计、SessionController 及真实 HR/ACC/ECG 数据接线，代码前置齐全。只执行 5.4，未推进 5.5 或第 6 阶段。
+  Prerequisites: Inspected current 5.3add, step 5.1 HR validity/statistics, SessionController and actual HR/ACC/ECG paths. Code prerequisites were present. Only step 5.4 was implemented; step 5.5 and stage 6 remain pending.
+- 新增 HeartRateZones.kt：复用 LatestHeartRate 的验证后批末 reading 和本批有效样本标记，固定五区间。只保存五个累计毫秒、当前可空区间、锚点与观测标记，提供只读快照。事件先结算后切区；空批在原订阅入口过滤；250 ms 刷新仅读“累计 + 未结算”，未归类用同一时刻 Running 减去五区间合计，不按样本数/刷新次数计时，不新增定时器或历史缓存。
+  Added HeartRateZones.kt: Reuses the validated final reading and valid-sample flag from LatestHeartRate for five fixed zones. It retains only five accumulated millisecond totals, a nullable current zone, its anchor and an observation flag, exposing read-only snapshots. Events settle before changing zones. Existing subscriptions filter empty batches. The 250 ms refresh displays settled plus unsettled time without committing; unclassified time is the same-instant Running duration minus all five zones. No sample/tick counting, new timer or history buffer was added.
+- 修改 PolarBleManager.kt、SessionState.kt：每个非空 HR 批次捕获一次计时用 elapsedRealtime，原 receivedAt 仍为日期；把同一捕获时刻用于首次 Running 和刷新，最后流结束也共享事件时刻。无效/HR 中断/Retry 先结算并清当前区间，累计保留；整体结束在清理读数前结算并冻结，清理耗时排除。新 Start 才重置，重复与旧事件沿用会话/订阅保护。ACC、ECG、步伐和速度算法未修改。
+  Updated PolarBleManager.kt and SessionState.kt: Captures one timing reception instant per nonempty HR batch using elapsedRealtime while preserving wall-clock receivedAt. The same captured instant sets the initial Running origin and refresh time; final-stream settlement shares its event time with session ending. Invalid HR, stream interruption and Retry settle and clear the current zone while retaining totals. Overall ending settles before clearing readings and freezes without cleanup time. Only accepted new Start resets totals; existing guards reject duplicates and stale events. ACC, ECG, step and speed algorithms are unchanged.
+- 新增 HeartRateZonePanel.kt、修改 SensorActivity.kt：显示 Heart rate intensity、五色同尺度时长柱、Zone 1—5/bpm 范围、mm:ss、单列 Unclassified time 和无有效 HR/停止状态。颜色之外保留文字，内部毫秒不舍入；显示 Estimated from received HR，并解释静默停流可能高估最后区间。复用 Compose 主题，无图表依赖，正式布局待第 8 阶段。
+  Added HeartRateZonePanel.kt and updated SensorActivity.kt: Displays Heart rate intensity, five coloured duration bars sharing one scale, Zone 1–5 with bpm ranges, mm:ss, separate Unclassified time, and no-valid-HR/stopped states. Text accompanies colour and milliseconds remain unrounded. The screen states Estimated from received HR and explains possible overestimation during silent stream loss. Existing Compose theming is reused without a chart dependency; final layout remains stage 8 work.
+- 自动验证：新增 HeartRateZonesTest.kt 13 项。最终执行 `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`，BUILD SUCCESSFUL；本轮 XML 为 132 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。覆盖所有档位边界、混合/无效批末/接触/空批/重复值、ACC 先启动、保持估计、刷新不重复、日期变化、未归类、Retry/完成/失败、Stop/整体中断/最后流冻结和清理耗时、新 Start/旧会话与旧订阅事件。10 秒 120、13 秒 130 的示例确认 Zone 2 = 3000 ms。首次测试有两项测试数据接触参数顺序错误，改用命名 copy 字段后全量重跑通过，没有放宽生产有效性规则。
+  Automated verification: Added 13 tests in HeartRateZonesTest.kt. Final run of `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline` was BUILD SUCCESSFUL. Current XML reports show 132 tests with zero failures/errors/skips; lint has zero errors and 18 warnings. Tests cover all boundaries, mixed/invalid final samples, contact, empty/repeated batches, ACC-first timing, holding, refreshes, wall-clock changes, unclassified time, Retry/completion/failure, end freezing without cleanup time, new Start and stale session/subscription events. HR 120 at second 10 followed by 130 at second 13 gives Zone 2 exactly 3000 ms. Two initial test fixtures reversed contact parameters; named copy fields corrected the fixtures and all tests then passed, without relaxing production validity rules.
+- 真机待验证：本轮未安装 APK、未操作手机。真实 HR 标签与五柱比例/文字、静止累计、设备支持时的接触变化、HR Retry、Stop/新 Start、旋转、断线和锁屏/后台均待检查；步骤见 AGENTS.md 第 9 节。旋转保留只检查了现有 ViewModel/onStop 代码，没有实际设备旋转结果；难以自然产生的边界用受控测试，不要求人为达到高心率。
+  Device verification pending: No APK was installed and no phone was operated. Real HR labels, bar scale/text, accumulation while stationary, supported contact changes, HR Retry, Stop/new Start, rotation, disconnection, lock and background behavior remain pending; procedures are in AGENTS.md Section 9. Rotation retention was inspected in existing ViewModel/onStop code but not tested on a device. Controlled tests cover difficult-to-produce HR boundaries without requiring deliberate high heart rates.
+- 范围与记录：两份 AGENTS.md 和两份 prompt.md 分别同步；未新增依赖、个体化训练算法、曲线、History 或持久化。心率强度只表示固定 HR 档位，不是运动分类；无通知的静默停流仍会继续旧档位估计。本轮未创建提交或推送。
+  Scope and records: Both AGENTS.md copies and both prompt.md copies are synchronized. No dependencies, personalized training algorithm, curves, History or persistence were added. Heart rate intensity describes fixed HR bands, not movement classification; silent stream loss without notification continues the previous estimate. No commit or push was performed.
+
+英文提交信息 / English commit message:
+
+```text
+feat: implement step 5.4add heart rate zones and duration bars
+
+- Track fixed HR zones using validated batch-final readings and monotonic time
+- Preserve unclassified gaps and freeze zone totals before session cleanup
+- Add simple English intensity labels and five duration bars
+- Test boundaries, batch validity, timing, Retry, and stale events
+- Synchronize AGENTS and bilingual prompt records with current validation
+```
+
+# 步骤 5.5add：实时曲线、单调时间轴及有界缓存补全 / Complete real-time curves, monotonic axes and bounded buffers
+
+2026-09-30：用户要求“5.5add 的 prompt 和实现”，已执行下列提示词。完整规则见 AGENTS.md 第 5.22 节及 5.24；代码与本轮自动检查完成，真实曲线、性能和设备生命周期待验证，实际结果见本节末尾。
+2026-09-30: The user requested the prompt and implementation for 5.5add. The following prompt has been executed according to AGENTS.md Sections 5.22 and 5.24. Code and fresh automated checks are complete; real curves, performance and device lifecycle checks remain pending. Actual results follow below.
+
+## 中文
+
+```text
+补充要求（5.5add）：本次完成原 5.5；先检查 5.3add/5.4add 对应功能已完成、HR/ACC/ECG 实际数据路径可用。不要求原 5.5 自身先完成，按下列规则补齐，复用部分已有代码。HR/步频/速度实时记录应保留实际会话经过时间、可空值及断段信息；用现有管理实例持有，不在 Composable 重组中生成记录或重建订阅。先完成采集事件→取点/断段→有界缓存→简单绘图的真实接线。保持本步实时 60 秒/5 秒窗口；第 6 阶段每秒整场历史、四小时上限、UUID/摘要及 SQLite 不属于本步，不能提前实现。单流 Retry 清实时对应缓存的规则保持不变，未来整场历史的保留由 6.1c/6.1d 另行实现。
+
+按照根目录 AGENTS.md 第 5.22 节实施补充步骤 5.5add（对应原开发步骤 5.5）。先检查现有代码、真实 HR/ACC/ECG 采集、5.1 有效性处理、5.2—5.3 步频/速度输出和会话时间；缺少依赖时说明，不自动推进其他步骤。依赖满足后直接修改文件：
+
+1. 为 HR 提供最近 60 秒、最多 61 个显示记录，每个会话整数秒保留最后真实非空批次的末样本及实际接收时间，不取平均。沿用批末有效性，无效值留空并断段，不画成 0；桶内替换不能抹掉断段。无新 HR 不新增点，相同值的新接收仍是数据。该处理只用于曲线，不改变逐样本心率统计或区间计时。
+2. 为步频和速度分别保留最近 60 秒、最多 241 点，复用每 250 ms 的已有计算/刷新入口记录一次当前结果，不在绘图、重组或每次候选步事件中重复追加或重算算法。预热/不可用留空，正常 ACC 下静止零值可绘制。所有显示缓存同时按时间及点数移除最旧记录，不补点、不无限累计；断段信息随记录保持有界。
+3. ECG 显示最近 5 秒，复用现有 10 秒/最多 1,300 样本原始缓存，不另建长期原始缓存。130 Hz 下窗口约 650 点，绘制窗口内全部样本，不合并、平均、隔点抽取或平滑；保留实际配置，不硬改采样率。HR、步频/速度最多每 250 ms 刷新画面，ECG 可见时最多每 100 ms 刷新；刷新频率不是采样频率，不能每次只取一个 ECG 样本。
+4. 横轴统一为 Running 起点后的经过秒数，显示 mm:ss。HR 用批次 elapsedRealtime 接收时刻减会话起点；步频/速度用结果记录时的会话经过时间。保留 receivedAt 日期时间原义，不用系统日期计算横轴；ACC 算法仍使用原始传感器时间。
+5. ECG 每个有效订阅仅用首个非空批次建立固定锚点：S0 为批末传感器 ns，P0 为批次手机 elapsedRealtime ms，T0 为会话起点 ms。每个样本 x = (P0 − T0)/1000 + (timeStamp − S0)/1,000,000,000，先做整数时间差再转换浮点秒。保留样本间隔，不把整批画在同一时刻、不逐批移动锚点；负 x 不绘制、不挤到零点。Retry 重建锚点但保留 T0，说明这是含传输延迟的近似对齐，不承诺多流精确同步。
+6. HR 遇无效/无接触、失败或结束时断段，合并前相邻真实批次接收时间差严格大于 3 秒也不连线；这只影响绘图，不改变 5.4 区间保持计时。步频/速度复用 ACC 严格大于 30 ms 的缺口、算法段重建和订阅中断，预热后新段开始。ECG 使用原始相邻样本时间差严格大于 3/实际采样率 秒作为绘图断段阈值，130 Hz 时约 23.1 ms；跨批次也检查，不套用 ACC 阈值或触发额外断开/重试。全部曲线不跨缺口连线、不插值或补零，不延长没有新数据的 HR 水平线。
+7. 单路失败/正常结束保留并冻结曲线快照；普通缺口只断段。接受 Retry 清空对应曲线和显示锚点/分段，ACC 同时清空步频和速度，其他曲线及本场累计统计保留，会话横轴不归零；拒绝操作不清空。Stop/整体中断冻结曲线及视窗，不添加人为归零点或滚动到空白；接受新 Start 清空全部。旋转、切图保留状态和数据，不重启订阅；未显示的图继续更新有界数据但不持续绘制，拒绝旧会话/旧订阅事件。
+8. 使用现有 Compose 主题做简单绘图验收，提供 HR、步频/速度、ECG 切换，步频与速度在同一区域内单独切换，不共用不同单位的纵轴。单位为 bpm、steps/min、km/h、µV，ECG 保留正负值。完整布局留到第 8 阶段，不增加图表依赖、通用缓存框架、历史回放或持久化。
+9. 添加针对性受控测试，覆盖末点非平均、无新数据不造点、桶内断段、时间/点数双上限、ECG 五秒子集保留所有样本、固定锚点与单位换算、负 x 排除、系统日期变化、三类断段边界、Retry 范围、Stop 冻结无尾部零点、新 Start、切图/旋转及旧事件。运行相关测试、debug 构建和 lint，更新两份 AGENTS.md 实际结果；提供真实曲线、滚动、ECG 刷新性能、静止、缺口、Retry、切图和旋转检查，未执行标记待验证。
+
+仅完成 5.5add 对应的原步骤 5.5，使用最小代码和英文 UI/注释，保留原始数据、算法、区间计时、会话及资源释放规则，不增加滤波、自动重试、Pause/Resume、进程恢复、无关依赖或重构。60 秒曲线缓存不是完整会话存储。
+中英文说明，分别列出文件修改、测试/构建结果和真机验证，不把规划或旧构建结果当作本步验收通过。
+补充交付：本步实现后，按新运行的结果同步两份 AGENTS.md 与两份 prompt.md，保持各自副本一致；分别列出代码修改、测试/debug 构建/lint、真机待验证项，并给出与实际改动匹配的英文 commit message，不自动创建提交或推送。不得因本步完成就宣称其他 add 或 6.1a 已通过；本步未执行则维持待实施。
+```
+
+## English
+
+```text
+Supplement (5.5add): Complete original step 5.5. Verify completion of the functionality addressed by 5.3add/5.4add and availability of actual HR/ACC/ECG data paths. Do not require original 5.5 itself to exist already; minimally complete the rules below and reuse existing portions. HR/cadence/speed display records retain actual session elapsed time, nullable values and segment breaks, held by the existing manager rather than generated on Compose recomposition or by restarting subscriptions. Connect real acquisition events to point selection/breaks, bounded buffers and simple drawing. Preserve the real-time 60-second/five-second windows; stage 6 per-second full-session history, four-hour limit, UUID/summary and SQLite are outside this step. Keep Retry clearing of the corresponding real-time cache; later 6.1c/6.1d will separately retain full-session history.
+
+Implement supplemental step 5.5add (original development step 5.5) according to Section 5.22 of the root AGENTS.md. Inspect the existing code, real HR/ACC/ECG reception, step 5.1 validation, cadence/speed outputs from steps 5.2–5.3 and session timing first. Report missing prerequisites without implementing other steps. Once prerequisites are satisfied, modify the files directly:
+
+1. Retain the latest 60 seconds of HR chart data, capped at 61 display records. Within each integer session-second bucket, keep the final sample of the latest real nonempty batch and its actual reception time, without averaging. Preserve final-sample validity: invalid values create a gap rather than zero. Bucket replacement must not erase a segment break. Add no points without new HR; repeated values in new batches remain real data. This selection affects charts only, not per-sample HR statistics or zone timing.
+2. Retain the latest 60 seconds of cadence and speed, capped at 241 points each. Reuse the existing 250 ms calculation/refresh entry point to record the current results once. Do not append again or rerun algorithms during drawing, recomposition or every candidate-step event. Leave warm-up/unavailable intervals blank; plot genuine stationary zeros with available ACC. Enforce both time and count limits, remove the oldest records, never pad points, and keep segment markers bounded with their records.
+3. Show the latest five seconds of ECG using the existing ten-second/1,300-sample raw buffer, without another long-lived raw copy. At 130 Hz this is approximately 650 points. Draw every sample in the visible window without merging, averaging, skipping or smoothing. Preserve actual confirmed settings instead of forcing a sampling rate. Refresh HR/cadence/speed charts at most every 250 ms and visible ECG at most every 100 ms. Drawing frequency is not sampling frequency; do not select only one ECG sample per refresh.
+4. Use elapsed seconds since Running began for the horizontal axis, labelled mm:ss. For HR, subtract the session origin from batch elapsedRealtime reception time. For cadence/speed, use session time when recording the calculated output. Preserve wall-clock receivedAt semantics but do not use dates for chart timing. ACC algorithms continue to use original sensor timestamps.
+5. Establish one fixed ECG anchor per valid subscription from its first nonempty batch: S0 is the last sample's sensor timestamp in ns, P0 is batch elapsedRealtime reception time in ms, and T0 is the session origin in ms. Map each sample as x = (P0 − T0)/1000 + (timeStamp − S0)/1,000,000,000, subtracting integer timestamps before converting to floating-point seconds. Preserve sample spacing rather than placing a whole batch at one instant or shifting the anchor each batch. Omit negative x values instead of piling them at zero. Retry establishes a new anchor while retaining T0. Describe this as approximate alignment including transport delay, not exact synchronization between streams.
+6. Break HR lines on invalid samples, lost contact, failure or completion, and when consecutive real batch receptions before display reduction are strictly more than three seconds apart. This affects drawing only, not step 5.4 zone-duration holding. Cadence/speed reuse ACC gaps strictly over 30 ms, detection-segment resets and subscription interruptions, starting a new line after warm-up. For ECG, break when original adjacent sample timestamps differ by strictly more than 3/actualSampleRate seconds, approximately 23.1 ms at 130 Hz, including across batches. Do not reuse ACC's threshold or trigger extra disconnection/retry. Never connect across gaps, interpolate or fill missing values with zero, or extend HR horizontally without new data.
+7. Retain and freeze chart snapshots on individual stream failure/completion; ordinary gaps only break lines. An accepted Retry clears the corresponding chart and display anchor/segments; ACC clears both cadence and speed. Preserve other charts and session aggregates without resetting the session time axis. Rejected actions must not clear data. Stop or overall interruption freezes chart data and viewport without appending artificial zero points or scrolling to an empty view. An accepted new Start clears all charts. Preserve data/state across rotation and chart selection without restarting subscriptions. Hidden charts maintain bounded data but do not continuously draw. Reject old-session and old-subscription events.
+8. Provide simple chart verification using the existing Compose theme, with HR, cadence/speed and ECG selection. Select cadence or speed within their shared area rather than plotting different units on one vertical axis. Use bpm, steps/min, km/h and µV, preserving signed ECG values. Leave final layout integration to stage 8. Add no chart dependency, generic buffering framework, history replay or persistence.
+9. Add focused controlled tests for last-point selection rather than averaging, no fabricated points, intra-bucket gaps, time/count limits, the five-second ECG subset retaining every sample, fixed anchors and unit conversion, negative x exclusion, wall-clock changes, gap boundaries for each chart, Retry scope, Stop freezing without trailing zeros, new Start, chart selection/rotation and stale events. Run relevant tests, a debug build and lint. Update both AGENTS.md files with actual results and provide device checks for real curves, scrolling, ECG refresh performance, stationary activity, gaps, Retry, chart switching and rotation. Mark unperformed checks as pending.
+
+Complete only 5.5add (original step 5.5) with minimal code and English UI text/comments. Preserve raw data, algorithms, zone timing, sessions and resource cleanup. Do not add filtering, automatic retry, Pause/Resume, process recovery, unrelated dependencies or refactoring. A 60-second chart buffer is not full-session storage.
+Explain in Chinese and English, separating file changes, test/build results and device verification. Do not present plans or older builds as this step's acceptance results.
+Additional delivery: After implementation, synchronize both AGENTS.md and both prompt.md files using fresh results and keep each pair identical. Separately report code changes, tests/debug build/lint and pending device checks. Provide an English commit message matching actual changes, without automatically committing or pushing. Completing this item does not establish completion of other add items or 6.1a; keep unexecuted work pending.
+```
+
+## 5.5add 实际结果 / Actual results — 2026-09-30
+
+- 前置与文件：已检查 5.3add/5.4add、真实 HR/ACC/ECG 路径、原始缓存、步频/速度和会话计时，代码前置齐全。新增 LiveCharts.kt、LiveChartPanel.kt；修改 PolarBleManager.kt、SessionState.kt、StepDetector.kt、SensorActivity.kt；新增 LiveChartsTest.kt 和 LiveChartLifecycleTest.kt。仅完成 5.5add，不自动执行 6.1a。
+  Prerequisites and files: Inspected 5.3add/5.4add, actual HR/ACC/ECG paths, raw buffers, cadence/speed and session timing; code prerequisites were present. Added LiveCharts.kt and LiveChartPanel.kt; updated PolarBleManager.kt, SessionState.kt, StepDetector.kt and SensorActivity.kt; added LiveChartsTest.kt and LiveChartLifecycleTest.kt. Only 5.5add was implemented; 6.1a was not started automatically.
+- HR/运动缓存：HR 每会话秒保留真实批末最后一点及实际 elapsedMs，不取平均，不重复旧 HR；同桶替换保留断段，真实批次间隔严格超过三秒才新增缺口。步频和速度共用最近 60 秒/最多 241 条记录，在已有 250 ms 计算刷新入口取值，预热/缺失为空，静止零为有效值；StepDetector 只增加随原 clearSegment 递增的只读段编号，捕获刷新之间的段重建，不改算法。两类队列均按时间和点数裁剪，图表不重算或改变原统计。
+  HR/motion buffers: HR retains the latest real batch-final point and actual elapsedMs in each session-second bucket, without averaging or repeating stale HR. Bucket replacement preserves breaks, and a real inter-batch gap must exceed three seconds. Cadence and speed share a 60-second/241-record buffer populated by the existing 250 ms calculation refresh; warm-up/missing values are null and measured stationary zeros remain valid. StepDetector only adds a read-only segment counter incremented by existing clearSegment calls, detecting resets between refreshes without changing the algorithm. Both queues enforce time and count bounds, independently of original statistics.
+- ECG：复用原 EcgBuffer 十秒/1,300 点，不额外长期保留原始数据。每次有效订阅仅首个非空批次固定传感器末点和接收会话时间锚点，先做纳秒整数差再转换；负 x 不画，窗口使用左开右闭五秒。断段阈值为实际已确认 rate 的三周期，跨批比较；没有降采样、平均或滤波。已核对固定 SDK 8.3.0 官方模型时间单位，未改变采样参数或 SDK API。
+  ECG: Reuses the original ten-second/1,300-sample EcgBuffer without another retained raw copy. Each subscription anchors once using its first nonempty batch's final sensor timestamp and session reception time, subtracting integer nanoseconds before conversion. Negative x values are omitted and the five-second window is left-open/right-closed. Gap detection compares adjacent samples across batches against three periods of the actual confirmed rate. No downsampling, averaging or filtering was added. The timestamp unit was checked against the official SDK 8.3.0 model without changing acquisition settings or SDK APIs.
+- 接线/生命周期：真实事件送入曲线缓存；accepted STARTING 清对应图/锚点，ACC 同清两个运动图，单路失败或完成冻结对应视窗。整体 Stop/中断在当前指标清零前冻结数据和视窗，不追加零点、不随清理时间滚动；新 Start 清数据，选择随现有管理器保留。SessionController 增加只读 elapsedAt，不改变会话状态。原会话/订阅保护过滤重复与旧事件，累计统计与其他流不受 Retry 清图影响。
+  Integration/lifecycle: Real events feed chart buffers. Accepted STARTING clears the corresponding chart/anchor, with ACC clearing both motion series. Individual failure/completion freezes its viewport. Overall Stop/interruption freezes data and viewports before current metrics are zeroed, without appending zeros or scrolling through cleanup. New Start clears chart data; selection stays with the existing manager. SessionController adds read-only elapsedAt without changing session state. Existing session/subscription guards handle duplicates and stale events, while Retry chart clearing preserves aggregates and other streams.
+- 简单显示：Compose Canvas 和原主题提供 HR/Motion/ECG 切换，Motion 单独选步频或速度；单位 bpm、steps/min、km/h、µV，横轴 mm:ss，ECG 保留正负值。仅选中图按 HR/运动 250 ms 或 ECG 100 ms 读取快照，隐藏图仍更新有界数据；每个可见 ECG 点都进入绘制循环，无效值/断段不连线。显示实时或冻结状态及近似对齐说明。正式布局未实施。
+  Minimal display: Compose Canvas and the existing theme provide HR/Motion/ECG selection, with cadence or speed separately selected inside Motion. Units are bpm, steps/min, km/h and µV; the elapsed axis uses mm:ss and ECG retains signed values. Only the selected chart reads display snapshots at 250 ms for HR/motion or 100 ms for ECG; hidden chart data remains bounded and updated. Every visible ECG point enters the drawing loop, with no lines across nulls or breaks. Live/frozen status and approximate-alignment notes are shown. Final layout remains unimplemented.
+- 本轮自动检查：新增 LiveChartsTest 13 项、LiveChartLifecycleTest 3 项；最终运行 `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`，BUILD SUCCESSFUL。读取本轮 XML：148 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。覆盖末点/原时间/不造点、桶内断段、统计不变、时间/点数限制、运动刷新/预热/静止/30 ms 与段超时、ECG 负 x/固定锚点/有符号值/五秒完整 650 点/实际 rate 断段、Retry 范围与重锚、冻结/无尾零/清理不滚动、重复和旧事件、新会话及切换/重读不重启采集。首次编译漏写 SettingType 限定名，修正后完成全量验证。
+  Automated verification: Added 13 LiveChartsTest cases and three LiveChartLifecycleTest cases. Final run of `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline` was BUILD SUCCESSFUL. Current XML reports contain 148 tests with zero failures/errors/skips; lint has zero errors and 18 warnings. Coverage includes last-point/original-time selection, no fabricated points, intra-bucket breaks, unchanged statistics, time/count bounds, motion refresh/warm-up/zero/30 ms gaps and segment expiry, ECG negative x/fixed anchors/signed values/all 650 five-second samples/actual-rate gaps, Retry scope/reanchoring, freezing without trailing zeros or cleanup scrolling, duplicates/stale events, new sessions and selection/snapshot reads without restarting collection. An initially unqualified SettingType reference was corrected before the successful full checks.
+- 真机与限制：未安装 APK、未操作手机，未进行屏幕渲染或性能仪器测试。真实波形、单位/滚动、ECG 100 ms 刷新表现、三流并行、静止零、缺口/Retry、Stop/新 Start、切图/旋转/断线/锁屏/后台均待验证，具体步骤见 AGENTS.md 第 9 节。650 点受控测试证明可见数据集合，绘制全点按代码检查，不当作手机帧率证据。ECG 含传输延迟只是近似对齐；HR 每秒末点可能省略秒内变化，实时缓存不等于整场历史。
+  Device checks and limitations: No APK was installed or phone operated, and no screen-rendering or instrumented performance tests ran. Real waveforms, units/scrolling, ECG 100 ms refresh behavior, concurrent streams, stationary zeros, gaps/Retry, Stop/new Start, chart switching/rotation/disconnection/lock/background behavior remain pending; procedures are in AGENTS.md Section 9. The 650-point test verifies the visible data set and full-point drawing was inspected in code; neither establishes phone frame rate. ECG alignment includes transmission delay and is approximate; per-second HR selection may omit changes within a second. Real-time buffers are not full-session history.
+- 文档与范围：两份 AGENTS.md、两份 prompt.md 分别同步。未增加依赖、通用框架、整场历史、UUID/摘要、四小时结束、SQLite、History、进程恢复、自动重试或正式布局。没有自动 commit 或 push；6.1a 仍待用户指定并重新检查前置。
+  Documentation and scope: Both AGENTS.md copies and both prompt.md copies are synchronized. No dependencies, generic framework, full-session history, UUID/summary, four-hour ending, SQLite, History, process restoration, automatic retry or final layout were added. No commit or push was performed. Step 6.1a awaits a user request and fresh prerequisite inspection.
+
+英文提交信息 / English commit message:
+
+```text
+feat: implement step 5.5add bounded live sensor charts
+
+- Add bounded HR and motion records with elapsed timestamps and segment breaks
+- Map all visible ECG samples with a fixed per-subscription anchor
+- Add simple Compose chart selection and independent display refresh
+- Freeze viewports on ending and clear only the retried stream
+- Add controlled chart and lifecycle tests and synchronize bilingual records
+```
+
+## 2026-09-30 add 提示词与完整同步记录 / Add prompts and full synchronization
+
+- 已新增 5.3add、5.4add、5.5add 的完整中英文待执行提示词；规则复用既定 5.20—5.22，补充缺口检查、最小结果接入、步骤边界和真实验证要求。原 5.3—5.5 提示词及历史实施记录保留，今后使用对应 add 作为执行入口。
+- Added complete bilingual pending prompts for 5.3add, 5.4add and 5.5add, preserving Sections 5.20–5.22 and specifying gap inspection, minimal output integration, step boundaries and actual verification. Original prompts and historical records remain; use the corresponding add as the implementation entry point.
+- 已确认项目内旧 prompt.md 的前段包含于根目录版且第 6 阶段内容相同，没有独有记录；将完整根目录版同步至项目副本。两份 AGENTS.md、两份 prompt.md 分别完全一致。此次只改四份文档，三个 add 均尚未实施，没有应用代码修改或测试/构建/真机结果，未创建提交。
+- Verified that the old project prompt prefix was contained in the root copy and its stage 6 content matched, with no unique records. Synchronized the full root version to the project copy. Each AGENTS.md pair and prompt.md pair is identical. Only four documentation files changed; all three add steps remain unimplemented, with no application changes, tests/build/device results or commit creation.
+
+## 2026-09-30 功能目录迁移 / Functional package organization
+
+- 用户要求：按已确认的功能分类移动对应文件。
+- User request: Move the existing files into the agreed functional directories.
+- 本轮范围：17 个源码文件移入 ble、sensor、motion、heartrate、chart、session；17 个功能测试同步分包，调整 package/import。两个 Activity、主题、Manifest、资源和依赖保持原位。完整文件映射见 AGENTS.md 5.25。
+- Scope: Move 17 production files and 17 matching functional test files into functional packages and update package declarations and imports. Keep activities, theme files, the manifest, resources and dependencies in place. See AGENTS.md Section 5.25 for the file mapping.
+- 保持：没有重命名 CadenceWindow、拆分类或改变算法；全部 41 个 Kotlin 文件去除 package/import 和空行后与迁移前 HEAD 内容一致。history/storage 仅为本地空目录，第 6 阶段未实施。
+- Preserved behavior: No class extraction, CadenceWindow rename or algorithm change. All 41 Kotlin file bodies match the pre-move HEAD after excluding package/import lines and blank lines. History and storage remain empty local directories; Stage 6 is not implemented.
+- 本轮验证：运行 `./gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`，最终 BUILD SUCCESSFUL；148 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。沿用现有测试，本轮已实际执行。
+- Verification: Existing unit tests ran after the move: 148 tests, zero failures, errors or skipped tests. Debug assembly and lint passed; lint reported zero errors and 18 warnings.
+- 真机：未安装或操作设备，运行时与设备验收仍待完成。两份 AGENTS.md、两份 prompt.md 已同步；未创建 commit 或 push。
+- Device checks: No installation or device interaction was performed; runtime and device checks remain pending. Both AGENTS.md copies and both prompt.md copies were synchronized. No commit or push was created.
+
+## 2026-09-30 运动处理最小重构 / Minimal motion refactor
+
+- 中文提示词：按已确认的三项最小方案重构。提取 StepDetector 的步长提交/距离累计与完整五秒窗口极值私有方法，保持执行顺序和统计持有者；封装预处理器并通过只读 isWarmingUp 提供预热状态；将 CadenceWindow 改名为 MotionWindow，同步调用和测试。StepState 保留原位，不修改算法参数、不增加框架或依赖、不实施第 6 阶段。运行测试、debug 构建与 lint，并同步两份 AGENTS.md 和两份 prompt.md 的实际结果。
+- English prompt: Apply only the agreed minimal motion refactor. Extract private methods for committing steps and accumulating distance, and for updating complete five-second window maxima, while preserving execution order and the existing statistics owner. Make the preprocessor private and expose read-only isWarmingUp. Rename CadenceWindow to MotionWindow and update callers and tests. Keep StepState in its current file. Do not change algorithm parameters, add frameworks or dependencies, or implement Stage 6. Run unit tests, debug assembly and lint, and synchronize both AGENTS.md copies and both prompt.md copies with actual results.
+- 实际结果：StepDetector 新增私有 commitSteps/updateWindowMaxima 和只读 isWarmingUp；PolarBleManager 改用该属性。窗口文件/类和测试分别改名 MotionWindow / MotionWindowTest；既有 StepDetectorTest、LiveChartsTest 和 MotionStatisticsTest 同步调整。StepState 未拆出，统计及生命周期语义保持。
+- Actual results: Added private commitSteps/updateWindowMaxima methods and read-only isWarmingUp to StepDetector, and switched PolarBleManager to the new property. Renamed the window and matching test to MotionWindow and MotionWindowTest. Updated existing detector, chart and motion statistics tests. StepState remains in place; statistics and lifecycle behavior are preserved.
+- 本轮验证：执行 `./gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`，BUILD SUCCESSFUL；148 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。预热接口覆盖初始及超时重建的第 103/104 个样本边界、缺口/Retry/清理及显示刷新不重置段。原四步补计、距离与极值测试继续通过。
+- Verification: Tests ran for this refactor: 148 tests, zero failures, errors or skipped tests. Debug assembly and lint passed; lint reported zero errors and 18 warnings. Existing tests cover warm-up boundaries, interruptions and retries, unchanged display-refresh behavior, four-step confirmation, distance accumulation and full-window maxima.
+- 未安装或操作真机；真机验收待完成。第 6 阶段未实施，没有创建 commit 或 push。此前目录迁移记录中的“未重命名 CadenceWindow”是当时状态，本次重构采用新名称。
+- No APK installation or device interaction was performed; device verification remains pending. Stage 6 was not implemented, and no commit or push was created. The earlier migration record describes the old name at that time; this refactor now uses MotionWindow.
