@@ -22,6 +22,7 @@ import com.example.polarh10activityviewer.session.SensorViewModel
 import com.example.polarh10activityviewer.session.SessionState
 import com.example.polarh10activityviewer.session.SessionStatus
 import com.example.polarh10activityviewer.session.SessionSummaryPanel
+import com.example.polarh10activityviewer.history.HrHistoryState
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -125,6 +126,7 @@ class SensorActivity : ComponentActivity() {
             val ecgSamples by bleManager.ecgSamples.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             val session by bleManager.sessionState.collectAsState()
+            val hrHistory by bleManager.hrHistoryState.collectAsState()
             LaunchedEffect(session.generation, session.status) {
                 val generation = session.generation
                 if (session.status == SessionStatus.RUNNING) {
@@ -163,6 +165,7 @@ class SensorActivity : ComponentActivity() {
                         ecgSamples = ecgSamples,
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
+                        hrHistory = hrHistory,
                         onStartSession = ::handleStartSession,
                         onStopSession = { bleManager.stopSession() },
                         onRetryStream = ::handleRetryStream,
@@ -350,6 +353,7 @@ internal fun SessionScreen(
     ecgSamples: List<EcgSample> = emptyList(),
     ecgSubscription: SubscriptionState = SubscriptionState(),
     session: SessionState = SessionState(),
+    hrHistory: HrHistoryState = HrHistoryState(),
     onStartSession: () -> Unit = {},
     onStopSession: () -> Unit = {},
     onRetryStream: (PolarDeviceDataType) -> Unit = {},
@@ -406,6 +410,18 @@ internal fun SessionScreen(
             Text("Incomplete ACC data. Missing distance may lower distance and average speed.")
         }
         SessionSummaryPanel(session.record)
+        Text("HR history (development check)", style = MaterialTheme.typography.titleMedium)
+        Text("HR history points: ${hrHistory.pointCount}")
+        Text("First elapsedMs: ${hrHistory.firstElapsedMs ?: "--"}")
+        Text("Last elapsedMs: ${hrHistory.lastElapsedMs ?: "--"}")
+        Text("HR history: " + when {
+            hrHistory.sessionId == null -> "Not started"
+            hrHistory.frozen -> "Frozen"
+            hrHistory.limitReached -> "Four-hour collection limit reached"
+            session.status == SessionStatus.STARTING -> "Waiting for Running"
+            else -> "Collecting"
+        })
+        Text("Memory only; first four hours, at most 14,401 points. No automatic stop yet.")
         charts()
         AccPanel(
             samples = accSamples,

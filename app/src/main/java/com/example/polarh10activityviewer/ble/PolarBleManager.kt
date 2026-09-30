@@ -3,6 +3,7 @@ package com.example.polarh10activityviewer.ble
 import com.example.polarh10activityviewer.chart.ChartKind
 import com.example.polarh10activityviewer.chart.LiveCharts
 import com.example.polarh10activityviewer.heartrate.HeartRateZones
+import com.example.polarh10activityviewer.history.HrHistory
 import com.example.polarh10activityviewer.motion.StepDetector
 import com.example.polarh10activityviewer.sensor.AccBuffer
 import com.example.polarh10activityviewer.sensor.EcgBuffer
@@ -109,6 +110,8 @@ class PolarBleManager(context: Context) {
     private val mutableDataReadiness = MutableStateFlow(checkedDataTypes.associateWith { DataReadiness() })
     val dataReadiness = mutableDataReadiness.asStateFlow()
     private val latestHeartRate = LatestHeartRate()
+    private val hrHistory = HrHistory()
+    internal val hrHistoryState = hrHistory.state
     private var previousHrArrival: Long? = null
     val heartRate = latestHeartRate.reading
     val heartRateStatistics = latestHeartRate.statistics
@@ -127,6 +130,7 @@ class PolarBleManager(context: Context) {
         CoroutineScope(Dispatchers.Main.immediate)
     ) { type, status ->
         val eventTime = SystemClock.elapsedRealtime()
+        if (type == PolarDeviceDataType.HR) hrHistory.onSubscriptionState(status)
         if (type == PolarDeviceDataType.HR && status == SubscriptionStatus.STARTING) previousHrArrival = null
         liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime))
         if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING && session.state.value.ongoing) {
@@ -144,6 +148,7 @@ class PolarBleManager(context: Context) {
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
+            hrHistory.start(session.state.value.record!!.id)
             liveCharts.reset()
             heartRateZones.reset()
             latestHeartRate.reset()
@@ -153,6 +158,7 @@ class PolarBleManager(context: Context) {
             ecgBuffer.clear()
         },
         clearHr = {
+            hrHistory.stop()
             liveCharts.stop(session.state.value.elapsedMs)
             heartRateZones.clearCurrent(session.state.value.elapsedMs)
             latestHeartRate.clear()
@@ -245,6 +251,7 @@ class PolarBleManager(context: Context) {
             session.refresh(session.state.value.generation, receivedTime)
             if (session.state.value.status == SessionStatus.RUNNING) {
                 liveCharts.receiveHr(session.state.value.elapsedMs, latestHeartRate.reading.value)
+                hrHistory.receive(session.state.value.elapsedMs, latestHeartRate.reading.value)
             }
         }
     )

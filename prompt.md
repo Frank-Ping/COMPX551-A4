@@ -1286,3 +1286,29 @@ Suggested commit message (not committed):
 ```text
 feat: add mean and minimum cadence for step 6.1b
 ```
+
+
+## 2026-09-30 步骤 6.1c 实施结果 / Step 6.1c implementation results
+
+用户本轮指令：实施6.1c。按上文已保存的中英文 6.1c 提示词执行。
+User instruction: Implement step 6.1c, using the bilingual step 6.1c prompt recorded above.
+
+- 前置与文件：重新检查 5.3—5.5 的统计/曲线、6.1a 的 HrHistoryPoint/UUID/时间及 6.1b 的步频摘要，前置齐全。新增 history/HrHistory.kt；PolarBleManager.kt 接入 HR 事件、Start/Stop/订阅状态；SensorActivity.kt 显示英文计数/首末时间/状态；SessionRecord.kt 仅更新历史点注释。没有修改 SDK API、依赖、统计算法或原始 ACC/ECG 缓存。
+  Prerequisites/files: Rechecked statistics/charts, HrHistoryPoint/UUID/timing and mean/minimum cadence. Added history/HrHistory.kt and connected HR events, Start/Stop and subscription state in PolarBleManager.kt. SensorActivity.kt displays English count/times/status; SessionRecord.kt only has a comment update. SDK calls, dependencies, algorithms and raw ACC/ECG buffers are unchanged.
+- 收集：复用已筛除空批次、已过滤旧订阅/旧会话的真实 HR 入口；仅 Running 后记录。每个 elapsedMs 整数秒保留最后真实批次末读数及实际时间，不取平均，同值新批次仍替换时间；批末无效/接触丢失保存 null 并断段。无 HR 事件、空批次、250 ms 刷新和绘图重组均不造点。只含无效 HR、尚未 Running 的尝试没有历史点；混合批次存在有效 HR 可启动 Running，末值无效时记录 null。
+  Collection: Uses the existing nonempty, current-session/current-subscription HR event path, after Running begins. Each elapsed-second bucket retains the latest real batch's final reading and actual time, without averaging. Equal-valued new batches still update time. Invalid/contact-lost final readings are null with a break. Empty batches, timers and drawing do not create records. Invalid-only attempts before Running have no history; mixed batches can start Running while recording an invalid final value as null.
+- 断段/边界：首点、批末无效、订阅中断/Retry、相邻真实批次严格超过三秒时断段；桶内替换保留已发生断段。只接受 0—14,400,000 ms（含截止），最多 14,401 个桶；不预分配、不填补、不淘汰早期点。超过 60 秒仍保留早期记录；超截止读数不进入历史，但原 HR 统计与区间计时继续，本步不自动结束会话。
+  Breaks/bounds: Breaks cover the first point, invalid final values, subscription interruption/Retry and gaps strictly over three seconds. Replacements preserve intra-bucket breaks. Collection accepts 0–14,400,000 ms inclusive and at most 14,401 buckets, without preallocation, padding or eviction. Earlier records survive the live 60-second window. Later HR events continue existing statistics/zones but are excluded from history; automatic session ending is not implemented here.
+- 生命周期/显示：接受新 Start 绑定本场 UUID 并清空；重复/拒绝 Start 不清空。Retry 标记断段、保留旧记录及原横轴，实时缓存仍按原规则清理。整体 Stop/中断/全部流终止时冻结，保留已有最后部分秒，不制造终点；旧数据/旧刷新沿用既有过滤。管理器仍由 ViewModel 持有，重订阅读同一状态；真实旋转未验证。UI 只订阅计数、首末 elapsedMs、Frozen/Collecting/等待/上限状态，不逐批复制整场列表；snapshot() 按需返回副本。
+  Lifecycle/display: Accepted Start binds the UUID and clears history; rejected starts do not. Retry preserves records/session time and marks a break while live charts still clear. Stop/interruption/all-stream termination freezes the existing partial-second record without a fabricated endpoint. Existing guards reject stale events. The ViewModel retains the owner; actual rotation remains unverified. UI subscribes only to metadata rather than copying the growing list every batch; snapshot() provides an on-demand copy.
+- 自动验证：新增 HrHistoryTest.kt（6 项）和 HrHistoryLifecycleTest.kt（7 项）；覆盖末点/同值时间、null/混合批次/接触状态、三秒边界及桶内断段、无事件/空批次/日期改变、不从 60 秒缓存重建、隐藏图、Retry/旧订阅、重复 Start/新场次、部分秒/延迟清理/各结束路径、保留持有者重订阅、四小时及 14,401 点满容量/稀疏边界、统计继续而历史停止。运行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug，BUILD SUCCESSFUL；181 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。四小时测试使用受控时间，模拟输入仅用于测试。
+  Automated verification: Added six HrHistoryTest tests and seven HrHistoryLifecycleTest tests covering selection/validity, gaps/buckets, empty/no events, wall-clock independence, live-window separation, hidden charts, Retry/stale events, starts/endings/cleanup, retained-owner reattachment and full/sparse four-hour capacity boundaries. :app:testDebugUnitTest :app:assembleDebug :app:lintDebug passed: 181 tests, zero failures/errors/skips; lint 0 errors and 18 warnings. Four-hour checks use controlled time; synthetic inputs are test-only.
+- 真机待验收：连接 H10 → Start，观察 HR history points 与首末 elapsedMs；连续超过 60 秒后核对首时间仍保留。切换到 Motion/ECG 时 HR 计数应继续；HR 失败/Retry 后记录不清空、时间轴继续。Stop 后计数/首末时间固定为 Frozen；新 Start 清空并绑定新场。旋转保留、断线/后台冻结及显示性能待真机核对；null/断段和四小时容量已做受控测试，不冒充真机证据。
+  Pending device checks: Connect H10 and Start; inspect HR history count and first/last elapsedMs beyond 60 seconds. Counts should continue with other charts selected. HR failure/Retry must retain records/time axis; Stop freezes metadata and new Start clears for the new session. Actual rotation, disconnect/background freezing and UI performance remain pending. Controlled validity/break/capacity tests are not device evidence.
+- 状态：6.1c 文件已写入、自动检查已通过；两份 AGENTS.md 和两份 prompt.md 同步。未安装 APK、未操作手机；6.1d 的运动历史/组合快照、6.2 的自动结束/SQLite/History 尚未实施，未 commit/push。
+  Status: Step 6.1c is implemented and automated checks passed; both documentation pairs are synchronized. No APK installation or phone interaction. Motion history/combined snapshots (6.1d) and automatic ending/SQLite/History (6.2) remain unimplemented. No commit or push.
+
+Suggested commit message (not committed):
+```text
+feat: collect bounded session heart rate history for step 6.1c
+```
