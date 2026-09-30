@@ -1365,8 +1365,8 @@ feat: persist sessions with save recovery and minimal history
 
 - 2026-09-30 用户采用全部推荐规则，依据根目录 AGENTS.md 5.27。20 条为每次加载数量，不是保存上限；手动 Load more，不自动滑底加载、不自动清理。
   On 2026-09-30 the user accepted all recommended rules in root AGENTS.md Section 5.27. Twenty records is a page size, not a storage limit. Use manual Load more, with no automatic loading on scroll or automatic deletion.
-- 本次只定义规则与提示词，未实施 7.1/7.2、未修改应用代码、未运行测试/构建或操作设备。各步实际结果在该步执行后记录，不将 6.2 的测试结果作为第 7 阶段通过证据。
-  This update defines rules and prompts only. Steps 7.1/7.2 have not been implemented; no app code changes, tests, builds or device operations were performed. Record actual results after each requested step; previous 6.2 results do not prove stage 7 passed.
+- 规则确认时只定义规则与提示词；随后按用户指定实施 7.1，实际结果见本文件末尾及 AGENTS.md 5.27.1。7.2 尚未实施，不将 6.2 的测试结果作为第 7 阶段通过证据。
+  The rule-confirmation update defined rules and prompts only. Step 7.1 was subsequently implemented at the user's request; actual results appear at the end of this file and in AGENTS.md Section 5.27.1. Step 7.2 remains unimplemented; previous 6.2 results do not prove stage 7 passed.
 
 ## 步骤 7.1：历史列表 / Step 7.1: History list
 
@@ -1440,4 +1440,26 @@ Inspect the current 6.2 and 7.1 outputs first. If prerequisites are missing, exp
 6. Run relevant tests, a debug build and lint. Synchronize both AGENTS.md files and both prompt.md files with actual results in Chinese and English, separating modified files, automated checks and device behavior. Do not reuse previous results as proof this step passed. Provide an English commit message matching the changes; do not commit or push automatically.
 
 Use minimal code, the current Compose theme and English UI/comments. Do not implement stage 8 layout or development-display cleanup. Add no speed plot, historical ECG replay, zoom/pan, filtering, export, bulk deletion, automatic cleanup, dependencies, database tables, generic frameworks, algorithm tuning or unrelated refactoring.
+```
+
+## 2026-09-30 步骤 7.1 实施结果 / Step 7.1 implementation results
+
+- 前置与文件修改：检查 6.2 的实际 SQLite、保存状态和 History 接线，前置齐全。只修改 history/HistoryPanel.kt，新增 androidTest/storage/HistoryListTest.kt（8 项）；SessionDatabase、SensorActivity、采集持有者、算法、依赖及删除事务不变。
+  Prerequisites/files modified: Verified the current 6.2 SQLite, save-state and History wiring. Updated only history/HistoryPanel.kt and added eight tests in androidTest/storage/HistoryListTest.kt. Reused SessionDatabase, SensorActivity, the acquisition owner, algorithms, dependencies and deletion transaction.
+- 列表实现：在原 HistoryPanel 内提取私有 HistoryList，列表保存当前请求游标和已加载记录，Load more 每次最多 20 条；SQL 沿用 startedAt/ID 倒序游标，不查询总数、不自动滑底加载、不限制保存总数或清理旧记录。满页保留按钮，不足 20 条或空末页后隐藏。首次查询失败显示英文提示/Retry query；分页失败保留列表和原游标，Retry 重试该页，期间阻止重复操作。
+  List implementation: A private HistoryList inside the existing file owns loaded records and the requested cursor. Manual Load more requests up to 20 rows using the unchanged descending start-time/ID SQL cursor. No total-count query, automatic scroll loading, storage-count cap or cleanup. A full page retains the button; a short or empty final page hides it. Initial failures show an English error/Retry query; pagination failures preserve rows and retry the same cursor, with duplicate operations blocked while loading.
+- 刷新与取消：列表返回、重新进入或状态重建后加载前 20 条；成功保存信号重建列表查询，但不再触发所选详情重载。列表查询由自身 LaunchedEffect 管理，离开或刷新取消旧查询；接受结果前检查取消状态，旧查询及旧详情不覆盖当前显示。每次查询重新读取手机当前时区，日期格式 yyyy-MM-dd HH:mm:ss XXX；沿用 null/零、单位与小数显示。未增加时区监听、框架或第 8 阶段布局。
+  Refresh/cancellation: Return, re-entry and state reconstruction load the first 20 rows. A committed-save signal refreshes the list without reloading selected detail. List queries belong to their own LaunchedEffect and are cancelled on disposal/refresh; cancellation is checked before accepting results, and obsolete detail is not rendered for another selection. Each query rereads the viewing timezone and uses yyyy-MM-dd HH:mm:ss XXX with existing null/zero, units and rounding. No timezone listener, framework or stage 8 layout.
+- 自动检查已通过：本轮重新执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline，最终 BUILD SUCCESSFUL；204 项单元测试、0 failures/errors/skipped；debug 与测试 APK 构建通过；lint 0 errors、18 warnings、1 Hint。首次沙箱下载/缓存权限失败后使用现有缓存执行；修正测试误导入与两个导航测试的滚动操作后重新检查，失败尝试不计为通过。日志 build/step71-validation/gradle.txt。
+  Automated checks passed: Fresh executions of :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline ended BUILD SUCCESSFUL. All 204 unit tests passed with zero failures/errors/skips; debug and test APK builds passed; lint reported 0 errors, 18 warnings and 1 Hint. Initial sandbox download/cache-access failures were resolved using the existing cache. A test import and two navigation test scroll actions were corrected before rerunning; failed attempts are not counted as passes. Log: build/step71-validation/gradle.txt.
+- 实际模拟器检查已通过：仅在项目专用 emulator-5582（API 37）安装本轮 APK，运行新增 HistoryListTest 8 项及既有 SessionDatabaseTest 6 项、HistoryPanelTest 2 项，最终 OK (16 tests)。真实 SQLite/Compose 覆盖空列表、45 条及同时间倒序、关闭重开、40 条满页/空末页、真实表重命名故障后的首次和分页重试、分页保留/无重复、时区变化、null/零、不完整提示、新保存列表刷新/详情不重载、返回/重新进入/Compose 保存状态重建、SQLite 事务阻塞期间重复拒绝与迟到查询取消；同时重跑字段、事务回滚、去重和删除回归。测试仅使用随机命名的专用数据库，结束后删除；没有写入生产 History。最终日志 build/step71-validation/instrumentation.txt，初轮导航测试失败日志另存 instrumentation-first-attempt.txt（均为忽略的本地产物）。
+  Actual emulator checks passed: Installed the current APKs only on dedicated emulator-5582 (API 37). Eight new HistoryListTest, six existing SessionDatabaseTest and two existing HistoryPanelTest cases passed: OK (16 tests). Actual SQLite/Compose covered empty lists, 45 tied-time descending rows, close/reopen, 40-row/full-page/empty-end behavior, real table-rename failures and initial/failed-page retry, preserved rows/no duplicates, timezone changes, null/zero/incompleteness, save-driven list refresh without detail reload, return/re-entry/Compose saved-state reconstruction, and duplicate blocking/late-query cancellation during an actual SQLite transaction lock. Field/transaction/deduplication/deletion regression checks were rerun. Random dedicated databases were removed afterward; fixtures never entered production History. Final log: build/step71-validation/instrumentation.txt; initial navigation-test failures: instrumentation-first-attempt.txt (ignored local artifacts).
+- 真机行为 pending：本轮未在 Samsung/H10 上安装或操作版本。待验证运行中 Session/History 切换及真实 Activity 旋转仍保留采集、真正后台/锁屏结束、真实保存后列表刷新、App 重启查询和真实时区切换后的显示。Compose 保存状态重建仅是受控检查，不等于真实手机旋转或 H10 全链路；大量记录的现场滚动性能仍待验证。
+  Hardware behavior pending: No installation or operation on Samsung/H10 this turn. Verify active Session/History switching and actual Activity rotation retain acquisition, true background/lock ends it, actual saves refresh the list, app restart reads history, and real timezone changes display correctly. Compose saved-state reconstruction is controlled evidence, not physical-phone rotation or H10 end-to-end validation. Large-list scrolling performance remains pending.
+- 范围与交付：仅完成 7.1 列表交互及必需查询隔离；7.2 的详情/删除改进与第 8 阶段仍待用户指定。两份 AGENTS.md 与两份 prompt.md 同步中英文实际结果；没有自动 commit/push。
+  Scope/delivery: Completed only 7.1 list interactions and necessary query isolation. Step 7.2 detail/delete improvements and stage 8 await a separate user request. Both AGENTS.md and prompt.md pairs contain synchronized bilingual results. No automatic commit/push.
+
+Suggested commit message (not committed):
+```text
+feat: improve history list pagination retry and refresh
 ```

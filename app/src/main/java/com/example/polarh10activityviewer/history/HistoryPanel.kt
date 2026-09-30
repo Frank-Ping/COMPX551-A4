@@ -16,6 +16,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,8 +41,8 @@ import com.example.polarh10activityviewer.storage.SessionSaveController
 import com.example.polarh10activityviewer.storage.SaveState
 import com.example.polarh10activityviewer.storage.SaveStatus
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -65,28 +67,23 @@ internal fun SavePanel(state: SaveState, controller: SessionSaveController) {
 internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: () -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var reload by remember { mutableStateOf(0) }
-    var records by remember { mutableStateOf<List<SessionRecord>>(emptyList()) }
     var detail by remember { mutableStateOf<SessionSnapshot?>(null) }
     var loading by remember { mutableStateOf(true) }
-    var more by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    var pageJob by remember { mutableStateOf<Job?>(null) }
     fun back() { if (selectedId == null) onBack() else selectedId = null }
     BackHandler { back() }
-    LaunchedEffect(selectedId, savedId, reload) {
-        pageJob?.cancelAndJoin()
+    LaunchedEffect(selectedId, reload) {
+        if (selectedId == null) return@LaunchedEffect
         loading = true; error = null; detail = null; confirmDelete = false
         try {
-            val id = selectedId
-            if (id == null) {
-                records = database.page()
-                more = records.size == 20
-            } else detail = database.detail(id)
+            val result = database.detail(selectedId!!)
+            ensureActive()
+            detail = result
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (failure: Exception) { error = failure.message ?: "History query failed." }
-        finally { loading = false }
+        finally { if (isActive) loading = false }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -94,35 +91,16 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
         TextButton(onClick = { back() }, enabled = !confirmDelete) { Text("Back") }
         Text("Stored on this device only. Uninstalling or clearing app data deletes history.")
         Text("An unsaved session may be lost if the process ends before the database commit.")
-        if (loading) Text("Loading…")
-        error?.let {
+        if (selectedId != null && loading) Text("Loading…")
+        error?.takeIf { selectedId != null }?.let {
             Text(it)
             Button(onClick = { reload++ }, enabled = !loading) { Text("Retry query") }
         }
         if (selectedId == null) {
-            if (!loading && error == null && records.isEmpty()) Text("No saved sessions")
-            val date = remember { DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss XXX", Locale.ENGLISH).withZone(ZoneId.systemDefault()) }
-            records.forEach { record ->
-                TextButton(onClick = { selectedId = record.id }, enabled = !loading) {
-                    Text("${date.format(Instant.ofEpochMilli(record.startedAt!!))}\n" +
-                        "${formatZoneDuration(record.durationMs)} · Steps: ${record.summary.totalSteps ?: "--"} · " +
-                        "Estimated distance: ${record.summary.distanceMetres?.let { String.format(Locale.ENGLISH, "%.2f", it) } ?: "--"} m" +
-                        if (record.incomplete) " · Incomplete" else "")
-                }
-            }
-            if (more) Button(onClick = {
-                loading = true; error = null
-                pageJob = scope.launch {
-                    try {
-                        val next = database.page(records.last())
-                        records = records + next; more = next.size == 20
-                    } catch (cancelled: CancellationException) { throw cancelled }
-                    catch (failure: Exception) { error = failure.message ?: "History query failed." }
-                    finally { loading = false }
-                }
-            }, enabled = !loading) { Text("Load more") }
+            // A new committed save or return from detail starts a fresh first page.
+            key(savedId) { HistoryList(database) { selectedId = it } }
         } else if (!loading && error == null && detail == null) Text("Session not found")
-        detail?.let { snapshot ->
+        detail?.takeIf { it.record.id == selectedId }?.let { snapshot ->
             SessionSummaryPanel(snapshot.record)
             val summary = snapshot.record.summary
             HeartRateZonePanel(HeartRateZoneState(summary.zoneDurationsMs, unclassifiedMs = summary.unclassifiedMs,
@@ -161,3 +139,47 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
         dismissButton = { TextButton(enabled = !loading, onClick = { confirmDelete = false }) { Text("Cancel") } }
     )
 }
+
+@Composable
+private fun HistoryList(database: SessionDatabase, onSelect: (String) -> Unit) {
+    var records by remember { mutableStateOf<List<SessionRecord>>(emptyList()) }
+    var cursor by remember { mutableStateOf<SessionRecord?>(null) }
+    var retry by remember { mutableIntStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var more by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var date by remember { mutableStateOf(historyDateFormatter()) }
+    LaunchedEffect(cursor, retry) {
+        loading = true; error = null
+        date = historyDateFormatter()
+        try {
+            val page = database.page(cursor)
+            ensureActive()
+            records = if (cursor == null) page else records + page
+            more = page.size == 20
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { error = "History query failed. Please retry." }
+        finally { if (isActive) loading = false }
+    }
+    if (loading) Text("Loading…")
+    error?.let {
+        Text(it)
+        Button(onClick = { loading = true; retry++ }, enabled = !loading) { Text("Retry query") }
+    }
+    if (!loading && error == null && records.isEmpty()) Text("No saved sessions")
+    records.forEach { record ->
+        TextButton(onClick = { onSelect(record.id) }, enabled = !loading) {
+            Text("${date.format(Instant.ofEpochMilli(record.startedAt!!))}\n" +
+                "${formatZoneDuration(record.durationMs)} · Steps: ${record.summary.totalSteps ?: "--"} · " +
+                "Estimated distance: ${record.summary.distanceMetres?.let { String.format(Locale.ENGLISH, "%.2f", it) } ?: "--"} m" +
+                if (record.incomplete) " · Incomplete" else "")
+        }
+    }
+    if (more && error == null) Button(onClick = {
+        loading = true
+        cursor = records.last()
+    }, enabled = !loading) { Text("Load more") }
+}
+
+private fun historyDateFormatter() = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss XXX", Locale.ENGLISH)
+    .withZone(ZoneId.systemDefault())

@@ -6,7 +6,7 @@
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成，不推进第 7/8 阶段。
+- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成。7.1 现已完善列表分页重试、返回/保存刷新、当前时区与旧查询取消；本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings、1 Hint）和 16 项实际 SQLite/Compose 检查通过，见 5.27.1；7.2 与第 8 阶段未实施。
 
 ## 2. 协作规则
 
@@ -763,9 +763,9 @@
 - 本轮执行 `./gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --offline`，BUILD SUCCESSFUL；148 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。为本轮实际执行结果，不沿用之前迁移的检查记录。两份 AGENTS.md 和两份 prompt.md 同步。
 - 未安装 APK 或操作真机；设备与运行时验收仍待完成。未创建 Git commit 或 push。
 
-### 5.27 第 7 阶段：History 查询交互与验收规则（2026-09-30，已确认，尚未实施）
+### 5.27 第 7 阶段：History 查询交互与验收规则（2026-09-30，7.1 代码已实施，7.2 规则已确认）
 
-- 用户采用全部推荐规则。本次仅定义规则并补充中英文提示词，不修改应用代码、不运行测试或构建；6.2 的既有实现与证据保留，第 7 阶段不得使用旧测试结果代替本步验证。
+- 用户采用全部推荐规则。规则确认时仅定义规则并补充中英文提示词；随后按用户指定实施 7.1，实际结果见 5.27.1，7.2 尚未实施。6.2 的既有实现与证据保留，第 7 阶段不得使用旧测试结果代替本步验证。
 - 范围：7.1 完善历史列表，7.2 完善按 ID 的详情与确认删除；检查并复用 6.2 的 SessionDatabase、HistoryPanel、摘要和基础曲线，只补实际缺口，不重复实现符合规则的功能。每次只实施用户指定的一个编号；正式布局、卡片和临时开发显示清理留第 8 阶段。
 - 返回与旋转：从详情返回列表、旋转或重新进入 History 时，重新查询前 20 条，不要求恢复已加载页数或滚动位置。旋转保留所选会话 ID，按 ID 重新读取详情。测试视图切换及旋转不停止运行中的采集；真正离开前台仍遵守 5.18。
 - 保存后刷新：当前显示列表时，新的保存成功后重新加载前 20 条；当前显示详情时，继续显示所选会话，返回列表后再刷新。保存失败不得作为新记录出现在列表中。
@@ -777,6 +777,23 @@
 - 7.1 验收：本步重新验证空列表、超过 20 条、同时间排序、满页边界、Load more 及分页失败原页重试、成功保存后的列表刷新、返回/旋转/重新进入后的前 20 条、旧查询过滤；使用实际 SQLite 验证关闭重开后的读取及分页。检查运行中切换 History/旋转的采集行为，未执行的设备项标 pending。
 - 7.2 验收：本步重新验证不同 ID 的摘要与两类历史、null/零/断段、零时长占比、无有效 HR、所选 ID 的旋转恢复、新保存不切换详情、记录不存在及查询重试；验证删除日期确认、取消、成功只删所选 ID、事务失败回滚及重试。实际 SQLite/Compose 检查与 H10 真机检查分开记录，不用测试数据宣称真机采集全链路通过。
 - 交付：各步修改后运行相关测试、debug 构建和 lint；中英文记录实际修改、自动检查及设备行为，未执行项为 pending。同步两份 AGENTS.md 和两份 prompt.md，提供对应英文 commit message，不自动 commit/push。
+
+#### 5.27.1 步骤 7.1 实施与验证 / Step 7.1 implementation and verification（2026-09-30）
+
+- 前置与文件修改：检查 6.2 的实际 SQLite、保存状态和 History 接线，前置齐全。只修改 history/HistoryPanel.kt，新增 androidTest/storage/HistoryListTest.kt（8 项）；SessionDatabase、SensorActivity、采集持有者、算法、依赖及删除事务不变。
+  Prerequisites/files modified: Verified the current 6.2 SQLite, save-state and History wiring. Updated only history/HistoryPanel.kt and added eight tests in androidTest/storage/HistoryListTest.kt. Reused SessionDatabase, SensorActivity, the acquisition owner, algorithms, dependencies and deletion transaction.
+- 列表实现：在原 HistoryPanel 内提取私有 HistoryList，列表保存当前请求游标和已加载记录，Load more 每次最多 20 条；SQL 沿用 startedAt/ID 倒序游标，不查询总数、不自动滑底加载、不限制保存总数或清理旧记录。满页保留按钮，不足 20 条或空末页后隐藏。首次查询失败显示英文提示/Retry query；分页失败保留列表和原游标，Retry 重试该页，期间阻止重复操作。
+  List implementation: A private HistoryList inside the existing file owns loaded records and the requested cursor. Manual Load more requests up to 20 rows using the unchanged descending start-time/ID SQL cursor. No total-count query, automatic scroll loading, storage-count cap or cleanup. A full page retains the button; a short or empty final page hides it. Initial failures show an English error/Retry query; pagination failures preserve rows and retry the same cursor, with duplicate operations blocked while loading.
+- 刷新与取消：列表返回、重新进入或状态重建后加载前 20 条；成功保存信号重建列表查询，但不再触发所选详情重载。列表查询由自身 LaunchedEffect 管理，离开或刷新取消旧查询；接受结果前检查取消状态，旧查询及旧详情不覆盖当前显示。每次查询重新读取手机当前时区，日期格式 yyyy-MM-dd HH:mm:ss XXX；沿用 null/零、单位与小数显示。未增加时区监听、框架或第 8 阶段布局。
+  Refresh/cancellation: Return, re-entry and state reconstruction load the first 20 rows. A committed-save signal refreshes the list without reloading selected detail. List queries belong to their own LaunchedEffect and are cancelled on disposal/refresh; cancellation is checked before accepting results, and obsolete detail is not rendered for another selection. Each query rereads the viewing timezone and uses yyyy-MM-dd HH:mm:ss XXX with existing null/zero, units and rounding. No timezone listener, framework or stage 8 layout.
+- 自动检查已通过：本轮重新执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline，最终 BUILD SUCCESSFUL；204 项单元测试、0 failures/errors/skipped；debug 与测试 APK 构建通过；lint 0 errors、18 warnings、1 Hint。首次沙箱下载/缓存权限失败后使用现有缓存执行；修正测试误导入与两个导航测试的滚动操作后重新检查，失败尝试不计为通过。日志 build/step71-validation/gradle.txt。
+  Automated checks passed: Fresh executions of :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline ended BUILD SUCCESSFUL. All 204 unit tests passed with zero failures/errors/skips; debug and test APK builds passed; lint reported 0 errors, 18 warnings and 1 Hint. Initial sandbox download/cache-access failures were resolved using the existing cache. A test import and two navigation test scroll actions were corrected before rerunning; failed attempts are not counted as passes. Log: build/step71-validation/gradle.txt.
+- 实际模拟器检查已通过：仅在项目专用 emulator-5582（API 37）安装本轮 APK，运行新增 HistoryListTest 8 项及既有 SessionDatabaseTest 6 项、HistoryPanelTest 2 项，最终 OK (16 tests)。真实 SQLite/Compose 覆盖空列表、45 条及同时间倒序、关闭重开、40 条满页/空末页、真实表重命名故障后的首次和分页重试、分页保留/无重复、时区变化、null/零、不完整提示、新保存列表刷新/详情不重载、返回/重新进入/Compose 保存状态重建、SQLite 事务阻塞期间重复拒绝与迟到查询取消；同时重跑字段、事务回滚、去重和删除回归。测试仅使用随机命名的专用数据库，结束后删除；没有写入生产 History。最终日志 build/step71-validation/instrumentation.txt，初轮导航测试失败日志另存 instrumentation-first-attempt.txt（均为忽略的本地产物）。
+  Actual emulator checks passed: Installed the current APKs only on dedicated emulator-5582 (API 37). Eight new HistoryListTest, six existing SessionDatabaseTest and two existing HistoryPanelTest cases passed: OK (16 tests). Actual SQLite/Compose covered empty lists, 45 tied-time descending rows, close/reopen, 40-row/full-page/empty-end behavior, real table-rename failures and initial/failed-page retry, preserved rows/no duplicates, timezone changes, null/zero/incompleteness, save-driven list refresh without detail reload, return/re-entry/Compose saved-state reconstruction, and duplicate blocking/late-query cancellation during an actual SQLite transaction lock. Field/transaction/deduplication/deletion regression checks were rerun. Random dedicated databases were removed afterward; fixtures never entered production History. Final log: build/step71-validation/instrumentation.txt; initial navigation-test failures: instrumentation-first-attempt.txt (ignored local artifacts).
+- 真机行为 pending：本轮未在 Samsung/H10 上安装或操作版本。待验证运行中 Session/History 切换及真实 Activity 旋转仍保留采集、真正后台/锁屏结束、真实保存后列表刷新、App 重启查询和真实时区切换后的显示。Compose 保存状态重建仅是受控检查，不等于真实手机旋转或 H10 全链路；大量记录的现场滚动性能仍待验证。
+  Hardware behavior pending: No installation or operation on Samsung/H10 this turn. Verify active Session/History switching and actual Activity rotation retain acquisition, true background/lock ends it, actual saves refresh the list, app restart reads history, and real timezone changes display correctly. Compose saved-state reconstruction is controlled evidence, not physical-phone rotation or H10 end-to-end validation. Large-list scrolling performance remains pending.
+- 范围与交付：仅完成 7.1 列表交互及必需查询隔离；7.2 的详情/删除改进与第 8 阶段仍待用户指定。两份 AGENTS.md 与两份 prompt.md 同步中英文实际结果；没有自动 commit/push。
+  Scope/delivery: Completed only 7.1 list interactions and necessary query isolation. Step 7.2 detail/delete improvements and stage 8 await a separate user request. Both AGENTS.md and prompt.md pairs contain synchronized bilingual results. No automatic commit/push.
 
 ## 6. 功能开发步骤
 
@@ -816,7 +833,7 @@
 | 6.1c | 整场心率历史及自身生命周期，见 5.23.3、5.23.9（代码及自动检查完成，真机待验证） | 每秒真实末点，断段保留，Retry 不删旧段，四小时/14,401 点有界 |
 | 6.1d | 整场步频/速度历史及完整会话快照，见 5.23.3、5.23.10（代码及自动检查完成，真机待验证） | 每秒已有末结果，缺失不填零，Stop 冻结两类历史与摘要，新场不修改旧快照 |
 | 6.2 | SQLite 事务保存、四小时上限、失败重试及最简单 History 入口（代码已实施，实际验收见 5.23.11） | 重启保留、去重、失败回滚、简单查询/曲线/删除可验收，无正式布局 |
-| 7.1 | 完善历史列表，复用 6.2；倒序游标分页每次 20 条、手动 Load more、原页失败重试及刷新，见 5.27（规则已确认，尚未实施） | 空/多记录、同时间排序、分页边界、返回/旋转刷新及 SQLite 重开正确 |
+| 7.1 | 完善历史列表，复用 6.2；倒序游标分页每次 20 条、手动 Load more、原页失败重试及刷新，见 5.27.1（代码及自动检查完成，真机 pending） | 204 项单元测试、构建/lint 及 16 项实际 SQLite/Compose 检查通过；真实采集切换/旋转待验证 |
 | 7.2 | 完善按 ID 详情及日期确认删除，复用 6.2，见 5.27（规则已确认，尚未实施） | 详情与 ID 一致、旋转保留选择、null/断段、不存在/失败重试及单场事务删除正确 |
 | 8.1 | 整合区域 1、2：连接与心率强度 | 状态变化自动反映到界面 |
 | 8.2 | 整合区域 3—6：指标与区间 | 数值、单位、占位状态正确 |
@@ -864,6 +881,8 @@
 5. 状态：本步完成程度及剩余问题。
 
 ## 9. 进度与证据
+
+- 2026-09-30 7.1 实施：复用 SQLite，完善列表分页原页重试、返回/保存刷新、时区显示及查询取消；只修改 HistoryPanel.kt，新增 8 项 HistoryListTest。本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings、1 Hint）通过；专用模拟器 16 项实际 SQLite/Compose 检查通过，见 5.27.1。Samsung/H10 行为 pending；7.2/第 8 阶段未实施，两对文档同步，无 commit/push。
 
 - 2026-09-30 第 7 阶段规则确认：用户采用 5.27 的全部推荐方案；同步两份 AGENTS.md，并在两份 prompt.md 补充 7.1/7.2 中英文提示词。仅修改文档，未实施 7.1/7.2、未运行测试/构建、未操作设备、未 commit/push；20 条为分页数量，保存无数量上限且不自动清理。
 
@@ -939,7 +958,7 @@
 - 待验证：权限拒绝与设置返回；扫描筛选、去重及停止规则；真实连接、10 秒超时、重试与生命周期；设备保存、时间更新及重启保留；主动与意外断线；断开异常重试、防重复点击及回调清理。读写错误和迟到回调仍待故障注入验证。
 - 3.1 待验证与待确认：真实设备功能就绪、实际采样设置、重复请求与旋转、失败重试、断开清理和迟到结果隔离均待运行时验证，步骤见 5.12；实际 ECG 与其他多选参数尚未读取，因此没有新增参数决定。构建和配置单元测试不等于上述真机验证已通过。
 - 审查跟进：断开请求抛错后无法重试已修复；“扫描 RSSI 不会刷新”的结论已撤回；系统时间回拨影响最近连接时间更新的问题尚未修复，见 5.11。
-- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，当前验证及真机边界见 5.23.11。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已实现仅 Start/Stop、首个数据开始计时及中断结束，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
+- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，6.2 验证及真机边界见 5.23.11；7.1 列表已完善，见 5.27.1，7.2 尚未实施。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已实现仅 Start/Stop、首个数据开始计时及中断结束，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
 - 截图/录屏位置：【待填写】。
 - 5.1 实施跟进：用户要求执行已保存的中英文提示词；5.19 所列代码及自动验证已完成，真机待验证。其他第 5 阶段核心规则见 5.1—5.7、5.20—5.22，均已明确但尚未实施，不再以旧规划记录称统计口径未定。
 - 5.2 规划确认：用户采用此前技术建议，明确完整 5 点平滑后再积累 100 个 s 预热、前 100 点阈值、同一 H 上穿判断、周期 H/L 固定，以及 250 ms 步频刷新、两秒无步归零和显示用单调时间估计；规则直接更新于 5.1—5.4、5.7 及开发步骤表。2026-09-29 按用户要求检索其他计步方案，在 5.6 补充 A_min = 0.5 m/s² 的试验预设、来源差异和每次 0.1 m/s² 的手动调整方案；实测校准尚未执行。本次仅同步两份 AGENTS.md，未修改 Kotlin 或 prompt.md，未运行测试/构建或真机验收；5.2 尚未实施。
