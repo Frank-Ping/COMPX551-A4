@@ -11,12 +11,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-internal fun SessionSummaryPanel(record: SessionRecord?) {
+internal fun SessionSummaryPanel(record: SessionRecord?, dateFormat: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS XXX", Locale.ENGLISH).withZone(ZoneId.systemDefault())) {
     Text("Session record (development check)", style = MaterialTheme.typography.titleMedium)
     Text("Session ID: ${record?.id ?: "--"}")
     if (record == null) return
-    val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS XXX", Locale.ENGLISH)
-        .withZone(ZoneId.systemDefault())
     fun date(value: Long?) = value?.let { dateFormat.format(Instant.ofEpochMilli(it)) } ?: "--"
     fun number(value: Double?) = value?.let { String.format(Locale.ENGLISH, "%.2f", it) } ?: "--"
     fun speed(value: Double?) = "${number(value?.times(3.6))} km/h"

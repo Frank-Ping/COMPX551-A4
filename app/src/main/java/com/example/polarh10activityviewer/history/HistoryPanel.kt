@@ -66,23 +66,29 @@ internal fun SavePanel(state: SaveState, controller: SessionSaveController) {
 @Composable
 internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: () -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
-    var reload by remember { mutableStateOf(0) }
+    var reload by remember { mutableIntStateOf(0) }
     var detail by remember { mutableStateOf<SessionSnapshot?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
+    var date by remember { mutableStateOf(historyDateFormatter()) }
     var confirmDelete by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    fun back() { if (selectedId == null) onBack() else selectedId = null }
+    fun back() {
+        if (confirmDelete) return
+        if (selectedId == null) onBack() else selectedId = null
+    }
     BackHandler { back() }
     LaunchedEffect(selectedId, reload) {
         if (selectedId == null) return@LaunchedEffect
-        loading = true; error = null; detail = null; confirmDelete = false
+        loading = true; error = null; deleteError = null; detail = null; confirmDelete = false
+        date = historyDateFormatter()
         try {
             val result = database.detail(selectedId!!)
             ensureActive()
             detail = result
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: Exception) { error = failure.message ?: "History query failed." }
+        catch (_: Exception) { error = "History query failed. Please retry." }
         finally { if (isActive) loading = false }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -94,14 +100,14 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
         if (selectedId != null && loading) Text("Loading…")
         error?.takeIf { selectedId != null }?.let {
             Text(it)
-            Button(onClick = { reload++ }, enabled = !loading) { Text("Retry query") }
+            Button(onClick = { loading = true; reload++ }, enabled = !loading) { Text("Retry query") }
         }
         if (selectedId == null) {
             // A new committed save or return from detail starts a fresh first page.
             key(savedId) { HistoryList(database) { selectedId = it } }
         } else if (!loading && error == null && detail == null) Text("Session not found")
         detail?.takeIf { it.record.id == selectedId }?.let { snapshot ->
-            SessionSummaryPanel(snapshot.record)
+            SessionSummaryPanel(snapshot.record, date)
             val summary = snapshot.record.summary
             HeartRateZonePanel(HeartRateZoneState(summary.zoneDurationsMs, unclassifiedMs = summary.unclassifiedMs,
                 receivedValidHr = summary.receivedValidHr), stopped = true)
@@ -117,23 +123,26 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
             Text("Cadence (steps/min)")
             ChartPlot(ChartSnapshot(motion, snapshot.record.durationMs.toDouble(), snapshot.record.durationMs.toDouble(), SubscriptionStatus.STOPPED))
             Text("Elapsed since Running (mm:ss). Gaps are not interpolated.")
-            Button(onClick = { confirmDelete = true }, enabled = !loading) { Text("Delete session") }
+            deleteError?.let { Text(it) }
+            Button(onClick = { date = historyDateFormatter(); confirmDelete = true }, enabled = !loading) { Text("Delete session") }
         }
     }
     if (confirmDelete) AlertDialog(
         onDismissRequest = { if (!loading) confirmDelete = false },
         title = { Text("Delete this session?") },
-        text = { Text("Its summary and both history series will be permanently deleted.") },
+        text = { Text("Running started: ${date.format(Instant.ofEpochMilli(detail!!.record.startedAt!!))}\n" +
+            "Its summary and both history series will be permanently deleted.") },
         confirmButton = { TextButton(enabled = !loading, onClick = {
             val id = selectedId!!
-            loading = true
+            loading = true; deleteError = null
             scope.launch {
                 try {
                     database.delete(id)
+                    ensureActive()
                     confirmDelete = false; selectedId = null; reload++
                 } catch (cancelled: CancellationException) { throw cancelled }
-                catch (failure: Exception) { confirmDelete = false; error = failure.message ?: "Delete failed." }
-                finally { loading = false }
+                catch (_: Exception) { confirmDelete = false; deleteError = "Delete failed. Please retry Delete session." }
+                finally { if (isActive) loading = false }
             }
         }) { Text("Delete") } },
         dismissButton = { TextButton(enabled = !loading, onClick = { confirmDelete = false }) { Text("Cancel") } }
