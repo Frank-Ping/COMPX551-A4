@@ -68,6 +68,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
+import com.example.polarh10activityviewer.ui.theme.PagePadding
+import com.example.polarh10activityviewer.ui.theme.SectionSpacing
+import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.polar.sdk.api.model.EcgSample
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
@@ -387,10 +390,10 @@ internal fun SessionScreen(
     charts: @Composable () -> Unit = {}
 ) {
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePadding),
+        verticalArrangement = Arrangement.spacedBy(SectionSpacing)
     ) {
-        Text("Session", style = MaterialTheme.typography.headlineLarge)
+        Text("Session", style = MaterialTheme.typography.titleLarge)
         Text(availability.message, style = MaterialTheme.typography.bodyLarge)
         Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
         connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
@@ -407,7 +410,7 @@ internal fun SessionScreen(
         Text("Timing begins with the first valid HR or actual ACC/ECG sample.")
         Text("Session limit: four hours. The session ends and eligible data is saved automatically.")
         session.endReason?.let { Text(if (it == "TIME_LIMIT") "Session time limit reached." else it) }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
             Button(onClick = onStartSession, enabled = connected && !savingBlocksStart &&
                 session.status in setOf(SessionStatus.IDLE, SessionStatus.STOPPED) &&
                 subscriptions.none(::busy) && dataReadiness.values.any {
@@ -532,7 +535,7 @@ internal fun SessionScreen(
         }
         savedDevicesState.devices.forEach { device ->
             OutlinedCard(onClick = { onConnect(device.deviceId) }, enabled = canConnect) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(modifier = Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(device.name, style = MaterialTheme.typography.titleSmall)
                     Text("Device ID: ${device.deviceId}")
                     val lastConnected = DateFormat.getDateTimeInstance(
@@ -545,7 +548,7 @@ internal fun SessionScreen(
         }
         Text("Nearby Polar H10 devices", style = MaterialTheme.typography.titleMedium)
         val scanning = scanState.status == ScanStatus.SCANNING
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
             Button(
                 onClick = onStartScan,
                 enabled = canConnect && !scanning
@@ -564,7 +567,7 @@ internal fun SessionScreen(
         }
         scanState.devices.forEach { device ->
             OutlinedCard(onClick = { onConnect(device.deviceId) }, enabled = canConnect) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(modifier = Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(device.name, style = MaterialTheme.typography.titleSmall)
                     Text("Device ID: ${device.deviceId}")
                     Text("Signal strength: ${device.rssi} dBm")

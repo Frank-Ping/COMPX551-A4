@@ -24,7 +24,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.example.polarh10activityviewer.ui.theme.PagePadding
+import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.chart.ChartPlot
 import com.example.polarh10activityviewer.chart.ChartPoint
@@ -91,8 +92,8 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
         catch (_: Exception) { error = "History query failed. Please retry." }
         finally { if (isActive) loading = false }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePadding),
+        verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
         Text("History (development check)", style = MaterialTheme.typography.titleLarge)
         TextButton(onClick = { back() }, enabled = !confirmDelete) { Text("Back") }
         Text("Stored on this device only. Uninstalling or clearing app data deletes history.")

@@ -6,7 +6,9 @@
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成。7.1 现已完善列表分页重试、返回/保存刷新、当前时区与旧查询取消；本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings、1 Hint）和 16 项实际 SQLite/Compose 检查通过，见 5.27.1；7.2 已完善统一日期、确认删除与失败恢复；2026-10-01 本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings）与 25 项实际 SQLite/Compose 检查通过，见 5.27.2。Samsung/H10 真机 pending；第 8 阶段未实施。
+- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成。7.1 现已完善列表分页重试、返回/保存刷新、当前时区与旧查询取消；本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings、1 Hint）和 16 项实际 SQLite/Compose 检查通过，见 5.27.1；7.2 已完善统一日期、确认删除与失败恢复；2026-10-01 本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings）与 25 项实际 SQLite/Compose 检查通过，见 5.27.2。Samsung/H10 真机 pending；8.0 共用主题与基础尺寸已实施（见 5.28.1），8.1—8.5 尚未实施。
+
+- 第 8 阶段进度（2026-10-01）：步骤 8.0 固定深浅主题、基础字号、已使用尺寸和共用心率区间配色已实施；204 项单元测试、debug/测试 APK 构建、lint（0 errors、17 warnings）及 25 项实际 SQLite/Compose 回归检查通过；12 张模拟器截图检查三页面的深浅模式和 1.0/2.0 字号，范围及未验证项见 5.28.1。8.1—8.5 正式布局尚未实施，Samsung/H10 验证 pending。
 
 ## 2. 协作规则
 
@@ -92,7 +94,7 @@
 | 测试设备 | Samsung Galaxy A26，型号 `SM-A266B`；Android 16 / API 36；2026-09-26 已通过 ADB 读取确认，USB 调试已授权 |
 | SDK、权限与可用状态 | 步骤 1.1 已实施，权限与异常场景验收待完成，见 5.8 |
 | 扫描与去重 | 步骤 1.2 已确认规则见 5.9；30 秒自动停止，停止后保留本轮结果，下次扫描前清空 |
-| 颜色、字体、布局尺寸 | 【待填写】 |
+| 颜色、字体、布局尺寸 | 步骤 8.0 已接入固定蓝色主主题、系统深浅模式、基础字号及已使用尺寸；心率区间低到高为绿/蓝/黄/橙/红，完整基线见 5.28，实施/验证见 5.28.1；正式指标字号和图表尺寸留对应步骤 |
 | 已保存设备的定义 | App 曾真实连接成功并保存的设备；保存名称、唯一标识和最近连接时间，重启后保留；不表示系统已配对或当前在线，见 5.11 |
 | 连接与状态 | 点击 H10 后停止扫描并连接；一次一台，防止重复请求；超时 10 秒；状态由真实回调确认，暂不实现切换设备，见 5.10 |
 | 断线与重连行为 | 主动断开由回调确认，保留设备记录；意外断线提示后由用户手动重连；再次连接使用 10 秒超时，见 5.11 |
@@ -498,11 +500,13 @@
 
 | 区间 | 有效 HR 范围（bpm） | 英文心率强度标签 | 柱形与标签颜色 |
 |---|---|---|---|
-| Zone 1 | HR < 110 | Very light | 蓝色 |
-| Zone 2 | 110 ≤ HR < 125 | Light | 绿色 |
+| Zone 1 | HR < 110 | Very light | 绿色 |
+| Zone 2 | 110 ≤ HR < 125 | Light | 蓝色 |
 | Zone 3 | 125 ≤ HR < 140 | Moderate | 黄色 |
 | Zone 4 | 140 ≤ HR < 155 | High | 橙色 |
 | Zone 5 | HR ≥ 155 | Very high | 红色 |
+
+- 配色更新（2026-10-01）：用户确认低到高为绿、蓝、黄、橙、红，具体颜色见 5.28。此前实施记录中的蓝/绿顺序是历史版本；8.0 已将源码改为现行配色，当前标识及 Session/History 五柱共用同一定义，实际检查边界见 5.28.1。HR 阈值、标签、计时和统计规则不变。
 
 - 当前标签：仅用最新批次的最后一个样本及其有效性确定后续区间，例如 `Heart rate intensity: Moderate · Zone 3`。不增加平滑、延迟切换或滞回；在边界附近允许随新 HR 切换。无有效 HR、HR 不可用或结束时显示 `Heart rate intensity: --`，同时保留已有接触不良/错误/停止提示。颜色与柱形一致，同时保留标签和区间文字，不只靠颜色传意。
 - 时间口径：采用最近有效读数保持法，统计当前 Session 的 Running 时段。每个非空 HR 批次额外记录一次 `SystemClock.elapsedRealtime()` 作为本批接收的单调时间，用于时长差；4.1 的 receivedAt 仍是手机日期时间，不改变其含义，不以它或 RR 推导区间时长，不伪造 HR 传感器时间。有效批末样本从该批接收时刻开始占用其区间，下一状态事件先结算旧区间再更新状态。例如单调时间第 10 秒收到 120、第 13 秒收到 130，则这 3 秒计入 Zone 2，之后计入 Zone 3。
@@ -746,7 +750,7 @@
 | session/ | SessionState.kt、SensorViewModel.kt、SessionRecord.kt、SessionSummaryPanel.kt | 4.4 会话与持有者；6.1a 身份、摘要、两类历史点结构及英文测试文本；6.1d 增加组合快照及摘要冻结回调 |
 | history/ | HrHistory.kt、MotionHistory.kt、HistoryPanel.kt | 6.1c—6.1d 整场 HR/运动收集；6.2 SQLite 列表/详情/确认删除与保存状态文本 |
 | storage/ | SessionDatabase.kt、SessionSaveController.kt、SessionStorage.kt | 6.2 SQLite 三表事务与查询、保存状态机、应用级持有者 |
-| ui/theme/ | Color.kt、Theme.kt、Type.kt | 原主题，保持原位 |
+| ui/theme/ | Color.kt、Theme.kt、Type.kt、Dimensions.kt | 共用主题、区间颜色、基础字号与已使用尺寸；8.0 实施结果见 5.28.1 |
 
 - `app/src/test/java/com/example/polarh10activityviewer/` 下 17 个功能测试文件同步分包；HeartRateTest 位于 heartrate/，其被测心率类仍在 ble/PolarBleManager.kt 内，通过 import 引用。ExampleUnitTest 和 androidTest 的 ExampleInstrumentedTest 保持原位。
 - 本轮仅移动 17 个源码和 17 个测试文件并调整 package/import；未重命名 CadenceWindow、拆分类或改算法。检查全部 41 个 Kotlin 文件，忽略 package/import 和空行后与迁移前 HEAD 内容一致。Activity、Manifest、资源、依赖和主题保持原位。空目录不被 Git 跟踪，不添加占位文件。
@@ -812,6 +816,66 @@
 - 范围与交付：仅完成 7.2，未推进第 8 阶段布局或临时展示清理，没有筛选/导出/批量删除/自动清理、框架、后台采集或无关重构。两份 AGENTS.md 与两份 prompt.md 同步中英文实际修改和证据；未 commit/push。
   Scope/delivery: Completed only 7.2. No stage 8 layout/development-display cleanup, filtering, export, bulk deletion, automatic cleanup, frameworks, background acquisition or unrelated refactoring. Both AGENTS.md and prompt.md pairs contain synchronized bilingual changes/evidence. No commit/push.
 
+### 5.28 步骤 8.0：共用主题与第一版尺寸 / Step 8.0: Shared theme and initial sizing
+
+- 确认日期：2026-10-01。用户采用推荐主题与尺寸，并明确心率区间从低到高为绿、蓝、黄、橙、红。规则确认时只更新文档；随后按用户指定实施 8.0，实际结果见 5.28.1。8.1—8.5 的交互与布局建议未因本次选择自动成为已确认规则。
+- 顺序与范围：8.0 在 8.1 前完成共用样式定义及基础接入。沿用 Kotlin、Compose、Material 3 和现有主题文件，不增加依赖或通用样式框架。只接入固定深浅配色、基础字体、必要的共用尺寸及现有心率区间配色；正式区域、卡片、导航和临时展示清理按 8.1—8.5 各自实施。无需为尚未使用的每个尺寸提前建立抽象。
+- 主题：关闭动态配色，按系统深浅模式选择固定色板，欢迎页、Session、History 使用同一主题。沿用现有默认字体家族；文字使用 sp，布局使用 dp，字体随系统字号缩放。主色按钮文字及表面文字须有可读对比度。
+
+| 主题元素 | 浅色模式 | 深色模式 |
+|---|---|---|
+| 主色 / Primary | `#2563EB` | `#60A5FA` |
+| 页面背景 / Background | `#F8FAFC` | `#0F172A` |
+| 卡片背景 / Surface | `#FFFFFF` | `#1E293B` |
+| 主要文字 / Primary text | `#0F172A` | `#F1F5F9` |
+| 次要文字 / Secondary text | `#475569` | `#CBD5E1` |
+
+| 心率区间 | 标签 | 固定颜色 |
+|---|---|---|
+| Zone 1 | Very light | 绿 `#22C55E` |
+| Zone 2 | Light | 蓝 `#3B82F6` |
+| Zone 3 | Moderate | 黄 `#EAB308` |
+| Zone 4 | High | 橙 `#F97316` |
+| Zone 5 | Very high | 红 `#EF4444` |
+
+- 心率配色用于当前强度标识和 Session/History 的五区间柱形，颜色顺序共用同一处定义。保留英文强度、Zone 和 bpm 范围，不只靠颜色传意；普通文字使用主题文字色，区间颜色可作为色块或标记，避免黄色小字在浅色背景上难以阅读。不能因改配色修改阈值、统计、单位或采集行为。
+
+| 尺寸项 | 第一版值 | 接入位置 |
+|---|---|---|
+| 页面边距、卡片内边距 | `16 dp` | 正式页面逐区接入 |
+| 区域间距、卡片圆角 | `16 dp` | 正式布局逐区接入 |
+| 卡片内部间距 | 紧凑 `8 dp`，常规 `12 dp` | 正式布局按内容使用 |
+| 当前 HR 数值 | `56 sp` | 8.2 主指标 |
+| 步频、速度等主要数值 | `28 sp` | 8.2 指标 |
+| 页面标题、区域标题 | `24 sp`、`18 sp` | 8.0 基础字体，后续正式区域复用 |
+| 正文、次要统计 | `16 sp`、`14 sp` | 8.0 基础字体，后续正式区域复用 |
+| 普通图标 | `24 dp` | 后续正式布局 |
+| 按钮和可点击区域 | 最小高度/触控范围 `48 dp` | 保留 Material 默认触控范围，后续正式控件落实 |
+| 实时曲线绘图区 | 高度 `220 dp` | 8.3，不包含轴标签与切换按钮 |
+| 心率区间柱形绘图区 | 高度 `160 dp` | 8.2，不包含图题、标签与说明 |
+
+- 排版原则：内容允许纵向滚动，横屏沿用相同内容顺序，不增加另一套复杂布局；字号增大时允许文字换行与区域增高，避免截断数值、单位或按钮。上述尺寸是第一版基线，若实际显示需调整，记录原因和最终值，不改算法。控制区是否固定、返回键顺序、弹窗排列及 History 正式分组仍待对应步骤确认。
+- 清理边界：8.0 不提前删除开发验收显示；8.1—8.5 在正式区域替代后按第 6 节清理。无数据占位符 `--`、真实零、必要状态、错误、Retry/Recheck 与保存恢复入口继续按已有规则保留。
+- 8.0 实施验收：检查欢迎页、Session、History 的固定深浅主题及现有五区间颜色顺序、普通文字/按钮对比度、基础字号与字体放大后的可读性；运行相关检查、debug 构建及 lint。正式布局及绘图区高度的完整显示验收留对应步骤；未执行的设备/视觉项目标 pending。同步两份 AGENTS.md 和两份 prompt.md 的实际结果，不沿用旧构建或 H10 证据证明本步通过。
+- 当前交付 / Current delivery：步骤 8.0 源码及本轮自动/模拟器检查已完成，两份 AGENTS.md 和两份 prompt.md 同步中英文实际结果；8.1—8.5 formal layouts and Samsung/H10 validation remain pending. 未 commit/push，具体检查边界见 5.28.1。
+
+#### 5.28.1 步骤 8.0 实施与验证 / Step 8.0 implementation and verification（2026-10-01）
+
+- 文件与主题：修改 ui/theme/Color.kt、Theme.kt、Type.kt，新增 Dimensions.kt；接入 MainActivity.kt、SensorActivity.kt、history/HistoryPanel.kt、heartrate/HeartRateZonePanel.kt。删除旧紫色变量及动态配色路径，移除无用途的 dynamicColor 参数；按系统深浅模式选择固定蓝/石板色主题，设置 primary/onPrimary、background/onBackground、surface/onSurface、次要文字及实际 Material 容器颜色，避免默认紫色容器残留。三页面复用同一主题。
+  Files/theme: Updated Color.kt, Theme.kt and Type.kt; added Dimensions.kt and applied them in MainActivity.kt, SensorActivity.kt, HistoryPanel.kt and HeartRateZonePanel.kt. Removed old purple colors, dynamic-color code and the unused dynamicColor parameter. System light/dark mode selects the fixed blue/slate palette, including readable button/text foregrounds and Material container colors. All three screens reuse the same theme.
+- 字号与尺寸：titleLarge/titleMedium/bodyLarge/bodyMedium/bodySmall 分别采用 24/18/16/16/14 sp，沿用默认字体和可增长行高；欢迎页及 Session 标题采用 titleLarge。共用 PagePadding/SectionSpacing/ContentSpacing/ControlSpacing 为 16/16/8/12 dp，仅复用现有页面、卡片与按钮行中实际使用的间距；Material 默认触控范围保留。HR 56 sp、运动 28 sp、正式圆角/图标和 220/160 dp 绘图区仍留对应正式布局步骤，不建立未使用常量。
+  Typography/dimensions: titleLarge/titleMedium/bodyLarge/bodyMedium/bodySmall use 24/18/16/16/14 sp with the default font and scalable line heights; Welcome and Session use titleLarge. Only currently used 16/16/8/12 dp padding/spacing values are shared. Material touch targets remain unchanged. Formal HR/motion sizes, corners/icons and 220/160 dp plotting heights remain assigned to their later layout steps without unused constants.
+- 区间配色：Color.kt 的 HeartRateZoneColors 唯一列表为绿/蓝/黄/橙/红，当前有效强度旁的 12 dp 色块和 Session/History 的五柱复用它。强度文字使用 onSurface 并允许换行，保留英文强度、Zone、bpm 范围和 mm:ss，不使用黄色小字表示强度；无有效 HR 时无色块，继续显示 --。没有改变阈值、统计、采集、会话、保存或查询逻辑。
+  Zones: One HeartRateZoneColors list supplies green/blue/yellow/orange/red to the current intensity marker and Session/History bars. The 12 dp marker appears only for a current valid zone. Intensity text uses onSurface and wraps; English labels, Zone names, bpm ranges, mm:ss and unknown values are preserved. No thresholds, statistics, acquisition, session, saving or query logic changed.
+- 本轮自动检查：沙箱首次因 Gradle 缓存锁文件访问被拒绝而未开始构建；获准访问现有缓存后，执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline --console=plain，BUILD SUCCESSFUL（81 tasks：24 executed、57 up-to-date）；204 项单元测试，0 failures/errors/skipped；debug/测试 APK 构建通过；lint 0 errors、17 warnings。日志 build/step80-validation/gradle.txt，失败尝试保留为 gradle-sandbox-attempt.txt，不计为通过。代码文字/按钮颜色的 sRGB 对比度计算为 5.17:1—17.06:1，见 contrast.md；这是数值检查，不是 H10/视觉证据。
+  Automated checks: The first sandbox attempt failed before building due to denied access to the existing Gradle lock file. After approved cache access, the four requested Gradle tasks succeeded: 81 tasks, 24 executed/57 up-to-date; 204 unit tests with zero failures/errors/skips; debug/test APK builds passed; lint 0 errors and 17 warnings. Fresh log: build/step80-validation/gradle.txt; the failed attempt is retained separately. Calculated text/button contrast is 5.17:1–17.06:1 in contrast.md, separate from visual or hardware evidence.
+- 实际模拟器检查：仅启动项目 build 目录既有独立 Step62 AVD（emulator-5582、API 37），安装本轮 APK，重跑 HistoryDetailTest 9、HistoryListTest 8、HistoryPanelTest 2、SessionDatabaseTest 6，OK (25 tests)。沿用随机专用数据库与原测试清理，不向生产 History 写演示记录。日志 build/step80-validation/instrumentation.txt；这些既有检查验证 History/SQLite 回归，不将其默认测试主题当作实际 App 新主题的验证。
+  Emulator regression: Installed the current APKs only on the isolated project Step62 AVD (emulator-5582, API 37). All 25 existing History/SQLite tests passed, using their dedicated random databases and cleanup. No fixture records were added to production History. Log: build/step80-validation/instrumentation.txt. These tests verify regression behavior; their default test theme is not evidence of the App's new theme.
+- 实际视觉检查：通过真实 App 导航检查 Welcome、未连接/Idle Session 和空 History；浅/深各按系统 font_scale 1.0、2.0 拍摄并查看共 12 张 1080×2400 截图及对应 UI XML，确认页面背景/文字/按钮配色、标题/正文换行与导航可用。深色欢迎页另等待系统栏动画稳定后复核 dark-welcome-settled.png。截图、脚本及日志在 build/step80-validation；检查后恢复模拟器原字号 1.0 和夜间模式 no。未连接 H10，没有运行采集或向 History 填充演示记录；此项只覆盖截图可见区域，不能声称所有下方开发控件、横屏、真实曲线或已保存详情均已完成视觉验收。
+  Actual visual checks: Used real App navigation for Welcome, disconnected/Idle Session and empty History. Inspected 12 screenshots (1080×2400) and UI XML across light/dark mode and system font scales 1.0/2.0. Visible theme colors, wrapping and navigation were checked; the dark welcome status bar was rechecked after settling. Original font scale/night mode were restored. Screenshots/scripts/logs are in build/step80-validation. No H10 connection, acquisition or demonstration records; visual coverage is limited to captured regions, not all lower controls, landscape, live curves or saved details.
+- 真机及范围：未在 Samsung 手机安装或操作；H10 有效 HR 下的色块/五柱实际颜色、接收数据、旋转/横屏、长标签/放大字号下的全部区域和设备生命周期仍 pending。8.1—8.5 正式布局与临时展示清理未实施；SDK、依赖、算法、存储及业务行为保持原实现。两对文档同步中英文实际证据；无自动 commit/push。
+  Hardware/scope: No Samsung installation or operation. H10-driven markers/bars, data reception, actual rotation/landscape, complete enlarged-font coverage and hardware lifecycle remain pending. Steps 8.1–8.5 and development-display cleanup were not implemented. SDK, dependencies, algorithms, storage and business behavior retain their existing implementation. Both documentation pairs are synchronized; no commit/push.
+
 ## 6. 功能开发步骤
 
 按下表顺序推进；一次只处理一个编号。依赖未满足时先说明缺口。
@@ -852,6 +916,7 @@
 | 6.2 | SQLite 事务保存、四小时上限、失败重试及最简单 History 入口（代码已实施，实际验收见 5.23.11） | 重启保留、去重、失败回滚、简单查询/曲线/删除可验收，无正式布局 |
 | 7.1 | 完善历史列表，复用 6.2；倒序游标分页每次 20 条、手动 Load more、原页失败重试及刷新，见 5.27.1（代码及自动检查完成，真机 pending） | 204 项单元测试、构建/lint 及 16 项实际 SQLite/Compose 检查通过；真实采集切换/旋转待验证 |
 | 7.2 | 完善按 ID 详情及日期确认删除，复用 6.2，见 5.27.2（代码及自动检查完成，真机 pending） | 204 项单元测试、构建/lint 及 25 项实际 SQLite/Compose 检查通过；真实手机行为待验证 |
+| 8.0 | 共用主题、基础字号、已使用尺寸及绿/蓝/黄/橙/红配色已接入，见 5.28.1 | 204 项单元测试、构建/lint（0 errors、17 warnings）、25 项 SQLite/Compose 回归及三页面深浅/放大字号截图检查；完整视觉及 Samsung/H10 pending |
 | 8.1 | 整合区域 1、2：连接与心率强度 | 状态变化自动反映到界面 |
 | 8.2 | 整合区域 3—6：指标与区间 | 数值、单位、占位状态正确 |
 | 8.3 | 整合区域 7：三类曲线切换 | 时间轴清楚，切换后数据连续 |
@@ -898,6 +963,8 @@
 5. 状态：本步完成程度及剩余问题。
 
 ## 9. 进度与证据
+
+- 2026-10-01 8.0 实施：固定深浅主题、24/18/16/14 sp 基础字号、现有页面间距及共用绿/蓝/黄/橙/红区间配色；204 项单元测试、debug/测试 APK 构建、lint（0 errors、17 warnings）及 25 项实际 SQLite/Compose 回归通过。已检查三页面深浅模式及 1.0/2.0 字号的 12 张模拟器截图；截图覆盖范围、颜色源码检查与 H10 pending 分开记录，见 5.28.1。两对文档同步；8.1—8.5 未实施，无 commit/push。
 
 - 2026-10-01 7.2 实施：统一 History 列表/详情/确认日期，保留原 ID 查询重试，分离删除错误并支持回滚后再次 Delete，阻止删除期间重复操作；修改 HistoryPanel.kt/SessionSummaryPanel.kt，新增 9 项 HistoryDetailTest。本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings）通过；专用模拟器 25 项实际 SQLite/Compose 检查通过，见 5.27.2。Samsung/H10 真机 pending，第 8 阶段未实施；两对文档同步，无 commit/push。
 
@@ -977,7 +1044,7 @@
 - 待验证：权限拒绝与设置返回；扫描筛选、去重及停止规则；真实连接、10 秒超时、重试与生命周期；设备保存、时间更新及重启保留；主动与意外断线；断开异常重试、防重复点击及回调清理。读写错误和迟到回调仍待故障注入验证。
 - 3.1 待验证与待确认：真实设备功能就绪、实际采样设置、重复请求与旋转、失败重试、断开清理和迟到结果隔离均待运行时验证，步骤见 5.12；实际 ECG 与其他多选参数尚未读取，因此没有新增参数决定。构建和配置单元测试不等于上述真机验证已通过。
 - 审查跟进：断开请求抛错后无法重试已修复；“扫描 RSSI 不会刷新”的结论已撤回；系统时间回拨影响最近连接时间更新的问题尚未修复，见 5.11。
-- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，6.2 验证及真机边界见 5.23.11；7.1 列表与 7.2 详情/删除已完善，见 5.27.1—5.27.2；第 8 阶段未实施。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已实现仅 Start/Stop、首个数据开始计时及中断结束，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
+- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，6.2 验证及真机边界见 5.23.11；7.1 列表与 7.2 详情/删除已完善，见 5.27.1—5.27.2；8.0 共用主题与基础尺寸已实施（见 5.28.1），8.1—8.5 尚未实施。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已实现仅 Start/Stop、首个数据开始计时及中断结束，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
 - 截图/录屏位置：【待填写】。
 - 5.1 实施跟进：用户要求执行已保存的中英文提示词；5.19 所列代码及自动验证已完成，真机待验证。其他第 5 阶段核心规则见 5.1—5.7、5.20—5.22，均已明确但尚未实施，不再以旧规划记录称统计口径未定。
 - 5.2 规划确认：用户采用此前技术建议，明确完整 5 点平滑后再积累 100 个 s 预热、前 100 点阈值、同一 H 上穿判断、周期 H/L 固定，以及 250 ms 步频刷新、两秒无步归零和显示用单调时间估计；规则直接更新于 5.1—5.4、5.7 及开发步骤表。2026-09-29 按用户要求检索其他计步方案，在 5.6 补充 A_min = 0.5 m/s² 的试验预设、来源差异和每次 0.1 m/s² 的手动调整方案；实测校准尚未执行。本次仅同步两份 AGENTS.md，未修改 Kotlin 或 prompt.md，未运行测试/构建或真机验收；5.2 尚未实施。

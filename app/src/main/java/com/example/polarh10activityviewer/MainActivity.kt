@@ -21,7 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import com.example.polarh10activityviewer.ui.theme.PagePadding
+import com.example.polarh10activityviewer.ui.theme.SectionSpacing
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 
 class MainActivity : ComponentActivity() {
@@ -49,13 +50,13 @@ fun WelcomeScreen(onEnterSession: () -> Unit, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+            .padding(PagePadding),
+        verticalArrangement = Arrangement.spacedBy(SectionSpacing, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.headlineLarge,
+            style = MaterialTheme.typography.titleLarge,
             textAlign = TextAlign.Center
         )
         Text(

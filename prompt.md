@@ -1485,3 +1485,64 @@ Suggested commit message (not committed):
 ```text
 feat: improve history detail dates and deletion recovery
 ```
+
+## 步骤 8.0：共用主题与第一版尺寸 / Step 8.0: Shared theme and initial sizing
+
+规则确认日期：2026-10-01。规则确认时仅同步文档；随后按用户指定实施 8.0，实际修改、构建/模拟器及未执行的真机检查见本文件末尾的 8.0 实施结果。
+Rules confirmed on 2026-10-01. The initial confirmation updated documentation only. Step 8.0 was subsequently implemented at the user's request; actual changes, build/emulator results and pending hardware checks are recorded at the end of this file.
+
+### 中文
+
+```text
+仅实施步骤 8.0，遵循 AGENTS.md 第 5.28 节，直接修改项目文件。
+
+先查看现有 Color.kt、Theme.kt、Type.kt、欢迎页、SensorActivity、心率区间组件及 History 的引用。使用当前 Kotlin、Compose、Material 3，以最小修改定义并接入共用主题、基础字体和必要尺寸，不增加依赖或通用样式框架。
+
+1. 关闭动态配色，跟随系统深浅模式；欢迎页、Session、History 使用同一固定主题。浅色：主色 #2563EB、背景 #F8FAFC、卡片 #FFFFFF、主要文字 #0F172A、次要文字 #475569。深色：主色 #60A5FA、背景 #0F172A、卡片 #1E293B、主要文字 #F1F5F9、次要文字 #CBD5E1。按钮和普通文字使用可读的前景色。
+2. Zone 1—5 从低到高统一为绿 #22C55E、蓝 #3B82F6、黄 #EAB308、橙 #F97316、红 #EF4444。当前心率强度标识与 Session/History 五区间柱形复用同一配色定义。保留英文强度、Zone、bpm 范围；普通文字使用主题文字色，区间颜色可用色块或标记，避免黄色小字难读。心率阈值和统计规则不变。
+3. 沿用默认字体家族，基础字号为页面标题 24 sp、区域标题 18 sp、正文 16 sp、次要统计 14 sp。正式 HR 主数值 56 sp、步频/速度主要数值 28 sp 留 8.2 接入；本步不提前重排指标。
+4. 尺寸基线：页面/卡片内边距 16 dp，区域间距和卡片圆角 16 dp，内部间距 8/12 dp，图标 24 dp，最小触控范围 48 dp，实时曲线绘图区高 220 dp，五区间绘图区高 160 dp。只在本步实际需要的位置定义和复用尺寸；正式卡片、图表高度和控件布局按 8.1—8.5 接入，不提前建立未使用的样式抽象。
+5. 字体跟随系统字号，内容允许纵向滚动，横屏沿用相同顺序；实际受影响的文字允许换行，避免截断数值、单位或按钮。保持英文 UI/代码注释，保留 --、真实零、必要状态、错误和恢复入口。
+6. 不实施 8.1—8.5 正式布局、导航调整或临时开发显示清理。不修改 SDK、采集、算法、会话生命周期、保存、数据库或 History 查询规则。
+7. 检查三页面的固定深浅主题、区间配色、基础字号、按钮/文字对比度及字体放大表现；运行相关检查、debug 构建和 lint。区分源码检查、实际视觉检查和 H10 真机验证，未执行项标 pending，不沿用旧测试结果。
+8. 同步两份 AGENTS.md 与两份 prompt.md 的中英文实际结果，提供与修改对应的英文 commit message，不自动 commit/push。
+```
+
+### English
+
+```text
+Implement only step 8.0, following Section 5.28 of AGENTS.md. Modify the project files directly.
+
+Inspect the existing Color.kt, Theme.kt, Type.kt, welcome screen, SensorActivity, HR zone components and History references first. Use the existing Kotlin, Compose and Material 3 setup with minimal changes to define and apply the shared theme, base typography and necessary dimensions. Add no dependencies or generic styling framework.
+
+1. Disable dynamic colors and follow the system light/dark mode. Apply one fixed theme to Welcome, Session and History. Light: primary #2563EB, background #F8FAFC, card surface #FFFFFF, primary text #0F172A, secondary text #475569. Dark: primary #60A5FA, background #0F172A, card surface #1E293B, primary text #F1F5F9, secondary text #CBD5E1. Use readable foreground colors for buttons and ordinary text.
+2. Set Zone 1–5, from lowest to highest, to green #22C55E, blue #3B82F6, yellow #EAB308, orange #F97316 and red #EF4444. Reuse one palette definition for the current intensity marker and Session/History zone bars. Keep English intensity labels, Zone names and bpm ranges. Use theme text colors for ordinary text and colored blocks or markers for zones to avoid unreadable small yellow text. Preserve HR thresholds and statistics.
+3. Keep the default font family. Base sizes: page title 24 sp, section title 18 sp, body 16 sp, secondary statistics 14 sp. Reserve 56 sp for the formal HR value and 28 sp for cadence/speed values in step 8.2; do not rearrange metrics in this step.
+4. Dimension baseline: page/card padding 16 dp, section spacing and card corners 16 dp, internal spacing 8/12 dp, icons 24 dp, minimum touch targets 48 dp, live plotting area height 220 dp and zone plotting area height 160 dp. Define and reuse only dimensions actually needed now. Apply formal cards, chart heights and control layouts in steps 8.1–8.5 without creating unused styling abstractions.
+5. Respect system font scaling, allow vertical scrolling and keep the same content order in landscape. Let affected text wrap without clipping values, units or buttons. Keep English UI/comments, -- for unknown values, genuine zeros, necessary statuses, errors and recovery actions.
+6. Do not implement steps 8.1–8.5, navigation changes or development-display cleanup. Preserve SDK calls, acquisition, algorithms, session lifecycle, saving, database and History query rules.
+7. Check fixed light/dark themes across all three screens, zone colors, base typography, text/button contrast and enlarged fonts. Run relevant checks, a debug build and lint. Separate source inspection, actual visual checks and H10 hardware validation; mark unperformed checks pending and do not reuse old test results.
+8. Synchronize both AGENTS.md files and both prompt.md files with actual results in Chinese and English. Provide a matching English commit message; do not commit or push automatically.
+```
+
+## 2026-10-01 步骤 8.0 实施结果 / Step 8.0 implementation results
+
+- 文件与主题：修改 ui/theme/Color.kt、Theme.kt、Type.kt，新增 Dimensions.kt；接入 MainActivity.kt、SensorActivity.kt、history/HistoryPanel.kt、heartrate/HeartRateZonePanel.kt。删除旧紫色变量及动态配色路径，移除无用途的 dynamicColor 参数；按系统深浅模式选择固定蓝/石板色主题，设置 primary/onPrimary、background/onBackground、surface/onSurface、次要文字及实际 Material 容器颜色，避免默认紫色容器残留。三页面复用同一主题。
+  Files/theme: Updated Color.kt, Theme.kt and Type.kt; added Dimensions.kt and applied them in MainActivity.kt, SensorActivity.kt, HistoryPanel.kt and HeartRateZonePanel.kt. Removed old purple colors, dynamic-color code and the unused dynamicColor parameter. System light/dark mode selects the fixed blue/slate palette, including readable button/text foregrounds and Material container colors. All three screens reuse the same theme.
+- 字号与尺寸：titleLarge/titleMedium/bodyLarge/bodyMedium/bodySmall 分别采用 24/18/16/16/14 sp，沿用默认字体和可增长行高；欢迎页及 Session 标题采用 titleLarge。共用 PagePadding/SectionSpacing/ContentSpacing/ControlSpacing 为 16/16/8/12 dp，仅复用现有页面、卡片与按钮行中实际使用的间距；Material 默认触控范围保留。HR 56 sp、运动 28 sp、正式圆角/图标和 220/160 dp 绘图区仍留对应正式布局步骤，不建立未使用常量。
+  Typography/dimensions: titleLarge/titleMedium/bodyLarge/bodyMedium/bodySmall use 24/18/16/16/14 sp with the default font and scalable line heights; Welcome and Session use titleLarge. Only currently used 16/16/8/12 dp padding/spacing values are shared. Material touch targets remain unchanged. Formal HR/motion sizes, corners/icons and 220/160 dp plotting heights remain assigned to their later layout steps without unused constants.
+- 区间配色：Color.kt 的 HeartRateZoneColors 唯一列表为绿/蓝/黄/橙/红，当前有效强度旁的 12 dp 色块和 Session/History 的五柱复用它。强度文字使用 onSurface 并允许换行，保留英文强度、Zone、bpm 范围和 mm:ss，不使用黄色小字表示强度；无有效 HR 时无色块，继续显示 --。没有改变阈值、统计、采集、会话、保存或查询逻辑。
+  Zones: One HeartRateZoneColors list supplies green/blue/yellow/orange/red to the current intensity marker and Session/History bars. The 12 dp marker appears only for a current valid zone. Intensity text uses onSurface and wraps; English labels, Zone names, bpm ranges, mm:ss and unknown values are preserved. No thresholds, statistics, acquisition, session, saving or query logic changed.
+- 本轮自动检查：沙箱首次因 Gradle 缓存锁文件访问被拒绝而未开始构建；获准访问现有缓存后，执行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline --console=plain，BUILD SUCCESSFUL（81 tasks：24 executed、57 up-to-date）；204 项单元测试，0 failures/errors/skipped；debug/测试 APK 构建通过；lint 0 errors、17 warnings。日志 build/step80-validation/gradle.txt，失败尝试保留为 gradle-sandbox-attempt.txt，不计为通过。代码文字/按钮颜色的 sRGB 对比度计算为 5.17:1—17.06:1，见 contrast.md；这是数值检查，不是 H10/视觉证据。
+  Automated checks: The first sandbox attempt failed before building due to denied access to the existing Gradle lock file. After approved cache access, the four requested Gradle tasks succeeded: 81 tasks, 24 executed/57 up-to-date; 204 unit tests with zero failures/errors/skips; debug/test APK builds passed; lint 0 errors and 17 warnings. Fresh log: build/step80-validation/gradle.txt; the failed attempt is retained separately. Calculated text/button contrast is 5.17:1–17.06:1 in contrast.md, separate from visual or hardware evidence.
+- 实际模拟器检查：仅启动项目 build 目录既有独立 Step62 AVD（emulator-5582、API 37），安装本轮 APK，重跑 HistoryDetailTest 9、HistoryListTest 8、HistoryPanelTest 2、SessionDatabaseTest 6，OK (25 tests)。沿用随机专用数据库与原测试清理，不向生产 History 写演示记录。日志 build/step80-validation/instrumentation.txt；这些既有检查验证 History/SQLite 回归，不将其默认测试主题当作实际 App 新主题的验证。
+  Emulator regression: Installed the current APKs only on the isolated project Step62 AVD (emulator-5582, API 37). All 25 existing History/SQLite tests passed, using their dedicated random databases and cleanup. No fixture records were added to production History. Log: build/step80-validation/instrumentation.txt. These tests verify regression behavior; their default test theme is not evidence of the App's new theme.
+- 实际视觉检查：通过真实 App 导航检查 Welcome、未连接/Idle Session 和空 History；浅/深各按系统 font_scale 1.0、2.0 拍摄并查看共 12 张 1080×2400 截图及对应 UI XML，确认页面背景/文字/按钮配色、标题/正文换行与导航可用。深色欢迎页另等待系统栏动画稳定后复核 dark-welcome-settled.png。截图、脚本及日志在 build/step80-validation；检查后恢复模拟器原字号 1.0 和夜间模式 no。未连接 H10，没有运行采集或向 History 填充演示记录；此项只覆盖截图可见区域，不能声称所有下方开发控件、横屏、真实曲线或已保存详情均已完成视觉验收。
+  Actual visual checks: Used real App navigation for Welcome, disconnected/Idle Session and empty History. Inspected 12 screenshots (1080×2400) and UI XML across light/dark mode and system font scales 1.0/2.0. Visible theme colors, wrapping and navigation were checked; the dark welcome status bar was rechecked after settling. Original font scale/night mode were restored. Screenshots/scripts/logs are in build/step80-validation. No H10 connection, acquisition or demonstration records; visual coverage is limited to captured regions, not all lower controls, landscape, live curves or saved details.
+- 真机及范围：未在 Samsung 手机安装或操作；H10 有效 HR 下的色块/五柱实际颜色、接收数据、旋转/横屏、长标签/放大字号下的全部区域和设备生命周期仍 pending。8.1—8.5 正式布局与临时展示清理未实施；SDK、依赖、算法、存储及业务行为保持原实现。两对文档同步中英文实际证据；无自动 commit/push。
+  Hardware/scope: No Samsung installation or operation. H10-driven markers/bars, data reception, actual rotation/landscape, complete enlarged-font coverage and hardware lifecycle remain pending. Steps 8.1–8.5 and development-display cleanup were not implemented. SDK, dependencies, algorithms, storage and business behavior retain their existing implementation. Both documentation pairs are synchronized; no commit/push.
+
+Suggested commit message (not committed):
+```text
+feat: apply fixed app theme and shared heart rate zone colors
+```

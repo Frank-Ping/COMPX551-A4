@@ -7,19 +7,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
+import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-
-private val zoneColors = listOf(
-    Color(0xFF1976D2), Color(0xFF388E3C), Color(0xFFD4AC00), Color(0xFFEF6C00), Color(0xFFD32F2F)
-)
 
 internal fun formatZoneDuration(milliseconds: Long): String {
     val seconds = milliseconds / 1000
@@ -28,11 +26,15 @@ internal fun formatZoneDuration(milliseconds: Long): String {
 
 @Composable
 internal fun HeartRateZonePanel(state: HeartRateZoneState, stopped: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
         val current = state.current
-        Text("Heart rate intensity: ${current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--"}",
-            color = current?.let { zoneColors[it.ordinal] } ?: MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
+            current?.let { Box(Modifier.size(12.dp).background(HeartRateZoneColors[it.ordinal])) }
+            Text("Heart rate intensity: ${current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--"}",
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium)
+        }
         if (stopped) Text("Stopped.")
         if (!state.receivedValidHr) Text("No valid HR data")
         Text("Estimated from received HR")
@@ -55,7 +57,7 @@ internal fun HeartRateZonePanel(state: HeartRateZoneState, stopped: Boolean) {
                     Text(formatZoneDuration(duration), style = MaterialTheme.typography.labelSmall)
                     Box(Modifier.height(150.dp).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
                         val fraction = if (maximum == 0L) 0f else duration.toFloat() / maximum
-                        Box(Modifier.width(24.dp).height((150 * fraction).dp).background(zoneColors[zone.ordinal]))
+                        Box(Modifier.width(24.dp).height((150 * fraction).dp).background(HeartRateZoneColors[zone.ordinal]))
                     }
                     Text("Zone ${zone.ordinal + 1}\n${zone.range}", textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.labelSmall)
