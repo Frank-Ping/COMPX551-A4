@@ -33,7 +33,8 @@ internal class SessionController(
     private val clearAllReadings: () -> Unit,
     private val clearHr: () -> Unit,
     private val readSummary: (Long) -> SessionSummary,
-    private val wallNow: () -> Long = System::currentTimeMillis
+    private val wallNow: () -> Long = System::currentTimeMillis,
+    private val onSummaryFrozen: (SessionRecord) -> Unit = {}
 ) {
     private val mutableState = MutableStateFlow(SessionState())
     val state = mutableState.asStateFlow()
@@ -126,6 +127,7 @@ internal class SessionController(
         val duration = state.value.elapsedMs
         mutableState.value = state.value.copy(record = state.value.record!!.copy(
             durationMs = duration, summary = readSummary(duration)))
+        onSummaryFrozen(state.value.record!!)
     }
 
     private fun finishIfIdle(at: Long = now()) {

@@ -23,6 +23,8 @@ import com.example.polarh10activityviewer.session.SessionState
 import com.example.polarh10activityviewer.session.SessionStatus
 import com.example.polarh10activityviewer.session.SessionSummaryPanel
 import com.example.polarh10activityviewer.history.HrHistoryState
+import com.example.polarh10activityviewer.history.MotionHistoryState
+import com.example.polarh10activityviewer.session.SessionSnapshot
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -127,6 +129,8 @@ class SensorActivity : ComponentActivity() {
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             val session by bleManager.sessionState.collectAsState()
             val hrHistory by bleManager.hrHistoryState.collectAsState()
+            val motionHistory by bleManager.motionHistoryState.collectAsState()
+            val lastSnapshot by bleManager.lastSnapshot.collectAsState()
             LaunchedEffect(session.generation, session.status) {
                 val generation = session.generation
                 if (session.status == SessionStatus.RUNNING) {
@@ -166,6 +170,8 @@ class SensorActivity : ComponentActivity() {
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
                         hrHistory = hrHistory,
+                        motionHistory = motionHistory,
+                        lastSnapshot = lastSnapshot,
                         onStartSession = ::handleStartSession,
                         onStopSession = { bleManager.stopSession() },
                         onRetryStream = ::handleRetryStream,
@@ -354,6 +360,8 @@ internal fun SessionScreen(
     ecgSubscription: SubscriptionState = SubscriptionState(),
     session: SessionState = SessionState(),
     hrHistory: HrHistoryState = HrHistoryState(),
+    motionHistory: MotionHistoryState = MotionHistoryState(),
+    lastSnapshot: SessionSnapshot? = null,
     onStartSession: () -> Unit = {},
     onStopSession: () -> Unit = {},
     onRetryStream: (PolarDeviceDataType) -> Unit = {},
@@ -422,6 +430,21 @@ internal fun SessionScreen(
             else -> "Collecting"
         })
         Text("Memory only; first four hours, at most 14,401 points. No automatic stop yet.")
+        Text("Motion history (development check)", style = MaterialTheme.typography.titleMedium)
+        Text("Motion history points: ${motionHistory.pointCount}")
+        Text("First elapsedMs: ${motionHistory.firstElapsedMs ?: "--"}")
+        Text("Last elapsedMs: ${motionHistory.lastElapsedMs ?: "--"}")
+        Text("Motion history: " + when {
+            motionHistory.sessionId == null -> "Not started"
+            motionHistory.frozen -> "Frozen"
+            motionHistory.limitReached -> "Four-hour collection limit reached"
+            session.status == SessionStatus.STARTING -> "Waiting for Running"
+            else -> "Collecting"
+        })
+        Text("Current session snapshot: " + if (lastSnapshot != null &&
+            lastSnapshot.record.id == session.record?.id) "Frozen in memory" else "Not frozen")
+        Text("Last frozen snapshot ID: ${lastSnapshot?.record?.id ?: "--"}")
+        Text("Memory only; first four hours, at most 14,401 motion points. No automatic stop yet.")
         charts()
         AccPanel(
             samples = accSamples,

@@ -61,7 +61,13 @@ internal data class SessionRecord(
         streams.values.any { !it.received || it.missing || it.failed }
 }
 
-// HR collection uses this structure; persistence remains a later step.
+// Finalized summary and copied histories; persistence remains a later step.
+internal data class SessionSnapshot(
+    val record: SessionRecord,
+    val hrPoints: List<HrHistoryPoint>,
+    val motionPoints: List<MotionHistoryPoint>
+)
+
 internal data class HrHistoryPoint(
     val sessionId: String, val secondBucket: Long, val elapsedMs: Long,
     val bpm: Int?, val breakBefore: Boolean

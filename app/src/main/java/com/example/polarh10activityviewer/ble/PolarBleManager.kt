@@ -4,6 +4,7 @@ import com.example.polarh10activityviewer.chart.ChartKind
 import com.example.polarh10activityviewer.chart.LiveCharts
 import com.example.polarh10activityviewer.heartrate.HeartRateZones
 import com.example.polarh10activityviewer.history.HrHistory
+import com.example.polarh10activityviewer.history.MotionHistory
 import com.example.polarh10activityviewer.motion.StepDetector
 import com.example.polarh10activityviewer.sensor.AccBuffer
 import com.example.polarh10activityviewer.sensor.EcgBuffer
@@ -11,6 +12,7 @@ import com.example.polarh10activityviewer.sensor.h10EcgSamples
 import com.example.polarh10activityviewer.session.SessionController
 import com.example.polarh10activityviewer.session.SessionStatus
 import com.example.polarh10activityviewer.session.SessionSummary
+import com.example.polarh10activityviewer.session.SessionSnapshot
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -112,6 +114,10 @@ class PolarBleManager(context: Context) {
     private val latestHeartRate = LatestHeartRate()
     private val hrHistory = HrHistory()
     internal val hrHistoryState = hrHistory.state
+    private val motionHistory = MotionHistory()
+    internal val motionHistoryState = motionHistory.state
+    private val mutableLastSnapshot = MutableStateFlow<SessionSnapshot?>(null)
+    internal val lastSnapshot = mutableLastSnapshot.asStateFlow()
     private var previousHrArrival: Long? = null
     val heartRate = latestHeartRate.reading
     val heartRateStatistics = latestHeartRate.statistics
@@ -131,6 +137,7 @@ class PolarBleManager(context: Context) {
     ) { type, status ->
         val eventTime = SystemClock.elapsedRealtime()
         if (type == PolarDeviceDataType.HR) hrHistory.onSubscriptionState(status)
+        if (type == PolarDeviceDataType.ACC) motionHistory.onSubscriptionState(status)
         if (type == PolarDeviceDataType.HR && status == SubscriptionStatus.STARTING) previousHrArrival = null
         liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime))
         if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING && session.state.value.ongoing) {
@@ -149,6 +156,7 @@ class PolarBleManager(context: Context) {
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
             hrHistory.start(session.state.value.record!!.id)
+            motionHistory.start(session.state.value.record!!.id)
             liveCharts.reset()
             heartRateZones.reset()
             latestHeartRate.reset()
@@ -159,6 +167,7 @@ class PolarBleManager(context: Context) {
         },
         clearHr = {
             hrHistory.stop()
+            motionHistory.stop()
             liveCharts.stop(session.state.value.elapsedMs)
             heartRateZones.clearCurrent(session.state.value.elapsedMs)
             latestHeartRate.clear()
@@ -169,6 +178,9 @@ class PolarBleManager(context: Context) {
             heartRateZones.refresh(elapsed)
             stepDetector.updateSessionTime(elapsed)
             SessionSummary.from(latestHeartRate.statistics.value, heartRateZones.state.value, stepState.value)
+        },
+        onSummaryFrozen = { record ->
+            mutableLastSnapshot.value = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
         })
     internal val sessionState = session.state
 
@@ -205,6 +217,8 @@ class PolarBleManager(context: Context) {
             if (session.state.value.status == SessionStatus.RUNNING) {
                 val elapsed = session.state.value.elapsedMs
                 liveCharts.recordMotion(elapsed, stepState.value,
+                    warmingUp = stepDetector.isWarmingUp, segment = stepDetector.segment)
+                motionHistory.record(elapsed, stepState.value,
                     warmingUp = stepDetector.isWarmingUp, segment = stepDetector.segment)
                 liveCharts.advance(elapsed)
             }

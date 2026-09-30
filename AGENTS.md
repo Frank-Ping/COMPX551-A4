@@ -6,7 +6,7 @@
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史（每秒末点、断段、前四小时/14,401 点上限、Retry 保留及结束冻结）；本轮 181 项测试、debug 构建和 lint 通过（0 errors、18 warnings），真机待验证。6.1d、6.2 尚未实施，不自动推进。
+- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；本轮 194 项测试、debug 构建和 lint 通过（0 errors、18 warnings），真机待验证。6.2 尚未实施，不自动推进。
 
 ## 2. 协作规则
 
@@ -552,12 +552,12 @@
 - 显示实施（2026-09-30）：新增 LiveChartPanel.kt，并由 SensorActivity.kt 接入；使用 Compose Canvas、主题颜色和英文文本，HR/Motion/ECG 三类切换，Motion 内单选 Cadence/Speed，各自标注 bpm、steps/min、km/h、µV。横轴 mm:ss，纵轴标注单位及当前上下界，ECG 保留负值。仅选中的图按 250 ms（HR/运动）或 100 ms（ECG）读取绘图快照；隐藏图仍通过数据事件和原会话刷新维护有界缓存。Canvas 遍历快照全部可见点，遇空值或断段不连接；代码检查与受控快照测试已完成，实际帧率、屏幕效果和设备旋转未验证。
 - 当前范围：5.5add 代码与自动检查完成，未安装或操作手机，未新增依赖或通用缓存框架。60 秒显示缓存不是整场历史；本步未实施 UUID/SessionRecord、整场 1 Hz 历史、四小时自动结束、SQLite、History、进程恢复或正式布局。ECG 映射含传输延迟，只是近似对齐；HR 每秒末点可能省略秒内变化，已知显示限制不反向改变累计统计。
 
-### 5.23 第 6 阶段：SQLite 会话存储与最简单 History 验收（6.1a—6.1c 已实施，其余待实施）
+### 5.23 第 6 阶段：SQLite 会话存储与最简单 History 验收（6.1a—6.1d 已实施，其余待实施）
 
-- 确认日期：2026-09-29。用户采用全部推荐方案，要求实施使用最小代码及最简单显示，方便测试；当时仅修改文档，没有修改应用代码或运行构建/真机测试。以下为设计规则；当前 6.1a—6.1c 的实际结果见 5.23.7—5.23.9，其余步骤尚未实施。
+- 确认日期：2026-09-29。用户采用全部推荐方案，要求实施使用最小代码及最简单显示，方便测试；当时仅修改文档，没有修改应用代码或运行构建/真机测试。以下为设计规则；当前 6.1a—6.1d 的实际结果见 5.23.7—5.23.10，其余步骤尚未实施。
 - 实施顺序：6.1a 会话身份与摘要 → 6.1b 平均与最小步频 → 6.1c 整场心率历史 → 6.1d 整场步频/速度历史及完整快照 → 6.2 保存及最简单测试入口；先检查 5.3—5.5 依赖，缺少时说明并停在缺失依赖，不自动补做其他步骤。6.2 可包含验收所需的最小列表/详情查询、简单曲线和删除入口，复用到第 7 阶段；正式布局仍留第 8 阶段。不新增 Room、图表库、通用 Repository/存储框架、兼容旧版本路径或无关重构。
 
-- 拆分确认（2026-09-30）：原 6.1 拆为下列四步，每次只实施用户指定的一个编号。先完成 5.3—5.5，再依次执行 6.1a → 6.1b → 6.1c → 6.1d；缺失依赖时先说明，不自动补做。当时只更新文档，四步均未实施；现 6.1a—6.1c 已实施，6.1d 仍待实施，见本节及第 9 节最新记录。
+- 拆分确认（2026-09-30）：原 6.1 拆为下列四步，每次只实施用户指定的一个编号。先完成 5.3—5.5，再依次执行 6.1a → 6.1b → 6.1c → 6.1d；缺失依赖时先说明，不自动补做。当时只更新文档，四步均未实施；现 6.1a—6.1d 已实施，6.2 仍待实施，见本节及第 9 节最新记录。
 
 | 子步骤 | 本步范围 | 最简单显示与验收 |
 |---|---|---|
@@ -620,7 +620,7 @@
 - 6.1d 受控检查：250 ms 结果按秒保留末组、缺失与真实静止、ACC 缺口及段重建、Retry/部分秒/Stop/旋转/旧事件、四小时与 14,401 点边界；摘要和两类历史同 ID、结束时整体冻结，新 Start 不修改旧快照。两类容量边界用受控时钟验证，不等待四小时或把模拟结果当真机验证。
 - 6.2 检查：事务成功/失败回滚、重复结束/重试去重、失败快照保留和新 Start 限制、手动重试/丢弃、页面离开后任务不主动取消；SQLite 实际关闭再打开后的读取、按 ID 详情、20 条分页及倒序、删除/取消、NULL 与 0、备份排除配置。数据库行为应使用真实 SQLite 验证，不仅 mock 成功；如依赖模拟器/设备的测试未执行，明确标待验证。
 - 实施代码后运行相关测试、debug 构建和 lint；真机验证采集→Stop/中断→Saved→重启查询、简单图与摘要一致、失败恢复和删除，并记录性能及局限。不能用旧的 105 项测试或构建结果证明第 6 阶段通过。
-- 当前 6.1a—6.1c 已写入代码并通过各自自动检查；6.1d、6.2、SQLite 与简单 History 尚未实施。当前提供摘要及整场 HR 内存记录，不宣称已保存或重启保留；真机尚未验证。
+- 当前 6.1a—6.1d 已写入代码并通过各自自动检查；6.2、SQLite 与简单 History 尚未实施。当前提供摘要、整场 HR/运动内存记录及结束组合冻结快照，不宣称已保存或重启保留；真机尚未验证。
 
 #### 5.23.7 步骤 6.1a 实施与验证 / Step 6.1a implementation and verification（2026-09-30）
 
@@ -677,6 +677,21 @@
 - 状态：6.1c 文件已写入、自动检查已通过；两份 AGENTS.md 和两份 prompt.md 同步。未安装 APK、未操作手机；6.1d 的运动历史/组合快照、6.2 的自动结束/SQLite/History 尚未实施，未 commit/push。
   Status: Step 6.1c is implemented and automated checks passed; both documentation pairs are synchronized. No APK installation or phone interaction. Motion history/combined snapshots (6.1d) and automatic ending/SQLite/History (6.2) remain unimplemented. No commit or push.
 
+#### 5.23.10 步骤 6.1d 实施与验证 / Step 6.1d implementation and verification（2026-09-30）
+
+- 前置与文件：已复查 5.3—5.5、6.1a—6.1c，前置齐全。新增 history/MotionHistory.kt；SessionRecord.kt 增加 SessionSnapshot；SessionState.kt 在既有摘要结算完成后调用 onSummaryFrozen；PolarBleManager.kt 接入已有 250 ms 入口、ACC 订阅状态及 Start/Stop，SensorActivity.kt 增加英文运动计数、首末 elapsedMs 与快照状态。没有新增定时器或改变 SDK、依赖、算法和原始缓存。
+  Prerequisites/files: Verified 5.3–5.5 and 6.1a–6.1c. Added history/MotionHistory.kt and SessionSnapshot in SessionRecord.kt. SessionState.kt invokes onSummaryFrozen after existing summary settlement. PolarBleManager.kt connects the existing 250 ms entry, ACC subscription state and Start/Stop; SensorActivity.kt adds English motion metadata and snapshot status. No new timer or changes to SDK calls, dependencies, algorithms or raw buffers.
+- 收集与边界：每个 Running 秒桶保留最后一组已有步频/速度及实际 elapsedMs，保留原始小数和 m/s；不从最后 60 秒重建、不补漏刷秒。预热、不可用、未观察到真实 ACC 时为 null，正常静止可为 0，各值独立可空。首点、空值、订阅中断/Retry、检测段代次变化断段；桶内替换保留断段。ACC 严格超过 30 ms 的识别继续由 AccBuffer/StepDetector 负责。HR 与运动共用 Running 时间轴和 14,400,000 ms 含截止边界，各自最多 14,401 桶；不预分配、填满或淘汰早期历史，不要求点数/时间逐点相同。
+  Collection/bounds: Keeps the last existing cadence/speed pair and actual elapsedMs per Running-second bucket, preserving precision and m/s. No live-cache reconstruction or backfilling. Warm-up, unavailable or unobserved ACC yields null; genuine stationary results can be zero, with independently nullable values. First/null points, subscription interruptions/Retry and detector-segment changes break the curve; replacements retain breaks. Existing owners still detect ACC gaps strictly over 30 ms. Both histories share the Running origin and inclusive 14,400,000 ms cutoff, independently bounded to 14,401 buckets without padding/eviction or matching point counts/timestamps.
+- 冻结与生命周期：接受新 Start 才清空运动历史；Retry 保留旧记录并断段，实时缓存清理照旧。Stop/中断/全部流结束先冻结已有最后部分秒，不追加人工零/终点；既有流程结算区间、时长及统计后，回调一次复制两类历史并组合相同 UUID 的 SessionSnapshot。管理器只保留最近一次结束快照；新 Start 不清除或修改该快照，下一次结束才替换引用，不建立应用级待保存队列。旧事件及旧刷新沿用现有代次过滤；持有者仍由 ViewModel 保留。摘要继续读取原统计所有者，不由历史反算。UI 只观察历史元数据和最近快照，不在刷新时复制整场数组。
+  Freezing/lifecycle: Only accepted Start resets motion collection. Retry retains old records/breaks while live clearing stays unchanged. Stop/interruption/all-stream termination freezes the existing partial second without artificial zeros/endpoints. After existing zone/time/statistics settlement, one callback copies both histories into a same-UUID SessionSnapshot. The manager retains only the latest ended snapshot; new Start leaves it intact and the next ending replaces its reference. This is not an application-level pending-save queue. Existing generation guards and ViewModel retention remain. Summaries still read original statistics owners; UI observes metadata and the latest snapshot without per-refresh whole-history copies.
+- 自动检查已通过：新增 MotionHistoryTest.kt（6 项）、SessionSnapshotTest.kt（7 项）。覆盖每秒末组/实际时间、跳过刷新、精度/null/真实零/独立空值、桶内断段、30/31 ms 缺口、段重建/刷新间恢复、两秒显示归零而累计不变、Retry 与实时清理、重复 Start/旧订阅/旧刷新、新场次、保留持有者重订阅、各结束路径/部分秒/延迟清理、同 ID/一次冻结/旧快照不变、未知 ACC、60 秒外早期记录、满容量/稀疏四小时边界及到限不自动结束。运行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug，BUILD SUCCESSFUL；194 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings。四小时及传感器输入均为受控测试，不是真机准确率或性能证据。
+  Automated checks passed: Added six MotionHistoryTest tests and seven SessionSnapshotTest tests. Coverage includes selection/timing, skipped refreshes, precision/null/zero, breaks, 30/31 ms gaps, segment recovery, two-second display zero, Retry/live clearing, duplicate starts/stale streams/ticks, new sessions, retained-owner reattachment, all endings/partial seconds/cleanup, identity/single freeze/old-snapshot stability, unknown ACC, early-history retention and full/sparse four-hour bounds without automatic ending. :app:testDebugUnitTest :app:assembleDebug :app:lintDebug succeeded: 194 tests, zero failures/errors/skips; lint 0 errors and 18 warnings. Controlled clocks and sensor inputs do not establish device accuracy or performance.
+- 真机检查待执行：连接 H10 → Start，观察 Motion history points 每秒最多增加一个，首末 elapsedMs 随真实执行刷新变化；采集超过 60 秒并切换到 HR/ECG，确认运动记录继续且早期首时间仍保留。ACC 失败后 Retry，计数不清零、时间轴不重启；Stop 后计数/首末时间不再变化，Current session snapshot 为 Frozen in memory，Last frozen snapshot ID 与结束会话一致。新 Start 更换当前 ID/清空本场历史，上一个冻结 ID 保留到下一次结束。旋转应保留当前 ID/历史，断线或后台应冻结；这些行为及真实静止/走跑、UI 性能均待真机核对。空值/断段/四小时上限目前只由自动测试验证。
+  Pending device checks: Connect H10 and Start. Motion count should grow at most once per second, using actual refresh times. Continue beyond 60 seconds and select HR/ECG; motion collection and early records should remain. ACC Retry must retain count/time axis. Stop must freeze count/times, display Frozen in memory and show the ended session ID. New Start changes the current ID and resets collection while retaining the previous frozen ID until the next ending. Verify rotation retention and disconnect/background freezing, stationary/walking behavior and UI performance on hardware. Null/break/four-hour behavior has only controlled-test evidence so far.
+- 状态：仅 6.1d 文件已修改、自动检查通过；两份 AGENTS.md 和两份 prompt.md 同步。未安装 APK、未操作手机；没有 Saved、数据库、保存任务/失败状态、History 页面、应用级待保存管理或自动四小时结束，6.2 仍待实施。内存记录不保证进程重启保留；未 commit/push。
+  Status: Only step 6.1d implemented; automated checks passed and both documentation pairs synchronized. No APK installation or phone interaction. No Saved state, database, save task/failure state, History page, application-level pending-save manager or automatic four-hour ending; 6.2 remains pending. Memory records do not survive process restart. No commit or push.
+
 ### 5.24 5.3add、5.4add、5.5add 补充实施入口（2026-09-30，三项代码已实施）
 
 - 初次记录要求：提供三个补充 prompt，命名为 5.3add、5.4add、5.5add，并将两份 AGENTS.md 和两份 prompt.md 分别同步为完全一致的最新版；初次记录只改文档。随后分别按用户授权实施三项，实际结果见 5.20—5.22 和第 9 节；三项均仍有真机待验收项。
@@ -707,8 +722,8 @@
 | motion/ | AccPreprocessor.kt、StepCandidateDetector.kt、StepSequence.kt、StepDetector.kt、MotionWindow.kt、StrideLengthEstimator.kt | 5.2a—5.2d、5.3add；6.1b 在现有统计上补充 |
 | heartrate/ | HeartRateZones.kt、HeartRateZonePanel.kt | 5.4add：区间计时和显示 |
 | chart/ | LiveCharts.kt、LiveChartPanel.kt | 5.5add：实时曲线 |
-| session/ | SessionState.kt、SensorViewModel.kt、SessionRecord.kt、SessionSummaryPanel.kt | 4.4 会话与持有者；6.1a 身份、摘要、两类历史点结构及英文测试文本；未收集历史 |
-| history/ | HrHistory.kt | 6.1c 整场 HR 收集与元数据；6.1d 运动历史、6.2 简单 History 尚未实施 |
+| session/ | SessionState.kt、SensorViewModel.kt、SessionRecord.kt、SessionSummaryPanel.kt | 4.4 会话与持有者；6.1a 身份、摘要、两类历史点结构及英文测试文本；6.1d 增加组合快照及摘要冻结回调 |
+| history/ | HrHistory.kt、MotionHistory.kt | 6.1c—6.1d 整场 HR/运动收集与元数据；6.2 简单 History 尚未实施 |
 | storage/ | 本地空目录，未实现 | 6.2 SQLite 和保存任务 |
 | ui/theme/ | Color.kt、Theme.kt、Type.kt | 原主题，保持原位 |
 
@@ -763,7 +778,7 @@
 | 6.1a | 会话身份与摘要：UUID、时间、设备、资格及数据结构，见 5.23（代码及自动检查完成，真机待验证） | 重复 Start 不换 ID，新场换 ID；未知/零区分，Stop 冻结摘要 |
 | 6.1b | 平均与最小步频，沿用已有最大步频，见 5.23.2、5.23.8（代码及自动检查完成，真机待验证） | 平均包含静止，极值仅用真实合格五秒窗口，无观测为 -- |
 | 6.1c | 整场心率历史及自身生命周期，见 5.23.3、5.23.9（代码及自动检查完成，真机待验证） | 每秒真实末点，断段保留，Retry 不删旧段，四小时/14,401 点有界 |
-| 6.1d | 整场步频/速度历史及完整会话快照，见 5.23.3（尚未实施） | 每秒已有末结果，缺失不填零，Stop 冻结两类历史与摘要，新场不修改旧快照 |
+| 6.1d | 整场步频/速度历史及完整会话快照，见 5.23.3、5.23.10（代码及自动检查完成，真机待验证） | 每秒已有末结果，缺失不填零，Stop 冻结两类历史与摘要，新场不修改旧快照 |
 | 6.2 | 按 5.23 实现 SQLite 事务保存、四小时上限、失败重试及最简单 History 测试入口（规则已确认，尚未实施） | 重启保留、去重、失败回滚、简单查询/曲线/删除可验收，无正式布局 |
 | 7.1 | 查询历史列表：Running 开始时间倒序、每次 20 条，无筛选；复用 6.2 测试查询 | 空记录、多记录、排序及 Load more 正确 |
 | 7.2 | 按会话 ID 查询详情及确认删除；复用 6.2 最简单验收入口 | 指标及图表对应所选会话，删除摘要与曲线一致 |
@@ -814,6 +829,8 @@
 
 ## 9. 进度与证据
 
+- 2026-09-30 6.1d 实施：新增 MotionHistory.kt，复用 250 ms 结果每秒保留末组、null/断段、前四小时及 14,401 桶边界；既有结算后一次组合摘要、HR/运动冻结快照，增加英文元数据显示。新增 13 项测试，本轮 194 项全部通过，debug 构建及 lint 通过（0 errors、18 warnings）。两对文档同步；真机待验证，未安装/commit/push，6.2 未实施。见 5.23.10。
+  Step 6.1d: Added bounded motion history at the existing refresh entry and one combined summary/HR/motion snapshot after settlement, with English metadata. Thirteen new tests; all 194 tests, debug build and lint passed (0 errors, 18 warnings). Both document pairs synchronized. Device checks pending; no installation/commit/push; 6.2 remains unimplemented. See 5.23.10.
 - 2026-09-30 6.1c 实施：新增 HrHistory.kt，接入真实 HR 末点、每秒分桶、null/断段、四小时/14,401 点上限和自身生命周期；SensorActivity 显示英文计数/首末时间。新增 13 项测试，本轮 181 项全部通过，debug 构建和 lint 通过（0 errors、18 warnings）。两份 AGENTS.md、两份 prompt.md 同步；未安装/真机验证/commit/push，6.1d、6.2 未实施。详见 5.23.9。
   Step 6.1c: Added bounded HR history and event/lifecycle wiring with English metadata display. Thirteen new tests; all 181 tests, debug build and lint passed (0 errors, 18 warnings). Both documentation pairs synchronized. No installation/device validation/commit/push; 6.1d and 6.2 remain pending. See 5.23.9.
 - 2026-09-30 6.1b 实施：StepDetector.kt 增加完整 Running 平均步频和同一合格窗口最小步频，SessionRecord.kt 接入摘要，SessionSummaryPanel.kt 显示英文 Mean/Min/Max 与不可用/缺失原因。新增 7 项测试，本轮 168 项测试全部通过，debug 构建与 lint 通过（0 errors、18 warnings）。两份 AGENTS.md、两份 prompt.md 已同步；未安装 APK、未真机验证、未提交/推送。后续步骤未实施；详见 5.23.8。
