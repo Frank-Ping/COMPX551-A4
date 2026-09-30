@@ -1360,3 +1360,84 @@ Suggested commit message (not committed):
 ```text
 feat: persist sessions with save recovery and minimal history
 ```
+
+# 第 7 阶段：History 查询交互与验收 / Stage 7: History interactions and verification
+
+- 2026-09-30 用户采用全部推荐规则，依据根目录 AGENTS.md 5.27。20 条为每次加载数量，不是保存上限；手动 Load more，不自动滑底加载、不自动清理。
+  On 2026-09-30 the user accepted all recommended rules in root AGENTS.md Section 5.27. Twenty records is a page size, not a storage limit. Use manual Load more, with no automatic loading on scroll or automatic deletion.
+- 本次只定义规则与提示词，未实施 7.1/7.2、未修改应用代码、未运行测试/构建或操作设备。各步实际结果在该步执行后记录，不将 6.2 的测试结果作为第 7 阶段通过证据。
+  This update defines rules and prompts only. Steps 7.1/7.2 have not been implemented; no app code changes, tests, builds or device operations were performed. Record actual results after each requested step; previous 6.2 results do not prove stage 7 passed.
+
+## 步骤 7.1：历史列表 / Step 7.1: History list
+
+### 中文
+
+```text
+仅实施步骤 7.1，遵循根目录 AGENTS.md 第 5.27 节，直接修改文件。
+
+先检查 6.2 当前的 SessionDatabase、HistoryPanel 及保存状态接线。缺少必要前置时说明并停止，不自动补做其他步骤；已有符合规则的实现直接复用，只补实际缺口。
+
+1. 列表必须来自 SQLite，沿用 startedAt DESC、id DESC 游标分页，每次最多 20 条。显示 Running 开始日期时间、时长、步数、累计估计距离及不完整提示；无记录显示 No saved sessions。20 条不是保存上限，不自动清理记录。
+2. 向下滚动后用 Load more 加载较早记录，不自动滑底加载、不查询总数。返回不足 20 条时隐藏按钮；恰好满 20 条允许再请求一次确认末页。查询期间禁用重复请求。
+3. 首次加载失败显示英文错误及 Retry query；分页失败保留已有列表与游标，重试同一失败页，不回到第一页。取消或旧页面/旧选择的查询结果不得覆盖当前页面。
+4. 从详情返回列表、旋转或重新进入 History 时重新加载前 20 条，不要求恢复页数或滚动位置。新的保存成功且正在显示列表时刷新前 20 条；正在显示详情时保留所选会话，返回列表再刷新。切换 History 或旋转不得停止采集，真正离开前台沿用既定结束规则。
+5. 列表日期按查看时手机当前时区显示 yyyy-MM-dd HH:mm:ss XXX；重新进入/查询或页面重建时读取时区，不增加时区监听框架。沿用 6.2 单位、舍入及 null/真实零规则，不改数据库时间或摘要算法。
+6. 本步重新使用实际 SQLite/Compose 验证空/多记录、同时间排序、超过 20 条和满页边界、Load more、失败原页重试、保存刷新、返回/旋转及旧查询过滤；验证数据库关闭重开后的读取。未执行的采集/设备检查标 pending，不将测试数据当作真机证据。
+7. 运行相关测试、debug 构建及 lint；同步两份 AGENTS.md 与两份 prompt.md 的实际结果，中英文区分文件修改、自动检查及设备行为。提供对应英文 commit message，不自动 commit/push。
+
+使用最小代码、当前 Compose 主题和英文 UI/注释。保持现有详情/删除可用，不实施 7.2 的改进或第 8 阶段布局/清理，不增加筛选、导出、批量删除、自动清理、依赖、通用框架或无关重构。
+```
+
+### English
+
+```text
+Implement only step 7.1, following Section 5.27 of the root AGENTS.md. Modify the files directly.
+
+Inspect the current 6.2 SessionDatabase, HistoryPanel and save-state wiring first. If prerequisites are missing, explain and stop without implementing other steps. Reuse existing compliant behavior and fill only actual gaps.
+
+1. Read the list from SQLite using the existing startedAt DESC, id DESC keyset pagination, with at most 20 records per page. Show the Running start date/time, duration, steps, accumulated estimated distance and incompleteness indication. Show No saved sessions when empty. Twenty is a page size, not a storage limit; do not automatically delete records.
+2. Use Load more after scrolling to load older records. Do not load automatically on scroll or query a total count. Hide the button after a page returns fewer than 20 records; a full page may require one more request to discover the end. Disable duplicate requests while querying.
+3. Show an English error and Retry query on initial-load failure. On pagination failure, retain the loaded list and cursor and retry the same failed page without returning to page one. Cancelled or stale page/selection queries must not overwrite the current screen.
+4. Reload the first 20 records after returning from detail, rotating or re-entering History; restoring loaded pages or scroll position is not required. A new successful save refreshes the first page when the list is visible. While detail is visible, retain the selected session and refresh the list on return. History switching and rotation must retain active acquisition; actual foreground departure keeps the existing ending rules.
+5. Format list dates as yyyy-MM-dd HH:mm:ss XXX in the phone's current viewing timezone. Read the timezone when re-entering, querying or rebuilding the screen; do not add a timezone-listener framework. Reuse 6.2 units, rounding and null-versus-zero behavior without changing stored times or summary algorithms.
+6. Run fresh actual SQLite/Compose checks for empty/multiple records, tied-time ordering, more than 20 records and full-page boundaries, Load more, failed-page retry, save refresh, return/rotation and stale-query rejection. Verify reads after database close/reopen. Mark unperformed acquisition/device checks pending; fixtures are not hardware evidence.
+7. Run relevant tests, a debug build and lint. Synchronize both AGENTS.md files and both prompt.md files with actual results in Chinese and English, separating modified files, automated checks and device behavior. Provide an English commit message matching the changes; do not commit or push automatically.
+
+Use minimal code, the current Compose theme and English UI/comments. Preserve existing detail/delete behavior without implementing step 7.2 improvements or stage 8 layout/cleanup. Add no filtering, export, bulk deletion, automatic cleanup, dependencies, generic frameworks or unrelated refactoring.
+```
+
+## 步骤 7.2：详情与确认删除 / Step 7.2: Detail and confirmed deletion
+
+### 中文
+
+```text
+仅实施步骤 7.2，遵循根目录 AGENTS.md 第 5.27 节，直接修改文件。
+
+先检查 6.2 与 7.1 的当前输出。缺少必要前置时说明并停止，不自动补做其他步骤。复用既有按 ID 查询、摘要、基础图表和删除事务，只补实际缺口。
+
+1. 按会话 ID 从 SQLite 查询同一场摘要及两类历史。沿用 5.23.5 的 HR/步频整场曲线、HR 与步频统计、五区间时长及 Running 占比、独立未归类时间、Running 时长、步数、估计距离与速度、设备、结束原因及完整性。不要从历史点重新计算摘要；null 显示 --，真实零显示 0；断段不连线、无数据不补点，零时长占比为 --，无有效 HR 明示 No valid HR data。
+2. 旋转保留所选 ID 并重新查询详情；新会话保存成功不得切换或重置正在查看的详情，返回列表后再刷新前 20 条。查询失败显示英文错误及 Retry query，按原 ID 重试；查不到记录显示 Session not found 和 Back。取消或旧选择的查询结果不得覆盖当前选择。
+3. 列表、详情及删除确认统一按查看时手机当前时区显示 yyyy-MM-dd HH:mm:ss XXX。重新进入/查询或页面重建时读取当前时区，不增加监听框架，不改数据库 Unix 毫秒、单调时长或曲线横轴。
+4. 删除确认弹窗显示所选会话的 Running 开始日期时间。Cancel 不写数据库；确认后一个事务只删除该 ID 的摘要和全部 HR/运动历史。删除期间禁止重复操作；失败保留详情与数据库记录并允许再次 Delete，不显示成功；成功返回列表并重新加载前 20 条。
+5. 本步重新使用实际 SQLite/Compose 验证不同 ID 的详情一致性、null/零/断段、零时长占比、无有效 HR、旋转选择、新保存不切换详情、查询失败重试及不存在；验证确认日期、取消、仅删除指定 ID、删除失败回滚与重试。检查视图切换/旋转保留采集，未执行的设备项标 pending。
+6. 运行相关测试、debug 构建及 lint；同步两份 AGENTS.md 与两份 prompt.md 的实际结果，中英文区分文件修改、自动检查及设备行为。不得复用旧结果宣称本步通过；提供对应英文 commit message，不自动 commit/push。
+
+使用最小代码、当前 Compose 主题和英文 UI/注释。不实施第 8 阶段正式布局或临时显示清理，不增加速度曲线、ECG 历史回放、缩放/拖动、筛选、导出、批量删除、自动清理、依赖、数据库表、通用框架、算法调参或无关重构。
+```
+
+### English
+
+```text
+Implement only step 7.2, following Section 5.27 of the root AGENTS.md. Modify the files directly.
+
+Inspect the current 6.2 and 7.1 outputs first. If prerequisites are missing, explain and stop without implementing other steps. Reuse existing ID queries, summaries, basic plots and deletion transactions; fill only actual gaps.
+
+1. Query the selected session's summary and both history series from SQLite by session ID. Retain the Section 5.23.5 full-session HR/cadence plots, HR/cadence statistics, five zone durations and Running percentages, separate unclassified time, Running duration, steps, estimated distance/speeds, device, end reason and completeness. Do not recalculate summaries from history points. Show -- for null and 0 for genuine zero; do not connect breaks or fabricate points. Show -- for zero-duration percentages and No valid HR data when appropriate.
+2. Retain the selected ID across rotation and requery detail. A newly successful save must not switch or reset the visible detail; refresh the first 20 list records on return. On query failure, show an English error and Retry query for the same ID. Show Session not found and Back when absent. Cancelled or stale-selection queries must not overwrite the current selection.
+3. Use yyyy-MM-dd HH:mm:ss XXX consistently for list, detail and deletion confirmation in the phone's current viewing timezone. Read the timezone on re-entry, query or screen rebuild without adding a listener framework. Do not change stored Unix milliseconds, monotonic duration or chart elapsed axes.
+4. Include the selected session's Running start date/time in the deletion confirmation. Cancel performs no database writes. Confirm atomically deletes only that ID's summary and all HR/motion points. Block duplicate operations during deletion. On failure, retain detail and database rows and allow Delete again without reporting success. On success, return to the list and reload the first 20 records.
+5. Run fresh actual SQLite/Compose checks for detail consistency across IDs, null/zero/breaks, zero-duration percentages, no valid HR, selected-ID rotation, new saves retaining detail, query retry and missing records. Verify confirmation dates, cancellation, selected-ID isolation, deletion rollback and retry. Check that view switching/rotation retains acquisition; mark unperformed device checks pending.
+6. Run relevant tests, a debug build and lint. Synchronize both AGENTS.md files and both prompt.md files with actual results in Chinese and English, separating modified files, automated checks and device behavior. Do not reuse previous results as proof this step passed. Provide an English commit message matching the changes; do not commit or push automatically.
+
+Use minimal code, the current Compose theme and English UI/comments. Do not implement stage 8 layout or development-display cleanup. Add no speed plot, historical ECG replay, zoom/pan, filtering, export, bulk deletion, automatic cleanup, dependencies, database tables, generic frameworks, algorithm tuning or unrelated refactoring.
+```
