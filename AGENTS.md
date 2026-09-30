@@ -6,7 +6,7 @@
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；本轮 194 项测试、debug 构建和 lint 通过（0 errors、18 warnings），真机待验证。6.2 尚未实施，不自动推进。
+- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 已接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成，不推进第 7/8 阶段。
 
 ## 2. 协作规则
 
@@ -107,7 +107,7 @@
 | 平均值与最大/最小值范围 | HR 见 5.19；5.3add 已实现平均速度包含整场 Running 内静止时间，最大步频/速度取整场有效 5 秒窗口峰值，见 5.20；6.1b 已增加整场平均步频和合格窗口最小步频，见 5.23.2、5.23.8；未增加最小速度 |
 | Start、Stop 行为 | 4.4 已实现，真机待验证；仅 Start/Stop；Start 新建会话并默认启动 HR、ACC、ECG；首个真实数据开始计时，Stop 或连接/前台中断结束会话，见 5.18 |
 | 页面离开、锁屏、后台行为 | 旋转保持会话、连接、订阅和计时；返回欢迎页、锁屏或进入后台时结束会话并取消连接/断开、清理订阅；返回后手动连接、Start 新会话，不恢复旧会话，见 5.18 |
-| 存储技术、字段与保存时机 | 已保存设备使用私有 SharedPreferences + JSON，在接受有效连接成功回调后保存名称、唯一标识和最近连接时间，见 5.11；会话使用 SQLiteOpenHelper，在 IO 线程将摘要及历史曲线一次事务保存；字段、失败重试和资格已确认，见 5.23（尚未实施） |
+| 存储技术、字段与保存时机 | 已保存设备使用私有 SharedPreferences + JSON，在接受有效连接成功回调后保存名称、唯一标识和最近连接时间，见 5.11；会话使用 SQLiteOpenHelper，在 IO 线程将摘要及历史曲线一次事务保存；6.2 已实施事务、保存状态、失败重试与资格，见 5.23.11 的实际验证结果 |
 | 原始数据保留范围 | ACC 内存暂存最近 10 秒、最多 1,000 样本，见 5.16；ECG 内存暂存最近 10 秒、最多 1,300 样本，见 5.17；整场仅保存摘要及每秒最多一点的 HR/步频/速度；不持久化原始 ACC/ECG，见 5.23 |
 | 实时曲线窗口 | 5.5add 已实施：HR、步频、速度最近 60 秒，分别最多 61、241、241 点（运动两值共用最多 241 条记录）；ECG 最近 5 秒复用 10 秒/1,300 点原始缓存，130 Hz 受控五秒窗口保留全部 650 个样本；自动检查通过，真实绘图/性能待验证，见 5.22 |
 | 数据隐私与保留方式 | App 私有 SQLite；不上传，数据库排除云备份及设备迁移；不自动过期/限条删除，支持确认后单场删除，无导出，卸载/清除数据丢失历史，见 5.23 |
@@ -552,12 +552,12 @@
 - 显示实施（2026-09-30）：新增 LiveChartPanel.kt，并由 SensorActivity.kt 接入；使用 Compose Canvas、主题颜色和英文文本，HR/Motion/ECG 三类切换，Motion 内单选 Cadence/Speed，各自标注 bpm、steps/min、km/h、µV。横轴 mm:ss，纵轴标注单位及当前上下界，ECG 保留负值。仅选中的图按 250 ms（HR/运动）或 100 ms（ECG）读取绘图快照；隐藏图仍通过数据事件和原会话刷新维护有界缓存。Canvas 遍历快照全部可见点，遇空值或断段不连接；代码检查与受控快照测试已完成，实际帧率、屏幕效果和设备旋转未验证。
 - 当前范围：5.5add 代码与自动检查完成，未安装或操作手机，未新增依赖或通用缓存框架。60 秒显示缓存不是整场历史；本步未实施 UUID/SessionRecord、整场 1 Hz 历史、四小时自动结束、SQLite、History、进程恢复或正式布局。ECG 映射含传输延迟，只是近似对齐；HR 每秒末点可能省略秒内变化，已知显示限制不反向改变累计统计。
 
-### 5.23 第 6 阶段：SQLite 会话存储与最简单 History 验收（6.1a—6.1d 已实施，其余待实施）
+### 5.23 第 6 阶段：SQLite 会话存储与最简单 History 验收（6.1a—6.1d、6.2 代码已实施，验收边界见 5.23.11）
 
-- 确认日期：2026-09-29。用户采用全部推荐方案，要求实施使用最小代码及最简单显示，方便测试；当时仅修改文档，没有修改应用代码或运行构建/真机测试。以下为设计规则；当前 6.1a—6.1d 的实际结果见 5.23.7—5.23.10，其余步骤尚未实施。
+- 确认日期：2026-09-29。用户采用全部推荐方案，要求实施使用最小代码及最简单显示，方便测试；当时仅修改文档，没有修改应用代码或运行构建/真机测试。以下为设计规则；当前 6.1a—6.1d、6.2 的实际结果见 5.23.7—5.23.11；第 7/8 阶段未自动推进。
 - 实施顺序：6.1a 会话身份与摘要 → 6.1b 平均与最小步频 → 6.1c 整场心率历史 → 6.1d 整场步频/速度历史及完整快照 → 6.2 保存及最简单测试入口；先检查 5.3—5.5 依赖，缺少时说明并停在缺失依赖，不自动补做其他步骤。6.2 可包含验收所需的最小列表/详情查询、简单曲线和删除入口，复用到第 7 阶段；正式布局仍留第 8 阶段。不新增 Room、图表库、通用 Repository/存储框架、兼容旧版本路径或无关重构。
 
-- 拆分确认（2026-09-30）：原 6.1 拆为下列四步，每次只实施用户指定的一个编号。先完成 5.3—5.5，再依次执行 6.1a → 6.1b → 6.1c → 6.1d；缺失依赖时先说明，不自动补做。当时只更新文档，四步均未实施；现 6.1a—6.1d 已实施，6.2 仍待实施，见本节及第 9 节最新记录。
+- 拆分确认（2026-09-30）：原 6.1 拆为下列四步，每次只实施用户指定的一个编号。先完成 5.3—5.5，再依次执行 6.1a → 6.1b → 6.1c → 6.1d；缺失依赖时先说明，不自动补做。当时只更新文档，四步均未实施；现 6.1a—6.1d、6.2 代码已实施，验证范围见本节及第 9 节最新记录。
 
 | 子步骤 | 本步范围 | 最简单显示与验收 |
 |---|---|---|
@@ -620,7 +620,7 @@
 - 6.1d 受控检查：250 ms 结果按秒保留末组、缺失与真实静止、ACC 缺口及段重建、Retry/部分秒/Stop/旋转/旧事件、四小时与 14,401 点边界；摘要和两类历史同 ID、结束时整体冻结，新 Start 不修改旧快照。两类容量边界用受控时钟验证，不等待四小时或把模拟结果当真机验证。
 - 6.2 检查：事务成功/失败回滚、重复结束/重试去重、失败快照保留和新 Start 限制、手动重试/丢弃、页面离开后任务不主动取消；SQLite 实际关闭再打开后的读取、按 ID 详情、20 条分页及倒序、删除/取消、NULL 与 0、备份排除配置。数据库行为应使用真实 SQLite 验证，不仅 mock 成功；如依赖模拟器/设备的测试未执行，明确标待验证。
 - 实施代码后运行相关测试、debug 构建和 lint；真机验证采集→Stop/中断→Saved→重启查询、简单图与摘要一致、失败恢复和删除，并记录性能及局限。不能用旧的 105 项测试或构建结果证明第 6 阶段通过。
-- 当前 6.1a—6.1d 已写入代码并通过各自自动检查；6.2、SQLite 与简单 History 尚未实施。当前提供摘要、整场 HR/运动内存记录及结束组合冻结快照，不宣称已保存或重启保留；真机尚未验证。
+- 当前 6.1a—6.1d、6.2 已写入代码；6.2 单元测试、debug、lint 和仪器测试 APK 构建通过。保存成功提交才显示 Saved；进程在提交前终止可能丢失未保存快照。实际 SQLite/界面执行及 H10 真机待验收项分别见 5.23.11。
 
 #### 5.23.7 步骤 6.1a 实施与验证 / Step 6.1a implementation and verification（2026-09-30）
 
@@ -692,6 +692,27 @@
 - 状态：仅 6.1d 文件已修改、自动检查通过；两份 AGENTS.md 和两份 prompt.md 同步。未安装 APK、未操作手机；没有 Saved、数据库、保存任务/失败状态、History 页面、应用级待保存管理或自动四小时结束，6.2 仍待实施。内存记录不保证进程重启保留；未 commit/push。
   Status: Only step 6.1d implemented; automated checks passed and both documentation pairs synchronized. No APK installation or phone interaction. No Saved state, database, save task/failure state, History page, application-level pending-save manager or automatic four-hour ending; 6.2 remains pending. Memory records do not survive process restart. No commit or push.
 
+#### 5.23.11 步骤 6.2 实施与验证 / Step 6.2 implementation and verification（2026-09-30）
+
+- 前置与文件修改：重新检查 5.3—5.5 及 6.1a—6.1d，前置齐全。新增 storage/SessionDatabase.kt、SessionSaveController.kt、SessionStorage.kt 和 history/HistoryPanel.kt；修改 SessionState.kt、PolarBleManager.kt、SensorActivity.kt、SessionSummaryPanel.kt、SessionRecord.kt，并将既有 ChartPlot 开放给 History 复用。修改两个备份 XML；没有新增依赖、数据库框架、SDK 调用、原始数据持久化、计步参数或第 7/8 阶段正式布局。
+  Prerequisites/files modified: Verified 5.3–5.5 and 6.1a–6.1d. Added SessionDatabase.kt, SessionSaveController.kt, SessionStorage.kt and HistoryPanel.kt; updated session/manager/UI wiring and reused the existing ChartPlot. Updated both backup XML resources. No added dependencies/frameworks, SDK calls, raw-data persistence, step-detection parameters or stage 7/8 layout work.
+- SQLite：App 私有 sessions.db，SQLiteOpenHelper 版本 1；sessions、hr_points、motion_points 三表，全部读写在 Dispatchers.IO。保存全部摘要、Unix ms、单调 durationMs、设备快照、各路 received/missing/failed、有效 HR 标记及完整性；保留 SQL NULL/真实零、原始小数、m/m/s 和断段。一个事务插入摘要与两类时序，异常回滚；主键 UUID、时序联合主键禁止重复。已提交 UUID 的再次保存只确认已有完整事务，不覆盖已有摘要或累加时序；失败 Retry 复用原快照/ID。无数据/仅无效 HR 不保存，有资格的零时长会话不额外拒绝。
+  SQLite: App-private sessions.db uses SQLiteOpenHelper v1 with sessions, hr_points and motion_points; all reads/writes run on Dispatchers.IO. Stores all summary/timing/device/observation/completeness fields with SQL NULL versus genuine zero, full precision, m/m/s and breaks. One transaction inserts all three tables or rolls back. UUID and session/bucket keys enforce uniqueness. An already committed UUID is acknowledged without replacement or additional points; failed retries use the original snapshot/ID. Ineligible attempts are excluded without imposing a minimum duration on eligible sessions.
+- 保存生命周期：既有结算后的快照进入应用级 SessionStorage，独立 SupervisorJob/Main scope 调用 IO 保存，不持有 Activity、不由 ViewModel 清除取消。显示 Saving…/Saved/Save failed 及对应 ID；成功提交后才 Saved。保存中/失败未处理时，按钮和 SessionController 同时阻止新 Start；失败仅手动 Retry save 或明确 Discard session，重复提交/重试被拒绝。离开页面后任务继续，返回新管理器仍读取相同应用级状态；没有服务、自动重试、崩溃恢复或静默丢弃。清理采集不会恢复连接；成功提交前杀进程仍可能丢失本场。
+  Save lifecycle: The finalized snapshot goes to application-owned SessionStorage with an independent SupervisorJob/Main scope and IO database writes. No Activity reference or ViewModel-driven cancellation. Saving…/Saved/Save failed includes the session ID; Saved follows commit only. Both UI and SessionController block Start while saving or unresolved failure. Manual Retry save or explicit Discard session handles failure; duplicate submissions/retries are rejected. Returning managers observe the same owner. No service, automatic retry, crash recovery or silent discard; process death before commit may lose the pending session.
+- 四小时：沿用刷新、订阅状态、三路事件及 Stop/Retry 入口检查；以 Running 单调起点判断达到 14,400,000 ms，在事件进入统计之前结束，原因 TIME_LIMIT、英文 Session time limit reached。重复结束不会再次结算。迟到调度按四小时结算区间、平均值和时长；endedAt 取观察时 Unix 时间减去单调超时时间，以当前日期时钟投影逻辑截止，不由日期差计算时长。图轴最多四小时，不制造边界点、不计入清理时间。原历史收集器仍独立保留含截止边界/14,401 桶防线；实际自动结束先于边界事件，因此不强求存在第 14,400 秒的点。
+  Four-hour limit: Existing refresh, subscription, data, Stop and Retry entries enforce the monotonic Running deadline before new data changes statistics. At 14,400,000 ms the normal ending flow uses TIME_LIMIT and Session time limit reached. Duration/zones/means settle at the logical cutoff, excluding lateness and cleanup. endedAt projects that cutoff from the observed Unix clock minus monotonic overshoot; duration never uses wall-clock subtraction. No fabricated boundary point. Collectors retain their inclusive/capacity guards, while automatic ending precedes boundary events and does not require a final bucket.
+- History 与隐私：同一 SensorActivity 内用简单 Session/History 按钮切换，现有计时/采集持有者继续存在，真正离开前台仍结束。列表及详情从 SQLite 读取，startedAt/ID 倒序游标分页，每次 20 条，Load more；按 ID 查看摘要、HR/步频整场曲线、五区间柱形及 Running 占比、未归类、缺失/设备/结束原因。复用既有 Canvas，实际 elapsedMs 横轴、null/断段不连线；零时长百分比 --，无有效 HR 明示。删除确认后同一事务删除该场三表行，取消不写库；不导出、不自动清理。Manifest 已引用的 legacy/cloud-backup/device-transfer XML 明确排除 sessions.db 及 journal/wal/shm，仅影响会话数据库，设备 SharedPreferences 不改；界面说明卸载/清数据丢失历史及提交前进程终止风险。
+  History/privacy: Simple Session/History switching stays inside SensorActivity and retains active collection/timing; actual foreground departure still ends acquisition. SQLite supplies descending start-time/ID keyset pages of 20 and detail by ID. Detail reuses summary, full-session HR/cadence plots and zone bars, adds Running percentages and separate unclassified time, and preserves actual elapsedMs/null/break behavior. Zero-duration percentages show -- and missing valid HR is explicit. Confirmed deletion atomically removes that session's rows; cancellation writes nothing. No export/automatic expiry. Manifest-linked legacy/cloud/transfer XML excludes sessions.db and journal/wal/shm while leaving saved-device preferences unchanged. UI explains data loss on uninstall/clear and process death before commit.
+- 单元测试与构建已通过：新增 SessionSaveControllerTest（6 项）、SessionTimeLimitTest（4 项），更新两项先前“到限不结束”的生命周期预期。覆盖提交/完成/失败/手动重试/丢弃/重复拒绝、无资格/零时长、页面 scope 取消不取消保存、返回新控制器 Start 限制、恰好截止/延迟/日期跳变/清理、不同结束入口与旧代次。运行 :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest，BUILD SUCCESSFUL；204 tests、0 failures、0 errors、0 skipped；lint 0 errors、18 warnings（另有 1 条 Hint）。不复用 6.1d 的结果作为本步证据。
+  Unit/build checks passed: Added six save-controller and four time-limit tests and updated two previous no-auto-ending lifecycle expectations. Coverage includes save states/duplicates/retry/discard, eligibility, page-scope independence, new-controller Start blocking, exact/delayed deadlines, date changes, cleanup/endings and stale generations. :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest succeeded: 204 tests, zero failures/errors/skips; lint 0 errors, 18 warnings and one Hint. These are current-step results.
+- 实际 SQLite/Compose 执行：在新建独立 Android 模拟器 emulator-5582（API 37 系统镜像）安装本轮 debug 和 androidTest APK，执行 SessionDatabaseTest 6 项、HistoryPanelTest 2 项，OK (8 tests)。实际 Android SQLite 已验证全部字段/精度/null/零/断段关闭重开、重复点导致三表回滚、同 ID 重试/重复保存不覆盖、无资格/零时长 ACC、45 条及同时间分页/插入新记录不重复、删除中途失败回滚与只删指定 ID；真实触发器故障经 SaveController 重试成功。Compose 已实际点击详情、Cancel、Delete 并核对数据库；已解析三套备份排除规则。测试数据库使用随机独立名称并在测试后删除。旧 AVD 的 ADB offline/安装阻塞未计为测试通过；改用项目 build 目录的全新 AVD 后完成验证，未修改用户原 AVD 配置或手机应用数据。执行日志：PolarH10ActivityViewer/build/step62-validation/instrumentation.txt（忽略的本地验证产物）。
+  Actual SQLite/Compose execution: Installed the current debug and androidTest APKs only on a fresh isolated emulator-5582 (API 37 system image). Six SessionDatabaseTest and two HistoryPanelTest cases passed: OK (8 tests). Actual Android SQLite covered full-field/precision/null/zero/break round trips after close/reopen, three-table rollback on duplicate points, same-ID retries/duplicate preservation, eligibility/zero-duration ACC, 45-row/tied-time pagination with a concurrent newer insert, delete rollback and selected-ID isolation. A real failing trigger was recovered through SaveController retry. Compose exercised detail, Cancel and Delete against real rows; XML tests checked all three backup rule sections. Random dedicated test databases were removed afterward. Existing-AVD offline/install failures were not counted as success; validation completed using a fresh AVD in the ignored project build directory, without changing original AVD configuration or phone app data. Log: PolarH10ActivityViewer/build/step62-validation/instrumentation.txt (local ignored artifact).
+- 真机待验证：未在 Samsung/H10 上安装或操作本轮版本。待执行：连接 H10 → Start → 走路/静止 → Stop 或断线/后台 → 等待 Saved → 关闭重启 App → History 核对日期、时长、摘要和整场曲线；超过 60 秒并 Retry，核对前后历史/断段。运行中切换 History、旋转，核对不会意外结束；后台/锁屏仍结束。确认取消删除不改变记录、确认删除只删单场。模拟器故障注入不等于真实手机存储满，真实失败恢复、设备迁移/云备份排除行为、四小时现场运行与绘图/保存性能仍待验证，不能宣称 H10 全链路通过。
+  Pending hardware checks: This version was not installed or operated on Samsung/H10. Connect → Start → walk/stand → Stop or disconnect/background → wait for Saved → restart app → verify History dates, duration, summaries and full curves. Test beyond 60 seconds and across Retry. Switching History and rotating should retain the active session, while actual background/lock ends it. Cancel/confirm single-session deletion. Emulator fault injection is not a real full-storage phone test; hardware failure recovery, OS backup/transfer behavior, real four-hour running and performance remain pending. No claim of complete H10 end-to-end validation.
+- 状态与范围：两份 AGENTS.md、两份 prompt.md 同步中英文实施及证据。仅完成 6.2 及授权的最简单查询/详情/删除入口；无第 7/8 阶段扩展、无算法调参、无新依赖。未 commit/push；测试数据只在测试代码和专用测试数据库，不写入生产 History。
+  Status/scope: Both AGENTS.md and prompt.md pairs contain synchronized bilingual implementation/evidence. Only 6.2 and its authorized minimal History entry points; no stage 7/8 expansion, algorithm tuning or dependencies. No commit/push. Synthetic fixtures remain in test code and dedicated test databases, never production History.
+
 ### 5.24 5.3add、5.4add、5.5add 补充实施入口（2026-09-30，三项代码已实施）
 
 - 初次记录要求：提供三个补充 prompt，命名为 5.3add、5.4add、5.5add，并将两份 AGENTS.md 和两份 prompt.md 分别同步为完全一致的最新版；初次记录只改文档。随后分别按用户授权实施三项，实际结果见 5.20—5.22 和第 9 节；三项均仍有真机待验收项。
@@ -723,8 +744,8 @@
 | heartrate/ | HeartRateZones.kt、HeartRateZonePanel.kt | 5.4add：区间计时和显示 |
 | chart/ | LiveCharts.kt、LiveChartPanel.kt | 5.5add：实时曲线 |
 | session/ | SessionState.kt、SensorViewModel.kt、SessionRecord.kt、SessionSummaryPanel.kt | 4.4 会话与持有者；6.1a 身份、摘要、两类历史点结构及英文测试文本；6.1d 增加组合快照及摘要冻结回调 |
-| history/ | HrHistory.kt、MotionHistory.kt | 6.1c—6.1d 整场 HR/运动收集与元数据；6.2 简单 History 尚未实施 |
-| storage/ | 本地空目录，未实现 | 6.2 SQLite 和保存任务 |
+| history/ | HrHistory.kt、MotionHistory.kt、HistoryPanel.kt | 6.1c—6.1d 整场 HR/运动收集；6.2 SQLite 列表/详情/确认删除与保存状态文本 |
+| storage/ | SessionDatabase.kt、SessionSaveController.kt、SessionStorage.kt | 6.2 SQLite 三表事务与查询、保存状态机、应用级持有者 |
 | ui/theme/ | Color.kt、Theme.kt、Type.kt | 原主题，保持原位 |
 
 - `app/src/test/java/com/example/polarh10activityviewer/` 下 17 个功能测试文件同步分包；HeartRateTest 位于 heartrate/，其被测心率类仍在 ble/PolarBleManager.kt 内，通过 import 引用。ExampleUnitTest 和 androidTest 的 ExampleInstrumentedTest 保持原位。
@@ -779,7 +800,7 @@
 | 6.1b | 平均与最小步频，沿用已有最大步频，见 5.23.2、5.23.8（代码及自动检查完成，真机待验证） | 平均包含静止，极值仅用真实合格五秒窗口，无观测为 -- |
 | 6.1c | 整场心率历史及自身生命周期，见 5.23.3、5.23.9（代码及自动检查完成，真机待验证） | 每秒真实末点，断段保留，Retry 不删旧段，四小时/14,401 点有界 |
 | 6.1d | 整场步频/速度历史及完整会话快照，见 5.23.3、5.23.10（代码及自动检查完成，真机待验证） | 每秒已有末结果，缺失不填零，Stop 冻结两类历史与摘要，新场不修改旧快照 |
-| 6.2 | 按 5.23 实现 SQLite 事务保存、四小时上限、失败重试及最简单 History 测试入口（规则已确认，尚未实施） | 重启保留、去重、失败回滚、简单查询/曲线/删除可验收，无正式布局 |
+| 6.2 | SQLite 事务保存、四小时上限、失败重试及最简单 History 入口（代码已实施，实际验收见 5.23.11） | 重启保留、去重、失败回滚、简单查询/曲线/删除可验收，无正式布局 |
 | 7.1 | 查询历史列表：Running 开始时间倒序、每次 20 条，无筛选；复用 6.2 测试查询 | 空记录、多记录、排序及 Load more 正确 |
 | 7.2 | 按会话 ID 查询详情及确认删除；复用 6.2 最简单验收入口 | 指标及图表对应所选会话，删除摘要与曲线一致 |
 | 8.1 | 整合区域 1、2：连接与心率强度 | 状态变化自动反映到界面 |
@@ -829,6 +850,8 @@
 
 ## 9. 进度与证据
 
+- 2026-09-30 6.2 实施：SQLite 三表事务/应用级保存状态、四小时截止及最简单 History 查询/详情/确认删除已写入；204 项单元测试、debug 构建、lint（0 errors、18 warnings）和仪器测试 APK 构建通过。独立模拟器 8 项真实 SQLite/Compose 测试通过，详见 5.23.11；H10 真机待验证；两对文档同步，无 commit/push，不推进第 7/8 阶段。
+  Step 6.2: Implemented transactional SQLite, application-owned saving, four-hour ending and minimal History queries/detail/confirmed deletion. All 204 unit tests, debug build, lint (0 errors, 18 warnings) and instrumentation APK build passed. Eight actual SQLite/Compose emulator tests passed; see 5.23.11. H10 checks pending. Documentation pairs synchronized; no commit/push or stage 7/8 work.
 - 2026-09-30 6.1d 实施：新增 MotionHistory.kt，复用 250 ms 结果每秒保留末组、null/断段、前四小时及 14,401 桶边界；既有结算后一次组合摘要、HR/运动冻结快照，增加英文元数据显示。新增 13 项测试，本轮 194 项全部通过，debug 构建及 lint 通过（0 errors、18 warnings）。两对文档同步；真机待验证，未安装/commit/push，6.2 未实施。见 5.23.10。
   Step 6.1d: Added bounded motion history at the existing refresh entry and one combined summary/HR/motion snapshot after settlement, with English metadata. Thirteen new tests; all 194 tests, debug build and lint passed (0 errors, 18 warnings). Both document pairs synchronized. Device checks pending; no installation/commit/push; 6.2 remains unimplemented. See 5.23.10.
 - 2026-09-30 6.1c 实施：新增 HrHistory.kt，接入真实 HR 末点、每秒分桶、null/断段、四小时/14,401 点上限和自身生命周期；SensorActivity 显示英文计数/首末时间。新增 13 项测试，本轮 181 项全部通过，debug 构建和 lint 通过（0 errors、18 warnings）。两份 AGENTS.md、两份 prompt.md 同步；未安装/真机验证/commit/push，6.1d、6.2 未实施。详见 5.23.9。
@@ -899,7 +922,7 @@
 - 待验证：权限拒绝与设置返回；扫描筛选、去重及停止规则；真实连接、10 秒超时、重试与生命周期；设备保存、时间更新及重启保留；主动与意外断线；断开异常重试、防重复点击及回调清理。读写错误和迟到回调仍待故障注入验证。
 - 3.1 待验证与待确认：真实设备功能就绪、实际采样设置、重复请求与旋转、失败重试、断开清理和迟到结果隔离均待运行时验证，步骤见 5.12；实际 ECG 与其他多选参数尚未读取，因此没有新增参数决定。构建和配置单元测试不等于上述真机验证已通过。
 - 审查跟进：断开请求抛错后无法重试已修复；“扫描 RSSI 不会刷新”的结论已撤回；系统时间回拨影响最近连接时间更新的问题尚未修复，见 5.11。
-- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化字段、原始数据保留范围和 History 最小方案已在 5.23 确认，尚未实施。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已实现仅 Start/Stop、首个数据开始计时及中断结束，见 5.18；结束时保存仍为第 6 阶段规划，尚未实现。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
+- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，当前验证及真机边界见 5.23.11。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 已实现仅 Start/Stop、首个数据开始计时及中断结束，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
 - 截图/录屏位置：【待填写】。
 - 5.1 实施跟进：用户要求执行已保存的中英文提示词；5.19 所列代码及自动验证已完成，真机待验证。其他第 5 阶段核心规则见 5.1—5.7、5.20—5.22，均已明确但尚未实施，不再以旧规划记录称统计口径未定。
 - 5.2 规划确认：用户采用此前技术建议，明确完整 5 点平滑后再积累 100 个 s 预热、前 100 点阈值、同一 H 上穿判断、周期 H/L 固定，以及 250 ms 步频刷新、两秒无步归零和显示用单调时间估计；规则直接更新于 5.1—5.4、5.7 及开发步骤表。2026-09-29 按用户要求检索其他计步方案，在 5.6 补充 A_min = 0.5 m/s² 的试验预设、来源差异和每次 0.1 m/s² 的手动调整方案；实测校准尚未执行。本次仅同步两份 AGENTS.md，未修改 Kotlin 或 prompt.md，未运行测试/构建或真机验收；5.2 尚未实施。

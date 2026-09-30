@@ -13,6 +13,7 @@ import com.example.polarh10activityviewer.session.SessionController
 import com.example.polarh10activityviewer.session.SessionStatus
 import com.example.polarh10activityviewer.session.SessionSummary
 import com.example.polarh10activityviewer.session.SessionSnapshot
+import com.example.polarh10activityviewer.storage.SessionStorage
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -87,6 +88,7 @@ data class ConnectionState(
 class PolarBleManager(context: Context) {
     var onBluetoothStateChanged: (() -> Unit)? = null
     private val appContext = context.applicationContext
+    internal val storage = SessionStorage.get(appContext)
     private val savedDeviceStore = SavedDeviceStore.get(appContext)
     val savedDevicesState = savedDeviceStore.state
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -136,6 +138,7 @@ class PolarBleManager(context: Context) {
         CoroutineScope(Dispatchers.Main.immediate)
     ) { type, status ->
         val eventTime = SystemClock.elapsedRealtime()
+        if (session.checkTimeLimit(eventTime)) return@DataSubscriptions
         if (type == PolarDeviceDataType.HR) hrHistory.onSubscriptionState(status)
         if (type == PolarDeviceDataType.ACC) motionHistory.onSubscriptionState(status)
         if (type == PolarDeviceDataType.HR && status == SubscriptionStatus.STARTING) previousHrArrival = null
@@ -180,8 +183,11 @@ class PolarBleManager(context: Context) {
             SessionSummary.from(latestHeartRate.statistics.value, heartRateZones.state.value, stepState.value)
         },
         onSummaryFrozen = { record ->
-            mutableLastSnapshot.value = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
-        })
+            val snapshot = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
+            mutableLastSnapshot.value = snapshot
+            storage.saves.submit(snapshot)
+        },
+        canStart = { !storage.saves.state.value.blocksStart })
     internal val sessionState = session.state
 
     @MainThread
@@ -250,12 +256,10 @@ class PolarBleManager(context: Context) {
             checkFeature(source, identifier, PolarDeviceDataType.HR)
             source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
         },
-        onData = {
-            val receivedTime = SystemClock.elapsedRealtime()
-            val receivedDate = System.currentTimeMillis()
+        onData = { data, receivedTime, receivedDate ->
             val beforeCount = latestHeartRate.statistics.value.count
-            val receivedValid = latestHeartRate.receive(it, receivedDate)
-            if (latestHeartRate.statistics.value.count - beforeCount < it.samples.size ||
+            val receivedValid = latestHeartRate.receive(data, receivedDate)
+            if (latestHeartRate.statistics.value.count - beforeCount < data.samples.size ||
                 previousHrArrival?.let { previous -> receivedTime - previous > 3000 } == true) {
                 session.markMissing(PolarDeviceDataType.HR)
             }
@@ -279,11 +283,9 @@ class PolarBleManager(context: Context) {
                 source.startAccStreaming(identifier, settings)
                     .filter { it.samples.isNotEmpty() }
             },
-            onData = {
-                val receivedAt = SystemClock.elapsedRealtime()
-                val receivedDate = System.currentTimeMillis()
-                accBuffer.receive(it)
-                stepDetector.receivedBatch(it.samples.last().timeStamp, receivedAt)
+            onData = { data, receivedAt, receivedDate ->
+                accBuffer.receive(data)
+                stepDetector.receivedBatch(data.samples.last().timeStamp, receivedAt)
                 if (stepState.value.incompleteAcc) session.markMissing(PolarDeviceDataType.ACC)
                 session.onValidData(receivedAt, receivedDate)
                 session.refresh(session.state.value.generation, receivedAt)
@@ -299,22 +301,20 @@ class PolarBleManager(context: Context) {
                 val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
                 source.startEcgStreaming(identifier, settings).h10EcgSamples()
             },
-            onData = {
-                val receivedTime = SystemClock.elapsedRealtime()
-                val receivedDate = System.currentTimeMillis()
+            onData = { data, receivedTime, receivedDate ->
                 val sampleRate = mutableDataReadiness.value.getValue(PolarDeviceDataType.ECG)
                     .selected.getValue(PolarSensorSetting.SettingType.SAMPLE_RATE)
                 var previous = ecgBuffer.samples.value.lastOrNull()?.timeStamp
-                it.forEach { sample ->
+                data.forEach { sample ->
                     if (previous?.let { time -> (sample.timeStamp - time).toDouble() * sampleRate > 3_000_000_000.0 } == true) {
                         session.markMissing(PolarDeviceDataType.ECG)
                     }
                     previous = sample.timeStamp
                 }
-                ecgBuffer.receive(it)
+                ecgBuffer.receive(data)
                 session.onValidData(receivedTime, receivedDate)
                 session.refresh(session.state.value.generation, receivedTime)
-                liveCharts.receiveEcg(it, session.elapsedAt(receivedTime),
+                liveCharts.receiveEcg(data, session.elapsedAt(receivedTime),
                     sampleRate)
             }
         )
@@ -367,7 +367,7 @@ class PolarBleManager(context: Context) {
     private fun <T> startDataSubscription(
         type: PolarDeviceDataType,
         stream: suspend (PolarBleApi, String) -> Flow<T>,
-        onData: (T) -> Unit
+        onData: (T, Long, Long) -> Unit
     ): Boolean {
         val source = api ?: return false
         val identifier = mutableConnectionState.value.device?.deviceId ?: return false
@@ -377,7 +377,13 @@ class PolarBleManager(context: Context) {
             canStart = { connectedForData() && session.accepts(generation) },
             isCurrent = { session.accepts(generation) && readinessMatches(source, identifier) && bluetoothAvailableForData() },
             stream = { stream(source, identifier) },
-            onData = onData
+            onData = { data ->
+                val receivedAt = SystemClock.elapsedRealtime()
+                val receivedDate = System.currentTimeMillis()
+                if (!session.checkTimeLimit(receivedAt) && session.accepts(generation)) {
+                    onData(data, receivedAt, receivedDate)
+                }
+            }
         )
     }
 

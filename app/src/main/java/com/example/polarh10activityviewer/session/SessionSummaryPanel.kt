@@ -25,7 +25,7 @@ internal fun SessionSummaryPanel(record: SessionRecord?) {
     Text("Ended: ${date(record.endedAt)}")
     Text("Running duration: ${record.durationMs} ms")
     Text("Session device: ${record.device?.name ?: "--"} (${record.device?.deviceId ?: "--"})")
-    Text("Eligible for saving: ${if (record.eligibleForSaving) "Yes" else "No"} (memory only)")
+    Text("Eligible for saving: ${if (record.eligibleForSaving) "Yes" else "No"}")
     Text("Summary: ${if (record.endedAt != null) "Frozen" else "Live"}")
     Text("End reason: ${record.endReason ?: "--"}")
     val summary = record.summary

@@ -97,6 +97,7 @@ class SessionSnapshotTest {
                     val generation = session.state.value.generation
                     subscriptions.start(HR, { session.accepts(generation) }, { session.accepts(generation) },
                         { heartRates }) { bpm ->
+                        if (session.checkTimeLimit(now) || !session.accepts(generation)) return@start
                         val data = PolarHrData(listOf(PolarHrData.PolarHrSample(
                             bpm, 0, 0, emptyList(), emptyList(), false, true, true)))
                         val valid = hr.receive(data, wall)
@@ -115,6 +116,7 @@ class SessionSnapshotTest {
             val generation = session.state.value.generation
             return subscriptions.start(ACC, { session.accepts(generation) }, { session.accepts(generation) },
                 { source }) { data ->
+                if (session.checkTimeLimit(now) || !session.accepts(generation)) return@start
                 acc.receive(data)
                 detector.receivedBatch(data.samples.last().timeStamp, now)
                 if (detector.state.value.incompleteAcc) session.markMissing(ACC)
@@ -300,7 +302,7 @@ class SessionSnapshotTest {
         f.stop()
     }
 
-    @Test fun historiesKeepEarlyDataHaveIndependentCountsAndShareDeadlineWithoutAutoEnding() = runTest {
+    @Test fun historiesKeepEarlyDataAndIndependentCountsAndFreezeAtSharedDeadline() = runTest {
         val f = Fixture(this)
         val hrs = MutableSharedFlow<Int>()
         f.start(flow { emit(samples()); awaitCancellation() }, hrs); runCurrent()
@@ -312,16 +314,17 @@ class SessionSnapshotTest {
         assertTrue(f.charts.snapshot(ChartKind.CADENCE, 75_000).points.first().elapsedMs > 0)
         f.now = 5000 + HrHistory.MAX_ELAPSED_MS
         hrs.emit(130); runCurrent(); f.tick()
-        assertEquals(HrHistory.MAX_ELAPSED_MS, f.motionHistory.snapshot().last().elapsedMs)
-        assertEquals(HrHistory.MAX_ELAPSED_MS, f.hrHistory.snapshot().last().elapsedMs)
+        assertEquals(75_000L, f.motionHistory.snapshot().last().elapsedMs)
+        assertEquals(0L, f.hrHistory.snapshot().last().elapsedMs)
         val motion = f.motionHistory.snapshot()
         val hr = f.hrHistory.snapshot()
         f.now++; hrs.emit(140); runCurrent(); f.tick()
         assertEquals(motion, f.motionHistory.snapshot())
         assertEquals(hr, f.hrHistory.snapshot())
-        assertEquals(3L, f.hr.statistics.value.count)
-        assertEquals(SessionStatus.RUNNING, f.session.state.value.status)
-        assertNull(f.snapshot)
+        assertEquals(1L, f.hr.statistics.value.count)
+        assertEquals(SessionStatus.STOPPED, f.session.state.value.status)
+        assertEquals(HrHistory.MAX_ELAPSED_MS, f.snapshot!!.record.durationMs)
+        assertEquals("TIME_LIMIT", f.snapshot!!.record.endReason)
         f.stop()
     }
 

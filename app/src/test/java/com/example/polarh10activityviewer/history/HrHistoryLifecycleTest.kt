@@ -71,6 +71,7 @@ class HrHistoryLifecycleTest {
             val generation = session.state.value.generation
             return subscriptions.start(HR, { session.accepts(generation) }, { session.accepts(generation) },
                 { source.filter { it.samples.isNotEmpty() } }) { data ->
+                if (session.checkTimeLimit(now) || !session.accepts(generation)) return@start
                 val valid = hr.receive(data, wall)
                 if (valid) session.onValidData(now, wall)
                 zones.receive(hr.reading.value, valid, session.elapsedAt(now))
@@ -250,7 +251,7 @@ class HrHistoryLifecycleTest {
         f.stop()
     }
 
-    @Test fun fourHourCutoffDoesNotStopSessionOrAlterAllSampleStatistics() = runTest {
+    @Test fun fourHourCutoffNowEndsSessionBeforeAcceptingBoundaryAndLateData() = runTest {
         val f = Fixture(this)
         val source = MutableSharedFlow<PolarHrData>()
         f.start(source); runCurrent()
@@ -261,11 +262,11 @@ class HrHistoryLifecycleTest {
         f.now++
         source.emit(batch(160)); runCurrent()
         assertEquals(atLimit, f.history.snapshot())
-        assertEquals(3L, f.hr.statistics.value.count)
-        assertEquals(140.0, f.hr.statistics.value.average!!, 0.0)
-        assertEquals(SessionStatus.RUNNING, f.session.state.value.status)
-        assertFalse(f.history.state.value.frozen)
-        assertTrue(f.history.state.value.limitReached)
+        assertEquals(1L, f.hr.statistics.value.count)
+        assertEquals(120.0, f.hr.statistics.value.average!!, 0.0)
+        assertEquals(SessionStatus.STOPPED, f.session.state.value.status)
+        assertTrue(f.history.state.value.frozen)
+        assertEquals("TIME_LIMIT", f.session.state.value.endReason)
         f.stop()
     }
 }

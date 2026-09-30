@@ -34,7 +34,8 @@ internal class SessionController(
     private val clearHr: () -> Unit,
     private val readSummary: (Long) -> SessionSummary,
     private val wallNow: () -> Long = System::currentTimeMillis,
-    private val onSummaryFrozen: (SessionRecord) -> Unit = {}
+    private val onSummaryFrozen: (SessionRecord) -> Unit = {},
+    private val canStart: () -> Boolean = { true }
 ) {
     private val mutableState = MutableStateFlow(SessionState())
     val state = mutableState.asStateFlow()
@@ -44,7 +45,7 @@ internal class SessionController(
     fun accepts(generation: Long) = state.value.generation == generation && state.value.ongoing
 
     fun start(eligible: Boolean, device: ConnectionDevice? = null, startStreams: () -> Unit): Boolean {
-        if (!eligible || state.value.ongoing || state.value.status == SessionStatus.STOPPING ||
+        if (!eligible || !canStart() || state.value.ongoing || state.value.status == SessionStatus.STOPPING ||
             checkedDataTypes.any(subscriptions::isActive)) return false
         startingStreams = true
         startedAt = null
@@ -62,6 +63,7 @@ internal class SessionController(
     }
 
     fun retry(type: PolarDeviceDataType, available: Boolean, startStream: () -> Boolean): Boolean {
+        if (checkTimeLimit()) return false
         if (!available || !state.value.ongoing || type !in checkedDataTypes || subscriptions.isActive(type)) return false
         val accepted = startStream()
         finishIfIdle()
@@ -77,6 +79,7 @@ internal class SessionController(
     }
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus, at: Long = now()) {
+        if (checkTimeLimit(at)) return
         if (state.value.ongoing) {
             val record = state.value.record!!
             val previous = record.streams.getValue(type)
@@ -99,6 +102,7 @@ internal class SessionController(
 
     fun refresh(generation: Long, at: Long = now()) {
         if (accepts(generation)) {
+            if (checkTimeLimit(at)) return
             val duration = elapsed(at)
             mutableState.value = state.value.copy(elapsedMs = duration,
                 record = state.value.record!!.copy(durationMs = duration, summary = readSummary(duration)))
@@ -109,13 +113,25 @@ internal class SessionController(
 
     // Chart reads do not advance session state or resume a stopped viewport.
     fun elapsedAt(at: Long = now()): Long =
-        if (state.value.status == SessionStatus.RUNNING) elapsed(at) else state.value.elapsedMs
+        if (state.value.status == SessionStatus.RUNNING) elapsed(at).coerceAtMost(TIME_LIMIT_MS) else state.value.elapsedMs
+
+    // Call before accepting a stream event so late batches cannot change any statistics.
+    fun checkTimeLimit(at: Long = now()): Boolean {
+        if (state.value.status != SessionStatus.RUNNING || elapsed(at) < TIME_LIMIT_MS) return false
+        finish("TIME_LIMIT", interrupted = false, duration = TIME_LIMIT_MS,
+            endedAt = wallNow() - (elapsed(at) - TIME_LIMIT_MS))
+        return true
+    }
 
     fun stop(reason: String, interrupted: Boolean = true) {
-        if (!state.value.ongoing) return
+        if (!state.value.ongoing || checkTimeLimit()) return
+        finish(reason, interrupted, elapsed(), wallNow())
+    }
+
+    private fun finish(reason: String, interrupted: Boolean, duration: Long, endedAt: Long) {
         mutableState.value = state.value.copy(
-            status = SessionStatus.STOPPING, elapsedMs = elapsed(), endReason = reason,
-            record = state.value.record!!.copy(endedAt = wallNow(), endReason = reason, interrupted = interrupted)
+            status = SessionStatus.STOPPING, elapsedMs = duration, endReason = reason,
+            record = state.value.record!!.copy(endedAt = endedAt, endReason = reason, interrupted = interrupted)
         )
         clearHr()
         freezeSummary()
@@ -132,6 +148,7 @@ internal class SessionController(
 
     private fun finishIfIdle(at: Long = now()) {
         if (startingStreams || checkedDataTypes.any(subscriptions::isActive)) return
+        if (checkTimeLimit(at)) return
         if (state.value.ongoing) {
             val reason = if (startedAt == null) "No data received. All stream attempts ended."
                 else "All streams ended."
@@ -145,4 +162,6 @@ internal class SessionController(
             mutableState.value = state.value.copy(status = SessionStatus.STOPPED)
         }
     }
+
+    companion object { const val TIME_LIMIT_MS = 14_400_000L }
 }

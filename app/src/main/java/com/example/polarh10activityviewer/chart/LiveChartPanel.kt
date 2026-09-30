@@ -63,7 +63,7 @@ internal fun LiveChartPanel(manager: PolarBleManager) {
 }
 
 @Composable
-private fun ChartPlot(snapshot: ChartSnapshot) {
+internal fun ChartPlot(snapshot: ChartSnapshot) {
     val values = snapshot.points.mapNotNull { it.value }
     val minimum = minOf(0.0, values.minOrNull() ?: 0.0)
     val maximum = maxOf(1.0, values.maxOrNull() ?: 1.0)

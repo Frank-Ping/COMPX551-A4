@@ -25,6 +25,11 @@ import com.example.polarh10activityviewer.session.SessionSummaryPanel
 import com.example.polarh10activityviewer.history.HrHistoryState
 import com.example.polarh10activityviewer.history.MotionHistoryState
 import com.example.polarh10activityviewer.session.SessionSnapshot
+import com.example.polarh10activityviewer.history.HistoryPanel
+import com.example.polarh10activityviewer.history.SavePanel
+import com.example.polarh10activityviewer.storage.SaveStatus
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.TextButton
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -131,6 +136,8 @@ class SensorActivity : ComponentActivity() {
             val hrHistory by bleManager.hrHistoryState.collectAsState()
             val motionHistory by bleManager.motionHistoryState.collectAsState()
             val lastSnapshot by bleManager.lastSnapshot.collectAsState()
+            val saveState by bleManager.storage.saves.state.collectAsState()
+            var showHistory by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(session.generation, session.status) {
                 val generation = session.generation
                 if (session.status == SessionStatus.RUNNING) {
@@ -142,7 +149,16 @@ class SensorActivity : ComponentActivity() {
             }
             PolarH10ActivityViewerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    SessionScreen(
+                    Column(Modifier.fillMaxSize().padding(innerPadding)) {
+                        Row {
+                            TextButton(onClick = { showHistory = false }) { Text("Session") }
+                            TextButton(onClick = { showHistory = true }) { Text("History") }
+                        }
+                        SavePanel(saveState, bleManager.storage.saves)
+                        if (showHistory) HistoryPanel(bleManager.storage.database,
+                            saveState.sessionId.takeIf { saveState.status == SaveStatus.SAVED },
+                            onBack = { showHistory = false })
+                        else SessionScreen(
                         availability = availability,
                         actionEnabled = !systemRequestPending,
                         errorMessage = errorMessage,
@@ -172,12 +188,14 @@ class SensorActivity : ComponentActivity() {
                         hrHistory = hrHistory,
                         motionHistory = motionHistory,
                         lastSnapshot = lastSnapshot,
+                        savingBlocksStart = saveState.blocksStart,
                         onStartSession = ::handleStartSession,
                         onStopSession = { bleManager.stopSession() },
                         onRetryStream = ::handleRetryStream,
                         charts = { LiveChartPanel(bleManager) },
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = Modifier.weight(1f)
                     )
+                    }
                 }
             }
         }
@@ -362,6 +380,7 @@ internal fun SessionScreen(
     hrHistory: HrHistoryState = HrHistoryState(),
     motionHistory: MotionHistoryState = MotionHistoryState(),
     lastSnapshot: SessionSnapshot? = null,
+    savingBlocksStart: Boolean = false,
     onStartSession: () -> Unit = {},
     onStopSession: () -> Unit = {},
     onRetryStream: (PolarDeviceDataType) -> Unit = {},
@@ -386,9 +405,10 @@ internal fun SessionScreen(
         val seconds = session.elapsedMs / 1_000
         Text("Elapsed: ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}")
         Text("Timing begins with the first valid HR or actual ACC/ECG sample.")
-        session.endReason?.let { Text(it) }
+        Text("Session limit: four hours. The session ends and eligible data is saved automatically.")
+        session.endReason?.let { Text(if (it == "TIME_LIMIT") "Session time limit reached." else it) }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onStartSession, enabled = connected &&
+            Button(onClick = onStartSession, enabled = connected && !savingBlocksStart &&
                 session.status in setOf(SessionStatus.IDLE, SessionStatus.STOPPED) &&
                 subscriptions.none(::busy) && dataReadiness.values.any {
                     it.status == DataReadinessStatus.READY && it.configurationComplete
@@ -429,7 +449,7 @@ internal fun SessionScreen(
             session.status == SessionStatus.STARTING -> "Waiting for Running"
             else -> "Collecting"
         })
-        Text("Memory only; first four hours, at most 14,401 points. No automatic stop yet.")
+        Text("First four hours; at most 14,401 HR points. Saved with the session summary at ending.")
         Text("Motion history (development check)", style = MaterialTheme.typography.titleMedium)
         Text("Motion history points: ${motionHistory.pointCount}")
         Text("First elapsedMs: ${motionHistory.firstElapsedMs ?: "--"}")
@@ -444,7 +464,7 @@ internal fun SessionScreen(
         Text("Current session snapshot: " + if (lastSnapshot != null &&
             lastSnapshot.record.id == session.record?.id) "Frozen in memory" else "Not frozen")
         Text("Last frozen snapshot ID: ${lastSnapshot?.record?.id ?: "--"}")
-        Text("Memory only; first four hours, at most 14,401 motion points. No automatic stop yet.")
+        Text("First four hours; at most 14,401 motion points. Check Save status for database confirmation.")
         charts()
         AccPanel(
             samples = accSamples,

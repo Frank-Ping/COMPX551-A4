@@ -61,7 +61,7 @@ internal data class SessionRecord(
         streams.values.any { !it.received || it.missing || it.failed }
 }
 
-// Finalized summary and copied histories; persistence remains a later step.
+// Finalized summary and copied histories passed to the application save owner.
 internal data class SessionSnapshot(
     val record: SessionRecord,
     val hrPoints: List<HrHistoryPoint>,
