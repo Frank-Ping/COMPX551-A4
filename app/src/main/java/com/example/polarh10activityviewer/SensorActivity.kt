@@ -17,14 +17,12 @@ import com.example.polarh10activityviewer.chart.LiveChartPanel
 import com.example.polarh10activityviewer.heartrate.HeartRateZonePanel
 import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
 import com.example.polarh10activityviewer.motion.StepState
-import com.example.polarh10activityviewer.sensor.AccSample
 import com.example.polarh10activityviewer.session.SensorViewModel
 import com.example.polarh10activityviewer.session.SessionState
 import com.example.polarh10activityviewer.session.SessionStatus
-import com.example.polarh10activityviewer.session.SessionSummaryPanel
-import com.example.polarh10activityviewer.history.HrHistoryState
-import com.example.polarh10activityviewer.history.MotionHistoryState
-import com.example.polarh10activityviewer.session.SessionSnapshot
+import com.example.polarh10activityviewer.session.HeartRateCard
+import com.example.polarh10activityviewer.session.MotionCard
+import com.example.polarh10activityviewer.session.ActivitySummaryCard
 import com.example.polarh10activityviewer.history.HistoryPanel
 import com.example.polarh10activityviewer.history.SavePanel
 import com.example.polarh10activityviewer.storage.SaveStatus
@@ -63,7 +61,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
@@ -73,13 +70,7 @@ import com.example.polarh10activityviewer.session.SessionHeader
 import com.example.polarh10activityviewer.ui.theme.SectionSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
-import com.polar.sdk.api.model.EcgSample
-import com.polar.sdk.api.model.PolarSensorSetting.SettingType
 import kotlinx.coroutines.delay
-import java.text.DateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.roundToInt
 
 class SensorActivity : ComponentActivity() {
     private val permissions = arrayOf(
@@ -132,14 +123,9 @@ class SensorActivity : ComponentActivity() {
             val heartRateStatistics by bleManager.heartRateStatistics.collectAsState()
             val heartRateMessage by bleManager.heartRateMessage.collectAsState()
             val heartRateZones by bleManager.heartRateZoneState.collectAsState()
-            val accSamples by bleManager.accSamples.collectAsState()
             val steps by bleManager.stepState.collectAsState()
-            val ecgSamples by bleManager.ecgSamples.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             val session by bleManager.sessionState.collectAsState()
-            val hrHistory by bleManager.hrHistoryState.collectAsState()
-            val motionHistory by bleManager.motionHistoryState.collectAsState()
-            val lastSnapshot by bleManager.lastSnapshot.collectAsState()
             val saveState by bleManager.storage.saves.state.collectAsState()
             var showHistory by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(session.generation, session.status) {
@@ -158,7 +144,7 @@ class SensorActivity : ComponentActivity() {
                             TextButton(onClick = { showHistory = false }) { Text("Session") }
                             TextButton(onClick = { showHistory = true }) { Text("History") }
                         }
-                        SavePanel(saveState, bleManager.storage.saves)
+                        SavePanel(saveState, bleManager.storage.saves, showSessionId = showHistory)
                         if (showHistory) HistoryPanel(bleManager.storage.database,
                             saveState.sessionId.takeIf { saveState.status == SaveStatus.SAVED },
                             onBack = { showHistory = false })
@@ -183,20 +169,15 @@ class SensorActivity : ComponentActivity() {
                         heartRateMessage = heartRateMessage,
                         heartRateZones = heartRateZones,
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
-                        accSamples = accSamples,
                         steps = steps,
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
-                        ecgSamples = ecgSamples,
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
-                        hrHistory = hrHistory,
-                        motionHistory = motionHistory,
-                        lastSnapshot = lastSnapshot,
                         savingBlocksStart = saveState.blocksStart,
                         onStartSession = ::handleStartSession,
                         onStopSession = { bleManager.stopSession() },
                         onRetryStream = ::handleRetryStream,
-                        charts = { LiveChartPanel(bleManager) },
+                        charts = { canRetry, retry -> LiveChartPanel(bleManager, subscriptionStates, dataReadiness, canRetry, retry) },
                         modifier = Modifier.weight(1f)
                     )
                     }
@@ -375,20 +356,15 @@ internal fun SessionScreen(
     heartRateMessage: String? = null,
     heartRateZones: HeartRateZoneState = HeartRateZoneState(),
     hrSubscription: SubscriptionState = SubscriptionState(),
-    accSamples: List<AccSample> = emptyList(),
     steps: StepState = StepState(),
     accSubscription: SubscriptionState = SubscriptionState(),
-    ecgSamples: List<EcgSample> = emptyList(),
     ecgSubscription: SubscriptionState = SubscriptionState(),
     session: SessionState = SessionState(),
-    hrHistory: HrHistoryState = HrHistoryState(),
-    motionHistory: MotionHistoryState = MotionHistoryState(),
-    lastSnapshot: SessionSnapshot? = null,
     savingBlocksStart: Boolean = false,
     onStartSession: () -> Unit = {},
     onStopSession: () -> Unit = {},
     onRetryStream: (PolarDeviceDataType) -> Unit = {},
-    charts: @Composable () -> Unit = {}
+    charts: @Composable (Boolean, () -> Unit) -> Unit = { _, _ -> }
 ) {
     var showDevices by rememberSaveable { mutableStateOf(false) }
     val validBattery = batteryLevel.takeIf {
@@ -432,8 +408,6 @@ internal fun SessionScreen(
             SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
         )
         Text("Session: ${session.status.label}", style = MaterialTheme.typography.titleMedium)
-        val seconds = session.elapsedMs / 1_000
-        Text("Elapsed: ${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}")
         Text("Timing begins with the first valid HR or actual ACC/ECG sample.")
         Text("Session limit: four hours. The session ends and eligible data is saved automatically.")
         session.endReason?.let { Text(if (it == "TIME_LIMIT") "Session time limit reached." else it) }
@@ -445,7 +419,7 @@ internal fun SessionScreen(
                 }) { Text("Start") }
             Button(onClick = onStopSession, enabled = session.ongoing) { Text("Stop") }
         }
-        HeartRatePanel(
+        HeartRateCard(
             reading = heartRate,
             statistics = heartRateStatistics,
             message = heartRateMessage,
@@ -453,185 +427,26 @@ internal fun SessionScreen(
             canRetry = connected && session.ongoing,
             onRetry = { onRetryStream(PolarDeviceDataType.HR) }
         )
-        HeartRateZonePanel(heartRateZones,
-            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED)
-        Text("Steps (development check)", style = MaterialTheme.typography.titleMedium)
-        Text(steps.message)
-        Text("Total steps: ${steps.totalSteps ?: "--"}")
-        Text("Cadence: ${steps.cadence?.roundToInt() ?: "--"} steps/min")
-        Text("Estimated distance: ${steps.distance?.let { String.format(Locale.ENGLISH, "%.1f m", it) } ?: "--"}")
-        Text("Estimated speed: ${formatSpeed(steps.speed)}")
-        Text("Average speed: ${formatSpeed(steps.averageSpeed)}")
-        Text("Maximum speed: ${formatSpeed(steps.maximumSpeed)}")
-        Text("Maximum cadence: ${steps.maximumCadence?.roundToInt() ?: "--"} steps/min")
-        if (steps.incompleteAcc) {
-            Text("Incomplete ACC data. Missing distance may lower distance and average speed.")
-        }
-        SessionSummaryPanel(session.record)
-        Text("HR history (development check)", style = MaterialTheme.typography.titleMedium)
-        Text("HR history points: ${hrHistory.pointCount}")
-        Text("First elapsedMs: ${hrHistory.firstElapsedMs ?: "--"}")
-        Text("Last elapsedMs: ${hrHistory.lastElapsedMs ?: "--"}")
-        Text("HR history: " + when {
-            hrHistory.sessionId == null -> "Not started"
-            hrHistory.frozen -> "Frozen"
-            hrHistory.limitReached -> "Four-hour collection limit reached"
-            session.status == SessionStatus.STARTING -> "Waiting for Running"
-            else -> "Collecting"
-        })
-        Text("First four hours; at most 14,401 HR points. Saved with the session summary at ending.")
-        Text("Motion history (development check)", style = MaterialTheme.typography.titleMedium)
-        Text("Motion history points: ${motionHistory.pointCount}")
-        Text("First elapsedMs: ${motionHistory.firstElapsedMs ?: "--"}")
-        Text("Last elapsedMs: ${motionHistory.lastElapsedMs ?: "--"}")
-        Text("Motion history: " + when {
-            motionHistory.sessionId == null -> "Not started"
-            motionHistory.frozen -> "Frozen"
-            motionHistory.limitReached -> "Four-hour collection limit reached"
-            session.status == SessionStatus.STARTING -> "Waiting for Running"
-            else -> "Collecting"
-        })
-        Text("Current session snapshot: " + if (lastSnapshot != null &&
-            lastSnapshot.record.id == session.record?.id) "Frozen in memory" else "Not frozen")
-        Text("Last frozen snapshot ID: ${lastSnapshot?.record?.id ?: "--"}")
-        Text("First four hours; at most 14,401 motion points. Check Save status for database confirmation.")
-        charts()
-        AccPanel(
-            samples = accSamples,
-            subscription = accSubscription,
-            readiness = dataReadiness[PolarDeviceDataType.ACC] ?: DataReadiness(),
+        MotionCard(
+            steps = steps, subscription = accSubscription,
             canRetry = connected && session.ongoing &&
                 dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
             onRetry = { onRetryStream(PolarDeviceDataType.ACC) }
         )
-        EcgPanel(
-            samples = ecgSamples,
-            subscription = ecgSubscription,
-            readiness = dataReadiness[PolarDeviceDataType.ECG] ?: DataReadiness(),
-            canRetry = connected && session.ongoing &&
-                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
-            onRetry = { onRetryStream(PolarDeviceDataType.ECG) }
-        )
-    }
-}
-
-private fun formatSpeed(value: Double?): String =
-    value?.let { String.format(Locale.ENGLISH, "%.1f km/h", it * 3.6) } ?: "--"
-
-// Detailed stream information remains temporary until the final layout.
-@Composable
-private fun HeartRatePanel(
-    reading: HeartRateReading?,
-    statistics: HeartRateStatistics,
-    message: String?,
-    subscription: SubscriptionState,
-    canRetry: Boolean,
-    onRetry: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Heart rate (development check)", style = MaterialTheme.typography.titleMedium)
-        val status = when (subscription.status) {
-            SubscriptionStatus.IDLE -> "Idle"
-            SubscriptionStatus.STARTING -> "Starting"
-            SubscriptionStatus.RECEIVING -> "Receiving"
-            SubscriptionStatus.STOPPING -> "Stopping"
-            SubscriptionStatus.STOPPED -> "Stopped"
-            SubscriptionStatus.FAILED -> "Failed"
+        HeartRateZonePanel(heartRateZones,
+            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED)
+        ActivitySummaryCard(session, steps)
+        session.record?.let { record ->
+            if (record.incomplete) Text("Incomplete session data. Some streams have missing or failed observations.")
+            if (session.status == SessionStatus.STOPPED && !record.eligibleForSaving) {
+                Text("No valid observations to save. Connect a device and Start a new session.")
+            }
         }
-        Text("HR stream: $status")
-        Text("HR: ${reading?.let { "${it.bpm} bpm" } ?: "--"}")
-        Text("Minimum HR: ${statistics.min?.let { "$it bpm" } ?: "--"}")
-        Text("Maximum HR: ${statistics.max?.let { "$it bpm" } ?: "--"}")
-        val average = statistics.average?.let { String.format(Locale.ENGLISH, "%.1f bpm", it) } ?: "--"
-        Text("Mean HR: $average")
-        Text("Mean of valid HR samples")
-        val receivedAt = reading?.let {
-            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH)
-                .format(Date(it.receivedAt))
-        } ?: "--"
-        Text("Last received on phone: $receivedAt")
-        Text("Shows the latest sample when valid; the time is not a sensor sampling timestamp.")
-        message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        StreamRetryButton(PolarDeviceDataType.HR, subscription, canRetry, onRetry)
+        charts(connected && session.ongoing &&
+            dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
+            { onRetryStream(PolarDeviceDataType.ECG) })
     }
 }
-
-// Temporary ACC verification UI; retained samples are not a live reading after stopping.
-@Composable
-private fun AccPanel(
-    samples: List<AccSample>,
-    subscription: SubscriptionState,
-    readiness: DataReadiness,
-    canRetry: Boolean,
-    onRetry: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Acceleration (development check)", style = MaterialTheme.typography.titleMedium)
-        Text("ACC stream: ${subscription.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
-        val receiving = subscription.status == SubscriptionStatus.RECEIVING
-        Text(if (receiving) "Latest received samples" else "Inactive snapshot")
-        Text("Selected rate: ${readiness.selected[SettingType.SAMPLE_RATE] ?: "--"} Hz")
-        Text("Selected range: +/-${readiness.selected[SettingType.RANGE] ?: "--"} g")
-        Text("Selected resolution: ${readiness.selected[SettingType.RESOLUTION] ?: "--"} bits")
-        val latest = samples.lastOrNull()
-        Text("X: ${latest?.x ?: "--"} mG; Y: ${latest?.y ?: "--"} mG; Z: ${latest?.z ?: "--"} mG")
-        Text("Sensor timestamp: ${latest?.timeStamp ?: "--"} ns (epoch 2000-01-01)")
-        Text("Buffer: ${samples.size} samples (up to 10 s / 1,000 samples)")
-        val lastGap = samples.lastOrNull { it.gapBeforeNs != null }
-        Text(if (lastGap == null) "Gap > 30 ms in buffer: none"
-            else "Last gap in buffer: ${lastGap.gapBeforeNs!! / 1_000_000.0} ms at ${lastGap.timeStamp} ns")
-        readiness.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (readiness.status == DataReadinessStatus.READY && !readiness.configurationComplete && readiness.error == null) {
-            Text("Open Devices to check the available options before starting ACC.")
-        }
-        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        StreamRetryButton(PolarDeviceDataType.ACC, subscription, canRetry, onRetry)
-    }
-}
-
-// Temporary ECG verification display within the session.
-@Composable
-private fun EcgPanel(
-    samples: List<EcgSample>,
-    subscription: SubscriptionState,
-    readiness: DataReadiness,
-    canRetry: Boolean,
-    onRetry: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("ECG (development check)", style = MaterialTheme.typography.titleMedium)
-        Text("ECG stream: ${subscription.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
-        val receiving = subscription.status == SubscriptionStatus.RECEIVING
-        Text(if (receiving) "Latest received samples" else "Inactive snapshot")
-        Text("Selected rate: ${readiness.selected[SettingType.SAMPLE_RATE] ?: "--"} Hz")
-        Text("Selected resolution: ${readiness.selected[SettingType.RESOLUTION] ?: "--"} bits")
-        Text("Open Devices if ECG configuration needs confirmation.")
-        val latest = samples.lastOrNull()
-        Text("Voltage: ${latest?.voltage ?: "--"} µV")
-        Text("Sensor timestamp: ${latest?.timeStamp ?: "--"} ns (epoch 2000-01-01)")
-        Text("Buffer: ${samples.size} samples (up to 10 s / 1,300 samples)")
-        readiness.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (readiness.status == DataReadinessStatus.READY && !readiness.configurationComplete && readiness.error == null) {
-            Text("Confirm the available options in Data readiness before starting ECG.")
-        }
-        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        StreamRetryButton(PolarDeviceDataType.ECG, subscription, canRetry, onRetry)
-    }
-}
-
-@Composable
-private fun StreamRetryButton(
-    type: PolarDeviceDataType,
-    subscription: SubscriptionState,
-    canRetry: Boolean,
-    onRetry: () -> Unit
-) {
-    if (subscription.status in setOf(SubscriptionStatus.IDLE, SubscriptionStatus.FAILED, SubscriptionStatus.STOPPED)) {
-        Button(onClick = onRetry, enabled = canRetry) { Text("Retry $type") }
-    }
-}
-
 @Preview(showBackground = true)
 @Composable
 fun SessionPreview() {

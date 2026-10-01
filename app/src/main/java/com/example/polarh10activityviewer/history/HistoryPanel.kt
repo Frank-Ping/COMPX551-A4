@@ -51,9 +51,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-internal fun SavePanel(state: SaveState, controller: SessionSaveController) {
+internal fun SavePanel(state: SaveState, controller: SessionSaveController, showSessionId: Boolean = true) {
     Text("Save: ${state.status.label}")
-    state.sessionId?.let { Text("Save session ID: $it", style = MaterialTheme.typography.bodySmall) }
+    if (showSessionId) state.sessionId?.let { Text("Save session ID: $it", style = MaterialTheme.typography.bodySmall) }
     if (state.status == SaveStatus.FAILED) {
         Text(state.error ?: "Unable to save session.")
         Row {

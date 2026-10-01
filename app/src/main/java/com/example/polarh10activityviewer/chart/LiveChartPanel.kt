@@ -2,17 +2,18 @@ package com.example.polarh10activityviewer.chart
 
 import com.example.polarh10activityviewer.ble.PolarBleManager
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
+import com.example.polarh10activityviewer.ble.SubscriptionState
+import com.example.polarh10activityviewer.ble.DataReadiness
+import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,12 +26,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
-import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType.ACC
 import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
-internal fun LiveChartPanel(manager: PolarBleManager) {
+internal fun LiveChartPanel(manager: PolarBleManager,
+    subscriptions: Map<PolarDeviceDataType, SubscriptionState>,
+    readiness: Map<PolarDeviceDataType, DataReadiness>,
+    canRetryEcg: Boolean, onRetryEcg: () -> Unit
+) {
     val kind by manager.liveCharts.selection.collectAsState()
     var snapshot by remember(manager, kind) { mutableStateOf(manager.chartSnapshot(kind)) }
     // Only the selected chart takes display snapshots. Sampling remains independent.
@@ -40,26 +44,8 @@ internal fun LiveChartPanel(manager: PolarBleManager) {
             delay(if (kind == ChartKind.ELECTROCARDIOGRAM) 100 else 250)
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Live charts (development check)", style = MaterialTheme.typography.titleMedium)
-        Row {
-            TextButton(onClick = { manager.liveCharts.select(ChartKind.HEART_RATE) }) { Text("HR") }
-            TextButton(onClick = { manager.liveCharts.select(manager.liveCharts.motionSelection) }) { Text("Motion") }
-            TextButton(onClick = { manager.liveCharts.select(ChartKind.ELECTROCARDIOGRAM) }) { Text("ECG") }
-        }
-        if (kind.type == ACC) Row {
-            TextButton(onClick = { manager.liveCharts.select(ChartKind.CADENCE) }) { Text("Cadence") }
-            TextButton(onClick = { manager.liveCharts.select(ChartKind.SPEED) }) { Text("Speed") }
-        }
-        Text("${kind.label} (${kind.unit})")
-        val active = snapshot.status in listOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING)
-        Text(if (active) "Live · ${snapshot.status.name.lowercase()}" else "Frozen · ${snapshot.status.name.lowercase()}")
-        ChartPlot(snapshot)
-        Text("Elapsed since Running (mm:ss)")
-        if (kind == ChartKind.ELECTROCARDIOGRAM) {
-            Text("Approximate alignment includes transmission delay. All visible ECG samples are drawn.")
-        }
-    }
+    LiveChartCard(kind, manager.liveCharts.motionSelection, snapshot, subscriptions, readiness,
+        canRetryEcg, manager.liveCharts::select, onRetryEcg)
 }
 
 @Composable
