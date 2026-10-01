@@ -52,7 +52,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -69,6 +68,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import com.example.polarh10activityviewer.ui.theme.PagePadding
+import com.example.polarh10activityviewer.ble.DevicesDialog
+import com.example.polarh10activityviewer.session.SessionHeader
 import com.example.polarh10activityviewer.ui.theme.SectionSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
@@ -389,15 +390,41 @@ internal fun SessionScreen(
     onRetryStream: (PolarDeviceDataType) -> Unit = {},
     charts: @Composable () -> Unit = {}
 ) {
+    var showDevices by rememberSaveable { mutableStateOf(false) }
+    val validBattery = batteryLevel.takeIf {
+        availability == BluetoothAvailability.READY && connectionState.status == ConnectionStatus.CONNECTED
+    }
+    fun closeDevices() {
+        if (scanState.status == ScanStatus.SCANNING) onStopScan()
+        showDevices = false
+    }
+    val accBusy = accSubscription.status in setOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING)
+    val ecgBusy = ecgSubscription.status in setOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING)
+    if (showDevices) {
+        DevicesDialog(
+            availability = availability, actionEnabled = actionEnabled,
+            connection = connectionState, batteryLevel = validBattery,
+            savedDevices = savedDevicesState, scan = scanState, readiness = dataReadiness,
+            canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&
+                connectionState.status == ConnectionStatus.CONNECTED && !accBusy && !ecgBusy,
+            errorMessage = errorMessage, onBluetoothAction = onBluetoothAction,
+            onConnect = onConnect, onDisconnect = onDisconnect, onRetryDisconnect = onRetryDisconnect,
+            onStartScan = onStartScan, onStopScan = onStopScan, onRecheck = onRecheckData,
+            onClose = ::closeDevices
+        )
+    }
     Column(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePadding),
         verticalArrangement = Arrangement.spacedBy(SectionSpacing)
     ) {
         Text("Session", style = MaterialTheme.typography.titleLarge)
-        Text(availability.message, style = MaterialTheme.typography.bodyLarge)
-        Text("Device: ${connectionState.status.message}", style = MaterialTheme.typography.titleMedium)
-        connectionState.device?.let { Text("${it.name} (${it.deviceId})") }
-        Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}")
+        SessionHeader(
+            availability = availability, connection = connectionState, batteryLevel = validBattery,
+            zones = heartRateZones,
+            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED,
+            hrSubscription = hrSubscription, hrMessage = heartRateMessage,
+            onOpenDevices = { showDevices = true }
+        )
         val connected = actionEnabled && availability == BluetoothAvailability.READY &&
             connectionState.status == ConnectionStatus.CONNECTED
         val subscriptions = listOf(hrSubscription, accSubscription, ecgSubscription)
@@ -485,96 +512,6 @@ internal fun SessionScreen(
                 dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
             onRetry = { onRetryStream(PolarDeviceDataType.ECG) }
         )
-        DataReadinessPanel(
-            states = dataReadiness,
-            canRecheck = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED && !busy(accSubscription) && !busy(ecgSubscription),
-            onRecheck = onRecheckData
-        )
-        connectionState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        connectionState.disconnectError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        connectionState.message?.let { Text(it) }
-        Button(
-            onClick = onDisconnect,
-            enabled = actionEnabled && availability == BluetoothAvailability.READY &&
-                connectionState.status == ConnectionStatus.CONNECTED
-        ) {
-            Text("Disconnect")
-        }
-        if (connectionState.status == ConnectionStatus.DISCONNECTING && connectionState.disconnectError != null) {
-            Button(
-                onClick = onRetryDisconnect,
-                enabled = actionEnabled && availability == BluetoothAvailability.READY
-            ) {
-                Text("Retry disconnect")
-            }
-        }
-        if (availability in setOf(
-                BluetoothAvailability.PERMISSIONS_NEEDED,
-                BluetoothAvailability.PERMISSION_DENIED,
-                BluetoothAvailability.SETTINGS_REQUIRED
-            )) {
-            Text("Nearby devices access is needed to find and connect to your Polar H10. Location access is not requested.")
-        }
-        errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(
-            onClick = onBluetoothAction,
-            enabled = actionEnabled && availability != BluetoothAvailability.UNSUPPORTED && availability != BluetoothAvailability.READY
-        ) {
-            Text(availability.buttonLabel)
-        }
-        val canConnect = actionEnabled && availability == BluetoothAvailability.READY &&
-            connectionState.status == ConnectionStatus.NOT_CONNECTED
-        Text("Saved devices", style = MaterialTheme.typography.titleMedium)
-        Text("Previously connected by this app. A saved record does not mean the device is nearby, online or paired in system settings.")
-        savedDevicesState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (savedDevicesState.loading) {
-            Text("Loading saved devices...")
-        } else if (savedDevicesState.devices.isEmpty() && savedDevicesState.error == null) {
-            Text("No saved devices")
-        }
-        savedDevicesState.devices.forEach { device ->
-            OutlinedCard(onClick = { onConnect(device.deviceId) }, enabled = canConnect) {
-                Column(modifier = Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(device.name, style = MaterialTheme.typography.titleSmall)
-                    Text("Device ID: ${device.deviceId}")
-                    val lastConnected = DateFormat.getDateTimeInstance(
-                        DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH
-                    ).format(Date(device.lastConnectedAt))
-                    Text("Last connected: $lastConnected")
-                    Text("Tap to connect")
-                }
-            }
-        }
-        Text("Nearby Polar H10 devices", style = MaterialTheme.typography.titleMedium)
-        val scanning = scanState.status == ScanStatus.SCANNING
-        Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            Button(
-                onClick = onStartScan,
-                enabled = canConnect && !scanning
-            ) {
-                Text("Start scan")
-            }
-            Button(onClick = onStopScan, enabled = scanning) {
-                Text("Stop scan")
-            }
-        }
-        Text(scanState.status.message)
-        scanState.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        if (scanState.devices.isEmpty() &&
-            scanState.status in setOf(ScanStatus.STOPPED, ScanStatus.TIMED_OUT)) {
-            Text("No Polar H10 found")
-        }
-        scanState.devices.forEach { device ->
-            OutlinedCard(onClick = { onConnect(device.deviceId) }, enabled = canConnect) {
-                Column(modifier = Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(device.name, style = MaterialTheme.typography.titleSmall)
-                    Text("Device ID: ${device.deviceId}")
-                    Text("Signal strength: ${device.rssi} dBm")
-                    Text("Tap to connect")
-                }
-            }
-        }
     }
 }
 
@@ -646,7 +583,7 @@ private fun AccPanel(
             else "Last gap in buffer: ${lastGap.gapBeforeNs!! / 1_000_000.0} ms at ${lastGap.timeStamp} ns")
         readiness.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (readiness.status == DataReadinessStatus.READY && !readiness.configurationComplete && readiness.error == null) {
-            Text("Confirm the available options in Data readiness before starting ACC.")
+            Text("Open Devices to check the available options before starting ACC.")
         }
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         StreamRetryButton(PolarDeviceDataType.ACC, subscription, canRetry, onRetry)
@@ -669,7 +606,7 @@ private fun EcgPanel(
         Text(if (receiving) "Latest received samples" else "Inactive snapshot")
         Text("Selected rate: ${readiness.selected[SettingType.SAMPLE_RATE] ?: "--"} Hz")
         Text("Selected resolution: ${readiness.selected[SettingType.RESOLUTION] ?: "--"} bits")
-        Text("Other available settings and selections are shown in Data readiness.")
+        Text("Open Devices if ECG configuration needs confirmation.")
         val latest = samples.lastOrNull()
         Text("Voltage: ${latest?.voltage ?: "--"} µV")
         Text("Sensor timestamp: ${latest?.timeStamp ?: "--"} ns (epoch 2000-01-01)")
@@ -692,42 +629,6 @@ private fun StreamRetryButton(
 ) {
     if (subscription.status in setOf(SubscriptionStatus.IDLE, SubscriptionStatus.FAILED, SubscriptionStatus.STOPPED)) {
         Button(onClick = onRetry, enabled = canRetry) { Text("Retry $type") }
-    }
-}
-
-// Temporary verification UI: remove during stage 8, keeping the underlying readiness checks.
-@Composable
-private fun DataReadinessPanel(
-    states: Map<PolarDeviceDataType, DataReadiness>,
-    canRecheck: Boolean,
-    onRecheck: () -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Data readiness", style = MaterialTheme.typography.titleMedium)
-        Text("Feature readiness and configuration are separate from data reception.")
-        checkedDataTypes.forEach { type ->
-            val state = states[type] ?: DataReadiness()
-            Text("${type.name}: ${state.status.message}")
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            if (state.status == DataReadinessStatus.READY) {
-                Text(if (type == PolarDeviceDataType.HR) "Configuration: no sampling settings required."
-                    else if (state.configurationComplete) "Configuration: complete."
-                    else if (state.error != null) "Configuration: blocked."
-                    else "Configuration: awaiting your confirmation of multiple options.")
-            }
-            state.available.forEach { (setting, values) ->
-                val label = when (setting) {
-                    SettingType.SAMPLE_RATE -> "Sample rate (Hz)"
-                    SettingType.RESOLUTION -> "Resolution (bits)"
-                    SettingType.RANGE -> if (type == PolarDeviceDataType.ACC) "Range (g)" else "Range (SDK units not specified)"
-                    SettingType.CHANNELS -> "Channels (count)"
-                }
-                Text("$label: available ${values.sorted().joinToString()}; selected ${state.selected[setting] ?: "--"}")
-            }
-        }
-        Button(onClick = onRecheck, enabled = canRecheck && states.values.none { it.status == DataReadinessStatus.CHECKING }) {
-            Text("Recheck data readiness")
-        }
     }
 }
 

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,14 +26,6 @@ internal fun formatZoneDuration(milliseconds: Long): String {
 @Composable
 internal fun HeartRateZonePanel(state: HeartRateZoneState, stopped: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        val current = state.current
-        Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
-            current?.let { Box(Modifier.size(12.dp).background(HeartRateZoneColors[it.ordinal])) }
-            Text("Heart rate intensity: ${current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--"}",
-                modifier = Modifier.weight(1f),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium)
-        }
         if (stopped) Text("Stopped.")
         if (!state.receivedValidHr) Text("No valid HR data")
         Text("Estimated from received HR")

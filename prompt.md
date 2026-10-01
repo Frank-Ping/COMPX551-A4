@@ -1546,3 +1546,114 @@ Suggested commit message (not committed):
 ```text
 feat: apply fixed app theme and shared heart rate zone colors
 ```
+
+## 步骤 8.1：连接、电量与心率强度 / Step 8.1: Connection, battery and HR intensity
+
+规则确认日期：2026-10-01。确认规则时只写文档；用户随后要求实施，8.1 App 已写入。以下中英文提示词保留，实际结果见本节末尾；H10 真机 pending。
+Rules confirmed on 2026-10-01 with documentation-only changes at that time. Step 8.1 was subsequently implemented at the user's request. The bilingual prompts remain below; actual results follow at the end of this section. H10 validation remains pending.
+
+### 中文
+
+```text
+仅实施步骤 8.1，遵循 AGENTS.md 第 5.29 节，直接修改项目文件。
+
+先检查 8.0 主题、SensorActivity 的现有连接/权限/电量/扫描/就绪 UI、HeartRateZonePanel 和 History 引用。复用当前 ViewModel 与管理器状态及回调，仅整合区域 1、2，不改变采集与业务逻辑。
+
+1. Session 内容顶部左侧为可点击连接区域，显示蓝牙图标、英文状态和 Battery: 百分比/--；右侧为非交互 Heart rate intensity。沿用 8.0 主题、16 dp 边距/圆角、12 dp 间距、24 dp 图标及最小 48 dp 触控范围。常规宽度均分；文字换行、区域增高，必要时按连接→强度上下排列。随现有内容滚动，不新增固定导航。
+2. 点击左侧打开 Devices，即使权限缺失或蓝牙关闭也可查看原因；打开不自动授权/扫描/连接。可用性异常优先显示对应英文状态，否则显示真实 Not connected/Connecting/Connected/Disconnecting。仅有效当前连接回调提供电量，未知/失效为 --，不把 Connected 当成 Ready/Receiving。
+3. 弹窗内容可滚动，Close 始终可访问；顺序为当前状态/Current device → 必要蓝牙操作及简短就绪/配置问题/Recheck data readiness → Saved devices → Nearby Polar H10 devices 和扫描操作。显示已有名称、ID、最近连接时间或 RSSI；保存记录不表示在线。复用原去重、30 秒扫描停止、单台连接、10 秒连接超时、防重复、Disconnect/Retry disconnect 与手动恢复。配置不完整时仅展示解决问题所需选项，不保留全部开发参数常驻列表。
+4. Close/返回/点击弹窗外关闭时停止活跃扫描并保留结果；不主动断开、不取消已接受连接、不结束运行 Session、不启动数据流。旋转保留弹窗打开状态及现有 ViewModel 数据，不重新发起操作；真正后台/锁屏/返回欢迎页继续既定清理。重新打开不自动扫描。数据流 Retry 留原指标/流区域。
+5. 强度仅消费既有 current；显示英文强度与 Zone，并复用绿/蓝/黄/橙/红颜色标记，文字使用 onSurface。无当前有效区间显示 -- 和必要原因；Stop/中断显示 --/Stopped，累计五区间保留。不得用历史最大/平均 HR 推导强度，不改阈值、接触规则、保持计时，不增加平滑、动画或超时。
+6. 迁移后删除被替代的 Session 连接/电量/设备/扫描重复 UI，以及被弹窗替代的详细就绪展示；拆出当前强度标签，避免重复。保留 History 累计五柱、所有底层状态/权限/订阅/资源清理及必要恢复。8.2 的正式五柱与主指标、8.3 曲线、8.4 导航/控制、8.5 History 和其他开发区域不在本步调整。
+7. 验证状态/电量、弹窗顺序、无自动操作、扫描关闭与结果保留、防重复、权限/连接/配置恢复、旋转和关闭不意外重置会话；核对强度无效/失败/停止/恢复与累计五柱。实际 UI 检查深浅模式、长名称及 1.0/2.0 字号；受控数据、模拟器和 H10 结果分开记录，未执行项标 pending。运行相关检查、debug 构建及 lint，同步两份 AGENTS.md 和两份 prompt.md 的中英文实际结果，提供英文 commit message，不自动 commit/push。
+
+最小代码；不加依赖、框架、SDK API、存储字段或无关重构，不实施 8.2—8.5。
+```
+
+### English
+
+```text
+Implement only step 8.1, following Section 5.29 of AGENTS.md. Modify project files directly.
+
+Inspect the step 8.0 theme, existing connection/permission/battery/scan/readiness UI in SensorActivity, HeartRateZonePanel and History references first. Reuse current ViewModel/manager states and callbacks. Integrate only regions 1 and 2 without changing acquisition or business logic.
+
+1. Add a clickable connection area at the top left of Session content, showing a Bluetooth icon, English status and Battery: percentage/--. Show noninteractive Heart rate intensity on the right. Use the 8.0 theme, 16 dp padding/corners, 12 dp spacing, 24 dp icons and minimum 48 dp touch targets. Normally share the width equally; allow wrapping/growing and stack connection before intensity when necessary. Scroll with existing content without adding fixed navigation.
+2. Open Devices from the left area even when permissions or Bluetooth are unavailable. Opening must not automatically request permissions, scan or connect. Availability problems take display priority; otherwise show the real Not connected/Connecting/Connected/Disconnecting state. Battery comes only from existing callbacks for a valid current connection; unknown/invalid values are --. Connected is not Ready or Receiving.
+3. Make dialog content scrollable with Close accessible. Order: current status/Current device → necessary Bluetooth actions and concise readiness/configuration problems/Recheck data readiness → Saved devices → Nearby Polar H10 devices and scan controls. Retain existing names, IDs, last connection time or RSSI; saved does not mean online. Reuse deduplication, 30-second scan stop, single-device connection, 10-second connection timeout, duplicate prevention, Disconnect/Retry disconnect and manual recovery. Show only configuration options needed to resolve an actual blocked configuration, not permanent development parameter lists.
+4. Close/back/outside dismissal stops active scanning and retains results. It must not disconnect, cancel an accepted connection, end a running Session or start streams. Retain dialog visibility and existing ViewModel data across rotation without repeating operations. Actual background/lock/welcome departure follows existing cleanup. Reopening does not auto-scan. Keep stream Retry in existing metric/stream areas.
+5. Consume only the existing current zone. Show its English intensity/Zone with the shared green/blue/yellow/orange/red marker and onSurface text. Without a current valid zone, show -- and the necessary existing reason. Stop/interruption shows --/Stopped while accumulated zones remain. Do not infer intensity from historical maximum/mean HR or change thresholds, contact rules or held-reading timing. Add no smoothing, animations or freshness timeout.
+6. Remove replaced duplicate Session connection/battery/device/scan UI and detailed readiness presentation after migration. Separate current intensity from cumulative bars to avoid duplication. Preserve History bars, underlying state/permissions/subscriptions/cleanup and necessary recovery actions. Do not rearrange formal metrics/bars, charts, navigation/controls, History or unrelated development areas assigned to steps 8.2–8.5.
+7. Verify statuses/battery, dialog ordering, no automatic operations, dismissal/retained scan results, duplicate prevention, permission/connection/configuration recovery, rotation and closing without accidental Session reset. Check invalid/failed/stopped/recovered intensity and retained cumulative bars. Inspect actual light/dark UI, long names and 1.0/2.0 fonts. Separate controlled, emulator and H10 evidence; mark unperformed checks pending. Run relevant checks, a debug build and lint. Synchronize both AGENTS.md files and both prompt.md files with actual bilingual results; provide an English commit message without automatically committing or pushing.
+
+Use minimal code. Add no dependencies, frameworks, SDK APIs, storage fields or unrelated refactoring. Do not implement steps 8.2–8.5.
+```
+
+### 本轮实际结果 / Actual implementation results（2026-10-01）
+
+- 源码检查与文件：检查了 8.0 主题/字号/尺寸、SensorActivity 的权限/连接/电量/扫描/就绪与采集入口、现有管理器回调及 History 对 HeartRateZonePanel 的引用。新增 session/SessionHeader.kt、ble/DevicesDialog.kt、drawable/ic_bluetooth.xml；修改 SensorActivity.kt、HeartRateZonePanel.kt、ui/theme/Dimensions.kt；新增 androidTest/session/SessionHeaderTest.kt（10 项）。
+  Source inspection/files: Inspected the shared theme/typography/dimensions, existing permission/connection/battery/scan/readiness UI and acquisition entry points, manager callbacks and History's zone-panel references. Added SessionHeader.kt, DevicesDialog.kt and ic_bluetooth.xml; updated SensorActivity.kt, HeartRateZonePanel.kt and Dimensions.kt; added ten tests in SessionHeaderTest.kt.
+- 顶部与弹窗：连接卡点击打开 Devices，异常可用性优先、有效当前连接才显示电量；正常宽度两栏，大字号/窄宽按连接→强度纵排。复用 16 dp 边距/圆角、12 dp 间距、24 dp 图标和最小 48 dp 触控范围。弹窗采用受限高度滚动内容和独立 Close，保留当前→已保存→附近设备顺序、必要蓝牙操作/错误、简短就绪与未确认选项、原扫描/连接/断开/重试/重新检查回调及启用条件。打开/重开没有自动操作；统一关闭入口仅停止活跃扫描，保留结果；rememberSaveable 保存打开状态，不增加生命周期操作。
+  Header/dialog: Availability problems take priority and battery requires a valid current connection. Two columns stack in connection/intensity order when width or font scale requires it. Reuses 16 dp padding/corners, 12 dp spacing, 24 dp icons and a minimum 48 dp connection target. Devices has bounded scrolling and an independent Close button, current/saved/nearby order, necessary Bluetooth errors/actions and concise readiness/unconfirmed options. Existing callbacks and guards remain. Opening/reopening starts no operation; dismissal only stops an active scan and retains results. Dialog visibility uses rememberSaveable without new lifecycle operations.
+- 强度及替代清理：仅消费已有 current，显示英文强度与 Zone 和共用五色标记，普通文字使用主题前景色。无效/失败/停止显示 -- 与原因、无色块；累计时长不清零。从 Session 移除被替代的连接/电量/设备/扫描和 DataReadinessPanel；从累计柱形拆出当前强度，保留 History 柱形、英文区间/bpm、累计说明、原尺寸和其他指标/流 Retry。
+  Intensity/replaced UI: Uses the existing current zone, English intensity/Zone and shared palette with theme foreground text. Invalid/failed/stopped states show -- and a reason without a marker; totals remain. Removed replaced connection/battery/device/scan UI and DataReadinessPanel, and separated current intensity from cumulative bars. History bars, English ranges/bpm, cumulative explanations, existing heights and other metrics/stream Retry remain.
+- 自动检查：最终执行 `:app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --offline --console=plain`，BUILD SUCCESSFUL。本轮 XML 为 204 tests、0 failures、0 errors、0 skipped；lint 0 errors、15 warnings。报告为 app/build/reports/tests/testDebugUnitTest/index.html、app/build/reports/lint-results-debug.html；APK 为 app/build/outputs/apk/debug/app-debug.apk。
+  Automated checks: Final Gradle run succeeded for unit tests, debug APK, lint and test APK. Fresh XML reports contain 204 tests with zero failures/errors/skips; lint has zero errors and 15 warnings. Report and APK paths are listed above.
+- 受控模拟器检查：独立 API 37 emulator-5582 最终 `OK (35 tests)`：新增 10 项顶部/Devices Compose 检查及原 25 项 History/SQLite 回归。覆盖状态/电量失效、打开无自动操作、关闭活跃扫描保留结果、返回键不触发断开/Stop、状态恢复不重复扫描、保存设备 ID 与连接期间禁用、配置问题/忙碌重查防护、五档强度与无效/失败/停止/恢复、累计值保留。运行中的会话、设备与 HR 是明确受控 UI 状态和计数回调；History 回归使用实际 SQLite。测试定位修正了同名提示匹配及 Espresso 返回键误选底层窗口，最终明确选择 Dialog root；未放宽生产行为。另在真实系统字号 2.0 下重跑长设备名视觉用例，`OK (1 test)`。
+  Controlled emulator checks: All 35 tests passed: ten new header/Devices Compose tests and 25 existing History/SQLite regressions. Covers statuses/invalid battery, no automatic actions, retained scan results on dismissal, Back without disconnect/Stop, saved-state restoration without repeat scanning, saved ID routing/disabled duplicate actions, blocked configuration/busy recheck, all intensity labels and invalid/failed/stopped/recovered states with retained totals. Session/device/HR states and callbacks are controlled fixtures; History tests use real SQLite. Corrected ambiguous text matching and Espresso targeting the underlying window; the final Back test explicitly targets the Dialog root without relaxing production behavior. The long-name visual test also passed with actual system font scale 2.0.
+- 实际视觉检查：已打开实际 App，检查浅/深 × 1.0/2.0 系统字号的 Session 顶部与 Devices（8 张），深色 2.0 横屏顶部/弹窗（2 张），及浅/深 2.0 滚动到底部扫描按钮（2 张）；Close 在所查视口可访问，状态/电量/占位文字换行，扫描按钮在无权限时禁用，打开不弹授权或扫描。实际弹窗旋转后仍打开，Close/系统返回/外部点击可关闭。另检查受控浅/深长名称/ID 与 Zone 3 色块截图；实际系统 2.0 长名称/ID 完整换行。截图只证明所查视口；五档色值及 History 共用配色按源码确认，未完成 H10 驱动的五档色块/柱形视觉验收。
+  Actual visual checks: Inspected the real App's Session header/Devices in light/dark modes at system font scales 1.0/2.0 (eight captures), dark 2.0 landscape header/dialog (two), and both themes at 2.0 scrolled to scan controls (two). Close remains accessible, text wraps, scan controls are disabled without permissions and opening triggers no authorization/scan. The actual dialog survives rotation and dismisses via Close, Back and outside taps. Also inspected controlled long-name/ID and Zone 3 captures, including actual system font scale 2.0. Evidence is limited to inspected viewports; five palette values and History reuse were checked in source. H10-driven five-zone marker/bar visual acceptance remains pending.
+- 真机与边界：本轮未安装或操作 Samsung/H10。真实权限拒绝/设置/蓝牙开关、30 秒扫描/10 秒连接超时、真实连接/电量/断开恢复、运行采集时弹窗关闭/旋转/后台和真实 HR 接触/失败/五档恢复仍 pending；受控模拟器结果不代替硬件验收。未修改 SDK/API、管理器、采集、算法、阈值/统计、保存/数据库/History 查询、依赖、导航或 8.2—8.5。两份 AGENTS.md 和两份 prompt.md 同步中英文实际结果；未 commit/push。
+  Hardware/scope: No Samsung/H10 installation or operation this turn. Real permission/settings/Bluetooth recovery, 30-second scan/10-second connection timeout, connection/battery/disconnection recovery, dismissal/rotation/background during live acquisition and real HR contact/failure/five-zone recovery remain pending. Controlled emulator results do not replace hardware acceptance. No SDK/API, manager, acquisition, algorithm, threshold/statistics, saving/schema/History-query, dependency, navigation or step 8.2–8.5 changes. Both documentation pairs record actual bilingual results; no commit/push.
+- 证据：本轮日志、检查脚本与截图在项目 build/step81-validation/；关键日志 gradle.txt、instrumentation.txt、controlled-system-font2.txt、visual-check.txt、scroll-check.txt。该目录为被忽略的本地构建证据，不自动纳入提交。
+  Evidence: Local ignored build/step81-validation/ contains logs, scripts and captures; key logs are listed above and are not automatically included in a commit.
+- 建议英文提交信息 / Suggested English commit message：`feat: integrate device dialog and session status header`
+
+## 步骤 8.2：主指标、心率区间与运动汇总 / Step 8.2: Metrics, HR zones and activity summary
+
+规则确认日期：2026-10-01。用户采用推荐方案；本轮只写入规则和以下中英文实施提示词，8.2 App 代码未实施。8.1 已有未提交源码保持不变；8.2 的测试/构建/lint、实际视觉及 Samsung/H10 检查均 pending。
+Rules confirmed on 2026-10-01. The user adopted the recommended plan. This turn writes rules and bilingual implementation prompts only; step 8.2 App changes are not implemented. Existing uncommitted step 8.1 source is unchanged. Fresh step 8.2 tests/build/lint, actual visual checks and Samsung/H10 validation are pending.
+
+### 中文
+
+```text
+仅实施步骤 8.2，遵循 AGENTS.md 第 5.30 节，直接修改项目文件。
+
+先检查 8.0 主题、8.1 顶部/Devices、SensorActivity 的 HR/运动/区间/摘要/Retry 显示，以及 LatestHeartRate、StepState、HeartRateZonePanel、SessionSummaryPanel 和 History 共享引用。复用现有状态、算法结果、统计持有者、会话时间和恢复回调，只整合区域 3—6。
+
+1. 将指标按 Heart rate → Motion → Heart rate zones → Activity summary 排成四张卡片。保留 8.1 当前强度入口，不重复显示。沿用系统深浅主题、默认字体、16 dp 页面/卡片边距/圆角/区域间距及 8/12 dp 内部间距。当前 HR 56 sp，当前步频/速度与汇总主数值 28 sp，区域标题 18 sp、正文/单位 16 sp、次要统计/接收时间/说明 14 sp；数字用 onSurface，次要文字用 onSurfaceVariant。只定义实际使用的样式与尺寸，不创建框架。
+2. Heart rate 显示既有有效当前 reading 与 bpm、整场 Min/Max/Mean、Last received (phone)、必要 HR 状态/无接触/错误及原 Retry HR。Min/Max 为整数，Mean 一位小数；receivedAt 沿用英文日期及当前时区，不称采样时间。无效/失败/停止当前值和接收时间为 --，已取得统计继续保留。不要在 UI 从平均/最大值生成当前 HR 或新的统计。
+3. Motion 的 Cadence 和 Estimated speed 常规等宽并排，大字体/窄宽按步频→速度纵排。步频显示整数 steps/min，速度仅展示时 m/s × 3.6、一位小数 km/h；步频下显示已有 Mean/Min/Max，速度下显示已有 Mean/Max。读取 StepState 已有结果，不改平均含整个 Running 时长、五秒合格窗口极值、两秒归零、初始预热/缺口/Retry 或步长/距离算法。保留必要 ACC 原因、不完整提示与原 Retry ACC 回调/条件；把该 Retry 移到指标附近并删除原位置重复按钮，ECG Retry 留原区域。
+4. Activity summary 显示 Running duration (mm:ss)、Total steps、Estimated distance (m)。首版三项纵向标签—数值行，通常左标签/右数值，空间不足时每行标签上/值下。时长直接使用 session.elapsedMs、截断秒、分钟可超过 59，四小时为 240:00；包含静止/休息和已知缺失。总步数为已有整数，累计距离保留米及一位小数，不自动改 km。用这里的时长替代旧 Elapsed 文本，保持 Start/Stop 位置与启用条件、必要 Session 状态/结束原因，不提前实施 8.4。
+5. Heart rate zones 保留五根纵柱，绘图区 160 dp（不含图题/比例尺/横轴/明细），柱宽沿用 24 dp、均分可用空间。共用从零到最大累计毫秒的线性比例尺，比例尺文本放图外；全零柱高为零，避免除零/假最小柱高。柱高按真实毫秒，显示时长截断秒为 mm:ss。横轴固定 Zone 1—5，可换行；图下五行明细完整显示色块、Zone、英文强度、bpm 范围和累计时长，必要时分两行。颜色只读 HeartRateZoneColors，低到高绿/蓝/黄/橙/红；所有标签使用可读主题文字色。保留 Unclassified time、Estimated from received HR、保持法/静默停流高估的简短说明及无数据/停止提示，不增加第六柱、Session 占比、训练建议或交互。
+6. 保留 -- 与真实零的区别：正常初始 ACC 预热/等待确认零配状态；缺口/失败/Retry 重新预热按既有 --/原因；Stop 有 ACC 观测才当前归零、无观测仍 --。保留累计/极值/平均值、不完整标记、Stop 冻结与新 Start 清零、旋转保持和旧事件防护。距离/速度明确 Estimated，不用缺失值冒充静止，不新增补值、新鲜度超时、缓存或定时器。
+7. 删除被四张卡片替代的 HR/Steps 开发标题和重复指标；SessionSummaryPanel 在 Session 只去掉已替代 HR/区间/运动统计，尚未替代的 UUID/日期/设备/保存资格/完整性信息及历史点/快照开发区域暂留。不得整体删除 History 使用的共享摘要。共享 HeartRateZonePanel 的视觉改进可用于 History，但其存储值、已有 Running 占比、摘要字段/顺序、查询/日期/删除保持，不实施 8.5。ACC/ECG 原始参数/样本开发区域和曲线正式布局留后续步骤，只移除已经迁入 Motion 的重复 Retry ACC。
+8. 尊重系统字体缩放，允许纵向滚动，横屏保持相同顺序；数字/单位可分行，卡片增高，不截断、不缩字号或强制单行。检查初始/有效/无接触/失败/恢复、零与 --、停止有/无 ACC、平均/窗口极值/缺失、长数值、四小时、舍入、五档边界/配色、全零/不足一秒/不等时长/最大值变化、未归类、冻结/新场以及恢复按钮条件。实际检查浅/深、系统 1.0/2.0 字号、横屏、长状态/错误及滚动；运行相关 UI/统计及 History 共享组件回归、debug/测试 APK 构建和 lint。源码、受控/模拟器视觉、Samsung/H10 分开报告，未执行项标 pending，不引用 8.1 检查作为本步通过证据。
+9. 同步两份 AGENTS.md 和两份 prompt.md 的中英文实际结果，提供英文 commit message，不自动 commit/push。不得改 SDK/API、依赖、采集、算法、阈值、统计、生命周期、保存/数据库/History 查询；不改 8.1 顶部/Devices，不实施 8.3 曲线及 220 dp 高度、8.4 控制/导航或 8.5 History，不加暂停/继续、动画、进度环或无关重构。
+
+最小代码；保留英文 App 文本/代码注释，不增加常驻模拟数据或未使用的抽象。
+```
+
+### English
+
+```text
+Implement only step 8.2, following Section 5.30 of AGENTS.md. Modify project files directly.
+
+Inspect the shared theme, step 8.1 header/Devices, existing HR/motion/zone/summary/Retry UI in SensorActivity, LatestHeartRate, StepState, HeartRateZonePanel, SessionSummaryPanel and their History references first. Reuse existing states, algorithm outputs, statistics owners, session timing and recovery callbacks. Integrate only regions 3–6.
+
+1. Arrange four cards in this order: Heart rate → Motion → Heart rate zones → Activity summary. Keep current intensity solely in the step 8.1 header. Reuse system light/dark mode, the default font, 16 dp page/card padding/corners/section spacing and 8/12 dp internal spacing. Use 56 sp for current HR, 28 sp for current cadence/speed and summary values, 18 sp for section titles, 16 sp for body/units and 14 sp for secondary statistics/reception time/explanations. Use onSurface for numbers and onSurfaceVariant for secondary text. Define only styles/dimensions actually used; add no styling framework.
+2. Heart rate shows the existing valid current reading with bpm, full-session Min/Max/Mean, Last received (phone), necessary HR/contact/error status and the original Retry HR. Min/Max are integers; Mean has one decimal. Retain English/current-timezone formatting for receivedAt and do not call it sampling time. Invalid/failed/stopped current values and reception time are --; existing statistics remain. Do not derive current HR or new statistics from maximum/mean values in UI.
+3. Normally show Cadence and Estimated speed in equal-width areas inside Motion; stack cadence before speed at enlarged fonts or narrow widths. Display integer steps/min and speed as m/s × 3.6 with one decimal km/h, only rounding for display. Show existing cadence Mean/Min/Max below cadence and speed Mean/Max below speed. Consume StepState outputs; preserve whole-Running averages, qualifying five-second extrema, two-second zeroing, warmup/gap/Retry and stride/distance rules. Retain necessary ACC reasons/incomplete warnings and the original Retry ACC callback/guard. Move that Retry beside the metrics and remove its old duplicate button; keep ECG Retry in its current area.
+4. Activity summary shows Running duration (mm:ss), Total steps and Estimated distance (m) as three vertical label/value rows. Normally place label left/value right; stack each label above its value if necessary. Read session.elapsedMs directly, truncate seconds and allow minutes above 59; four hours is 240:00. Duration includes stationary/rest and known missing periods. Keep integer steps and metres with one decimal, without automatic km conversion. Replace the old Elapsed text with this duration while retaining current Start/Stop positions/guards and necessary Session status/end reason. Do not implement step 8.4.
+5. Keep five vertical HR-zone bars with a 160 dp plotting area, excluding title/scale/axis/details, existing 24 dp bar width and equally allocated horizontal space. Share a linear zero-to-maximum cumulative-millisecond scale and place scale text outside the plot. All-zero bars have zero height; avoid division by zero or artificial minimum bars. Heights use actual milliseconds; displayed mm:ss truncates seconds. Fix axis order to Zone 1–5 with wrapping. Below the plot, use five growing detail rows with swatch, Zone, English intensity, bpm range and duration; allow two lines. Read only HeartRateZoneColors in green/blue/yellow/orange/red order and use readable theme text for labels. Keep Unclassified time, Estimated from received HR, concise held-reading/silent-loss limitations and empty/stopped states. Add no sixth bar, Session percentages, training advice or chart interaction.
+6. Preserve -- versus genuine zero. Normal initial ACC warmup/confirmation zeros include their state; gap/failure/Retry recovery uses existing --/reasons. Stop zeroes current motion only after ACC observations; without observations it remains --. Preserve totals/extrema/averages, incomplete flags, end freezing/new-Start resets, rotation retention and stale-event guards. Clearly label distance/speed Estimated. Do not treat missing values as stationary measurements or add imputation, freshness timeouts, display caches or timers.
+7. Remove only replaced HR/Steps development titles and duplicate metrics. At the Session call site, remove only replaced HR/zone/motion statistics from SessionSummaryPanel; retain unreplaced identity/date/device/saving-eligibility/completeness and history-point/snapshot development information. Do not delete the shared summary used by History. History may reuse improved HeartRateZonePanel visuals, but stored values, existing Running percentages, summary fields/order and queries/dates/deletion remain. Do not implement step 8.5. Keep raw ACC/ECG parameter/sample development areas and formal chart work for later steps; remove only the duplicate Retry ACC already moved into Motion.
+8. Respect system font scaling and vertical scrolling with the same landscape order. Allow numbers/units on separate lines and growing cards; use no clipping, ellipsis, font shrinking or forced single lines. Check initial/valid/contact-lost/failed/recovered states, zero/--, Stop with/without ACC, averages/window extrema/missing data, long values, four hours, rounding, all zone boundaries/colors, zero/subsecond/unequal/changing-maximum durations, unclassified time, freezing/new Start and recovery guards. Inspect actual light/dark UI, system font scales 1.0/2.0, landscape, long statuses/errors and scrolling. Run relevant UI/statistics and shared History regressions, debug/test APK builds and lint. Separate source inspection, controlled/emulator visual evidence and Samsung/H10 results; mark unperformed checks pending. Do not reuse step 8.1 results as step 8.2 evidence.
+9. Synchronize both AGENTS.md files and both prompt.md files with actual bilingual results. Provide an English commit message without automatically committing or pushing. Preserve SDK/API, dependencies, acquisition, algorithms, thresholds/statistics, lifecycle, saving/schema/History queries. Do not change the step 8.1 header/Devices or implement step 8.3 charts/220 dp height, step 8.4 controls/navigation or step 8.5 History. Add no pause/resume, animations, progress rings or unrelated refactoring.
+
+Use minimal code with English UI/comments. Add no permanent simulated data or unused abstractions.
+```
+
+### 本轮文档结果 / Documentation result
+
+- 已将 8.2 推荐方案写入 AGENTS.md 第 5.30 节及步骤表，并同步两份 AGENTS.md、两份 prompt.md。The recommended step 8.2 plan is recorded in Section 5.30 and the step table, with both documentation pairs synchronized.
+- 本轮只修改文档；已有 8.1 源码保持不变。8.2 实施、构建/lint、受控/实际视觉和 H10 验收 pending，未 commit/push。Only documentation changed this turn. Existing step 8.1 source remains unchanged. Step 8.2 implementation, build/lint, controlled/actual visual checks and H10 acceptance are pending; no commit/push.

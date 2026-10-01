@@ -6,3 +6,6 @@ internal val PagePadding = 16.dp
 internal val SectionSpacing = 16.dp
 internal val ContentSpacing = 8.dp
 internal val ControlSpacing = 12.dp
+internal val CardCornerRadius = 16.dp
+internal val IconSize = 24.dp
+internal val MinimumTouchTarget = 48.dp
