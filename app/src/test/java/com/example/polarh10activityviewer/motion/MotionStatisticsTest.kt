@@ -63,7 +63,7 @@ class MotionStatisticsTest {
         detector.receivedBatch(3_030_000_000, 0)
         assertEquals(4, commits.size)
         assertNull(commits.first().length)
-        val length = 0.5 * (1000 * 0.0098).pow(0.25)
+        val length = 0.45 * (1000 * 0.0098).pow(0.25)
         commits.drop(1).forEach { assertEquals(length, it.length!!, 1e-10) }
         val distance = length * 3
         assertEquals(distance, detector.state.value.distance!!, 1e-10)
@@ -95,7 +95,7 @@ class MotionStatisticsTest {
         detector.receivedBatch(6_030_000_000, phone)
         assertEquals(120.0, detector.state.value.maximumCadence!!, 0.0)
         assertEquals(120.0, detector.state.value.minimumCadence!!, 0.0)
-        assertEquals(9 * 0.5 * 9.8.pow(0.25) / 5, detector.state.value.maximumSpeed!!, 1e-10)
+        assertEquals(9 * 0.45 * 9.8.pow(0.25) / 5, detector.state.value.maximumSpeed!!, 1e-10)
         assertFalse(detector.state.value.incompleteAcc)
     }
 
@@ -125,7 +125,7 @@ class MotionStatisticsTest {
         assertNull(detector.state.value.speed)
         (0..303).forEach { detector.receive(sample(it)) }
         detector.receivedBatch(3_030_000_000, 0)
-        assertEquals(before.distance!! + 3 * 0.5 * 9.8.pow(0.25), detector.state.value.distance!!, 1e-10)
+        assertEquals(before.distance!! + 3 * 0.45 * 9.8.pow(0.25), detector.state.value.distance!!, 1e-10)
         assertEquals(before.maximumSpeed, detector.state.value.maximumSpeed)
         assertTrue(detector.state.value.incompleteAcc)
         detector.reset()
@@ -144,7 +144,7 @@ class MotionStatisticsTest {
             (0..303).forEach { detector.receive(sample(it).copy(timeStamp = it * 10_000_000L + offset)) }
             detector.receivedBatch(3_030_000_000 + offset, 0)
             assertEquals(4L, detector.totalSteps)
-            assertEquals(3 * 0.5 * 9.8.pow(0.25), detector.state.value.distance!!, 1e-10)
+            assertEquals(3 * 0.45 * 9.8.pow(0.25), detector.state.value.distance!!, 1e-10)
         }
     }
 

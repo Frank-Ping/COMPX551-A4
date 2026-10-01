@@ -1704,3 +1704,11 @@ Implement only step 8.3 under Section 5.31 of AGENTS.md and modify project files
 - 证据/真机边界：build/step83-validation/ 下 gradle-final.txt、charts-metrics-final.txt、regression-final.txt、system-font2-portrait/landscape.txt、display-landscape.txt、actual-visual.txt 和 controlled-final/system-font2-*/actual-* 截图；单元/lint 报告和 APK 保持 app/build/ 原路径。本轮 Samsung/H10 未安装或操作：真实信号/窗口滚动、ECG 100 ms 刷新性能、接触/单流失败与恢复、真实旋转/后台/连接生命周期仍 pending；静态 650 点受控截图和编译不替代这些验收。没有实施 8.4/8.5，没有 SDK、算法、采集/生命周期、保存/query 或依赖变化。两份 AGENTS.md、两份 prompt.md 同步中英文实际结果，未 commit/push。
   Evidence/hardware limits: Final logs and controlled/system-font/actual captures are in build/step83-validation/; reports/APKs retain their app/build/ paths. No Samsung/H10 installation or operation occurred. Real signals/window scrolling, ECG 100 ms refresh performance, contact/stream failure/recovery and live rotation/background/connection lifecycle remain pending. Static controlled 650-point captures and compilation do not replace hardware acceptance. No steps 8.4/8.5, SDK, algorithm, acquisition/lifecycle, storage/query or dependency changes. Both documentation pairs record actual bilingual results; no commit/push.
 - 建议英文提交信息 / Suggested English commit message：`feat: finalize session live charts and remove development displays`
+
+
+## 2026-10-01 步长系数调整 / Stride coefficient adjustment
+
+用户指令 / User request: 那把K值调整为0.45吧 / Change K to 0.45.
+
+- 2026-10-01 K 调整：按用户要求，StrideLengthEstimator.kt 的步长系数由 0.5 改为 0.45；此前记录中的 K=0.5 为当时版本。同一组有效峰间数据下，估计距离和基于步长的速度为原值的 90%，步数/步频与 A_min=0.5 m/s² 不变。同步已有步长及运动统计测试预期；211 项单元测试通过（0 failures/errors/skipped）、debug 构建通过、lint 0 errors/15 warnings。未安装 APK 或进行本轮真机验证，K=0.45 仍为未校准试验值；已保存历史不重算，无 commit/push。
+  K adjustment: Changed the stride coefficient from 0.5 to 0.45 at the user's request. Earlier K=0.5 records describe the previous version. Identical valid peak intervals yield 90% of the previous estimated distance and stride-based speeds; steps, cadence and A_min=0.5 m/s² are unchanged. Updated existing stride/motion test expectations. All 211 unit tests passed with no failures/errors/skips, the debug build passed, and lint reported 0 errors/15 warnings. No APK installation or hardware validation was performed; K=0.45 remains an uncalibrated trial value. Saved history is not recalculated. No commit/push.

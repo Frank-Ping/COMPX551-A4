@@ -25,7 +25,7 @@ internal class StrideLengthEstimator {
     fun accept(peakTime: Long): Double? {
         val length = previousPeak?.let { start ->
             val interval = samples.filter { it.time in start..peakTime }
-            0.5 * (interval.maxOf { it.value } - interval.minOf { it.value }).pow(0.25)
+            0.45 * (interval.maxOf { it.value } - interval.minOf { it.value }).pow(0.25)
         }
         previousPeak = peakTime
         // Keep the later peak and samples after it for the following interval.
