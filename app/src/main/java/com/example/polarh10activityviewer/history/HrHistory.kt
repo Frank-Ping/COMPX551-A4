@@ -61,6 +61,12 @@ internal class HrHistory {
         if (state.value.sessionId != null) mutableState.value = state.value.copy(frozen = true)
     }
 
+    fun resume() {
+        breakBefore = true
+        previousElapsedMs = null
+        mutableState.value = state.value.copy(frozen = false)
+    }
+
     fun snapshot(): List<HrHistoryPoint> = points.toList()
 
     companion object {

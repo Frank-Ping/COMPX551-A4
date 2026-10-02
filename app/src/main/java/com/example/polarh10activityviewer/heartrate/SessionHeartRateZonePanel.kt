@@ -3,6 +3,7 @@ package com.example.polarh10activityviewer.heartrate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,7 +33,7 @@ import com.example.polarh10activityviewer.ui.theme.PagePadding
 internal fun SessionHeartRateZonePanel(state: HeartRateZoneState, stopped: Boolean) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius)) {
         Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            Text("Heart rate zones", style = MaterialTheme.typography.titleMedium)
+            Text("HR Zone", style = MaterialTheme.typography.titleMedium)
             if (stopped) Text("Stopped.")
             if (!state.receivedValidHr) Text("No valid HR data")
             val maximum = state.durationsMs.max()
@@ -43,23 +44,18 @@ internal fun SessionHeartRateZonePanel(state: HeartRateZoneState, stopped: Boole
                         style = MaterialTheme.typography.bodySmall).size.width
                 }.toDp()
             }
-            Text("Estimated from received HR", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Without a new reading or an interruption notification, the last zone continues. Silent stream loss may overestimate its duration.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("Duration (mm:ss)")
-            Text("Scale: 00:00–${formatZoneDuration(maximum)}", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (maximum == 0L) Text("All zones: 00:00", style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
             HeartRateZone.entries.forEach { zone ->
                 val duration = state.durationsMs[zone.ordinal]
                 val color = HeartRateZoneColors[zone.ordinal]
-                Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    Text("Zone ${zone.ordinal + 1} · ${zone.label}")
-                    Text("${zone.range} bpm", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val inline = maxWidth >= 320.dp * LocalDensity.current.fontScale
+                    val labels: @Composable () -> Unit = {
+                        Text("Z${zone.ordinal + 1}", Modifier.width(28.dp * LocalDensity.current.fontScale))
+                        Text("${zone.range} bpm", Modifier.width(100.dp * LocalDensity.current.fontScale),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                    val bar: @Composable () -> Unit = {
+                      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) {
                         Box(Modifier.weight(1f).padding(top = 4.dp).height(12.dp).background(color.copy(alpha = 0.12f))) {
                             // Scale uses milliseconds, including subsecond durations.
                             val fraction = if (maximum == 0L) 0f else duration.toFloat() / maximum
@@ -71,10 +67,22 @@ internal fun SessionHeartRateZonePanel(state: HeartRateZoneState, stopped: Boole
                         Box(Modifier.width(durationWidth), contentAlignment = Alignment.CenterEnd) {
                             Text(formatZoneDuration(duration), style = MaterialTheme.typography.bodySmall)
                         }
+                      }
+                    }
+                    if (inline) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+                            labels()
+                            Box(Modifier.weight(1f)) { bar() }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) { labels() }
+                            bar()
+                        }
                     }
                 }
             }
-            Text("Unclassified time: ${formatZoneDuration(state.unclassifiedMs)}")
+            if (state.unclassifiedMs > 0) Text("Unclassified time: ${formatZoneDuration(state.unclassifiedMs)}")
         }
     }
 }

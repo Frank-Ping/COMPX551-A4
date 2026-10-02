@@ -141,8 +141,15 @@ class SensorActivity : ComponentActivity() {
                     session, saveState.blocksStart, subscriptionStates.values.toList(), dataReadiness.values)
                 SessionScaffold(showHistory, { showHistory = it },
                     controls = {
-                        SessionControls(disabledReason == null, session.ongoing,
-                            ::handleStartSession, { bleManager.stopSession() })
+                        SessionControls(disabledReason == null, session.open,
+                            ::handleStartSession, { bleManager.stopSession() },
+                            canPause = session.status == SessionStatus.RUNNING,
+                            canResume = session.status == SessionStatus.PAUSED && !systemRequestPending &&
+                                availability == BluetoothAvailability.READY && connectionState.status == ConnectionStatus.CONNECTED &&
+                                subscriptionStates.values.none { it.status == SubscriptionStatus.STOPPING } &&
+                                dataReadiness.values.any { it.status == DataReadinessStatus.READY && it.configurationComplete },
+                            paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING),
+                            onPause = { bleManager.pauseSession() }, onResume = { bleManager.resumeSession() })
                     },
                     historyContent = {
                         HistoryPanel(bleManager.storage.database,
@@ -415,7 +422,8 @@ internal fun SessionScreen(
             steps = steps, subscription = accSubscription,
             canRetry = connected && session.ongoing &&
                 dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
-            onRetry = { onRetryStream(PolarDeviceDataType.ACC) }
+            onRetry = { onRetryStream(PolarDeviceDataType.ACC) },
+            paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING)
         )
         charts(connected && session.ongoing &&
             dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },

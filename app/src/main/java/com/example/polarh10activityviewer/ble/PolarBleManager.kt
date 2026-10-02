@@ -187,7 +187,8 @@ class PolarBleManager(context: Context) {
             mutableLastSnapshot.value = snapshot
             storage.saves.submit(snapshot)
         },
-        canStart = { !storage.saves.state.value.blocksStart })
+        canStart = { !storage.saves.state.value.blocksStart },
+        onResume = { hrHistory.resume(); motionHistory.resume(); liveCharts.resume() })
     internal val sessionState = session.state
 
     @MainThread
@@ -197,6 +198,10 @@ class PolarBleManager(context: Context) {
         },
         device = mutableConnectionState.value.device
     ) {
+        startSessionStreams()
+    }
+
+    private fun startSessionStreams() {
         checkedDataTypes.forEach { type ->
             val readiness = mutableDataReadiness.value.getValue(type)
             if (readiness.status == DataReadinessStatus.READY && readiness.configurationComplete) {
@@ -210,6 +215,14 @@ class PolarBleManager(context: Context) {
 
     @MainThread
     fun stopSession() = session.stop("Stopped by user.", interrupted = false)
+
+    @MainThread
+    fun pauseSession() = session.pause()
+
+    @MainThread
+    fun resumeSession() = session.resume(connectedForData() && mutableDataReadiness.value.values.any {
+        it.status == DataReadinessStatus.READY && it.configurationComplete
+    }, ::startSessionStreams)
 
     @MainThread
     fun retryStream(type: PolarDeviceDataType): Boolean = session.retry(type, connectedForData()) {

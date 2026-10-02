@@ -36,6 +36,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
     private var ecgSensorAnchor: Long? = null
     private var ecgSessionAnchor = 0L
     private var ecgSampleRate = 0
+    private val preserveOnStart = mutableSetOf<PolarDeviceDataType>()
     private val mutableSelection = MutableStateFlow(ChartKind.HEART_RATE)
     val selection = mutableSelection.asStateFlow()
     var motionSelection = ChartKind.CADENCE
@@ -59,6 +60,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
     }
 
     fun reset() {
+        preserveOnStart.clear()
         checkedDataTypes.forEach {
             clear(it)
             statuses[it] = SubscriptionStatus.IDLE
@@ -67,7 +69,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
     }
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus, elapsedMs: Long) {
-        if (status == SubscriptionStatus.STARTING) clear(type)
+        if (status == SubscriptionStatus.STARTING && !preserveOnStart.remove(type)) clear(type)
         if (active(type) || status == SubscriptionStatus.STARTING) frozenEnds[type] = elapsedMs
         if (type == HR && status != SubscriptionStatus.RECEIVING) hrBreak = true
         statuses[type] = status
@@ -78,6 +80,13 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
         checkedDataTypes.filter(::active).forEach {
             onSubscriptionState(it, SubscriptionStatus.STOPPED, elapsedMs)
         }
+    }
+
+    fun resume() {
+        preserveOnStart.addAll(listOf(HR, ACC))
+        previousHrTime = null
+        hrBreak = true
+        previousMotionSegment = null
     }
 
     fun receiveHr(elapsedMs: Long, reading: HeartRateReading?) {
@@ -124,15 +133,15 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
     }
 
     private fun trim() {
-        val hrCutoff = frozenEnds.getValue(HR) - 60_000
-        while (hr.isNotEmpty() && (hr.first().elapsedMs <= hrCutoff || hr.size > 61)) hr.removeFirst()
-        val motionCutoff = frozenEnds.getValue(ACC) - 60_000
-        while (motion.isNotEmpty() && (motion.first().time <= motionCutoff || motion.size > 241)) motion.removeFirst()
+        val hrCutoff = frozenEnds.getValue(HR) - 300_000
+        while (hr.isNotEmpty() && (hr.first().elapsedMs <= hrCutoff || hr.size > 301)) hr.removeFirst()
+        val motionCutoff = frozenEnds.getValue(ACC) - 300_000
+        while (motion.isNotEmpty() && (motion.first().time <= motionCutoff || motion.size > 1201)) motion.removeFirst()
     }
 
     fun snapshot(kind: ChartKind, elapsedMs: Long): ChartSnapshot {
         val end = (if (active(kind.type)) elapsedMs else frozenEnds.getValue(kind.type)).toDouble()
-        val window = if (kind.type == ECG) 5000.0 else 60_000.0
+        val window = if (kind.type == ECG) 5000.0 else 300_000.0
         fun visible(time: Double) = time >= 0 && time > end - window && time <= end
         val points = when (kind) {
             ChartKind.HEART_RATE -> hr.filter { visible(it.elapsedMs) }

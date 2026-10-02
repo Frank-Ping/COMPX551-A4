@@ -148,15 +148,15 @@ class HrHistoryLifecycleTest {
         val source = MutableSharedFlow<PolarHrData>()
         f.start(source); runCurrent()
         f.charts.select(ChartKind.SPEED)
-        for (second in 0..75) {
+        for (second in 0..375) {
             f.now = second * 1000L
             source.emit(batch(120)); runCurrent()
         }
-        assertEquals(76, f.history.state.value.pointCount)
+        assertEquals(376, f.history.state.value.pointCount)
         assertEquals(0L, f.history.snapshot().first().elapsedMs)
-        assertEquals(75_000L, f.history.snapshot().last().elapsedMs)
-        val live = f.charts.snapshot(ChartKind.HEART_RATE, 75_000)
-        assertTrue(live.points.size <= 61)
+        assertEquals(375_000L, f.history.snapshot().last().elapsedMs)
+        val live = f.charts.snapshot(ChartKind.HEART_RATE, 375_000)
+        assertTrue(live.points.size <= 301)
         assertTrue(live.points.first().elapsedMs > 0)
         f.stop()
     }

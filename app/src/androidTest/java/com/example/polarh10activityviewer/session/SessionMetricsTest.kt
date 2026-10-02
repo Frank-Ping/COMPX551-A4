@@ -112,18 +112,21 @@ class SessionMetricsTest {
 
     @Test fun validReadingsUseExistingStatisticsAndDisplayOnlyRounding() {
         mount()
-        visible("123"); visible("Min HR: 110 bpm"); visible("Max HR: 130 bpm"); visible("Mean HR: 120.3 bpm")
-        visible("124"); visible("4.5"); visible("Mean cadence: 121 steps/min"); visible("Min cadence: 0 steps/min")
-        visible("Max cadence: 168 steps/min"); visible("Mean speed: 6.0 km/h"); visible("Max speed: 10.8 km/h")
+        visible("123"); visible("Max HR: 130 bpm"); visible("Max HR: 130 bpm"); visible("Mean HR: 120 bpm")
+        visible("124"); visible("Mean cadence: 121 steps/min");
+        visible("Max cadence: 168 steps/min")
         visible("01:00"); visible("121"); visible("100.0")
+        listOf("Min HR:", "Min cadence:", "Estimated speed", "Mean speed:", "Max speed:", "km/h").forEach {
+            compose.onAllNodesWithText(it, substring = true).assertCountEquals(0)
+        }
         assertEquals(123.6, motion.value.cadence!!, 0.0)
         assertEquals(100.04, motion.value.distance!!, 0.0)
     }
 
     @Test fun sessionOrdersChartSummaryZonesAndRecoveryAfterMetrics() {
         mount()
-        val titles = listOf("Data streams", "Heart rate", "Motion", "Controlled chart position",
-            "Activity summary", "Heart rate zones", "Session: Running", "Controlled save recovery position")
+        val titles = listOf("Data streams", "Max HR: 130 bpm", "Cadence", "Controlled chart position",
+            "Activity Summary", "HR Zone", "Controlled save recovery position")
         visible("Data streams")
         val positions = titles.map { compose.onNodeWithText(it).fetchSemanticsNode().positionInRoot.y }
         assertTrue("Session sections out of order: $positions", positions.zipWithNext().all { (first, second) -> first < second })
@@ -135,7 +138,7 @@ class SessionMetricsTest {
         mount(); visible("Moderate · Zone 3")
         compose.runOnIdle { reading.value = null }
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
-        visible("Mean HR: 120.3 bpm")
+        visible("Mean HR: 120 bpm")
         compose.runOnIdle { reading.value = HeartRateReading(130, 1_700_000_000_000)
             hr.value = SubscriptionState(SubscriptionStatus.FAILED) }
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
@@ -143,13 +146,13 @@ class SessionMetricsTest {
         compose.runOnIdle { hr.value = SubscriptionState(SubscriptionStatus.RECEIVING)
             session.value = session.value.copy(status = SessionStatus.STOPPED) }
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
-        visible("Stopped"); visible("Min HR: 110 bpm")
-        compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(1)
+        visible("Stopped"); visible("Max HR: 130 bpm")
+        compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(0)
     }
 
     @Test fun validZeroZonesUseEmptyHorizontalBarsAndNeverRunningPercentages() {
         zones.value = HeartRateZoneState(current = HeartRateZone.LIGHT, receivedValidHr = true)
-        mount(); visible("All zones: 00:00")
+        mount();
         for (index in 1..5) {
             val bar = compose.onNodeWithContentDescription("Zone $index, cumulative duration 00:00")
             bar.performScrollTo()
@@ -157,45 +160,45 @@ class SessionMetricsTest {
         }
         compose.onAllNodesWithText("No valid HR data").assertCountEquals(0)
         compose.onAllNodesWithText("%", substring = true).assertCountEquals(0)
-        visible("Unclassified time: 00:00")
+
     }
 
     @Test fun normalMetricColumnsStackWhenFontScaleDoubles() {
         mount(); visible("123")
         val value = compose.onNodeWithText("123").fetchSemanticsNode().positionInRoot
-        val stats = compose.onNodeWithText("Min HR: 110 bpm").fetchSemanticsNode().positionInRoot
+        val stats = compose.onNodeWithText("Max HR: 130 bpm").fetchSemanticsNode().positionInRoot
         assertTrue("HR statistics should be to the right", stats.x > value.x)
         compose.runOnIdle { scale.value = 2f }
         visible("123")
         val largeValue = compose.onNodeWithText("123").fetchSemanticsNode().positionInRoot
-        val largeStats = compose.onNodeWithText("Min HR: 110 bpm").fetchSemanticsNode().positionInRoot
+        val largeStats = compose.onNodeWithText("Max HR: 130 bpm").fetchSemanticsNode().positionInRoot
         assertTrue("Large-font statistics should stack", largeStats.y > largeValue.y)
         assertEquals(largeValue.x, largeStats.x, 1f)
-        noOverflow("Min HR: 110 bpm"); noOverflow("Mean cadence: 121 steps/min")
+        noOverflow("Max HR: 130 bpm"); noOverflow("Mean cadence: 121 steps/min")
     }
 
     @Test fun unavailableReadingsRetainPlaceholdersRatherThanInventingZeros() {
         reading.value = null; statistics.value = HeartRateStatistics(); motion.value = StepState()
         zones.value = HeartRateZoneState(); mount()
-        visible("Last received (phone): --"); visible("Min HR: -- bpm")
-        visible("Mean cadence: -- steps/min"); visible("Mean speed: -- km/h")
+        visible("Last received (phone): --"); visible("Max HR: -- bpm")
+        visible("Mean cadence: -- steps/min");
         visible("No ACC observations. Statistics are unavailable.")
         compose.onAllNodesWithText("No valid HR data")[1].performScrollTo().assertIsDisplayed()
-        visible("All zones: 00:00")
+
         compose.onAllNodesWithText("0").assertCountEquals(0)
         compose.onAllNodesWithText("0.0").assertCountEquals(0)
     }
 
     @Test fun initialWarmupShowsGenuineCurrentZerosWithItsStatus() {
         motion.value = StepState(cadence = 0.0, speed = 0.0, message = "Warming up ACC.")
-        mount(); visible("0"); visible("0.0"); visible("Warming up ACC.")
+        mount(); visible("0"); visible("Warming up ACC.")
         visible("Mean cadence: -- steps/min")
     }
 
     @Test fun invalidHrKeepsStatisticsAndRecoveryRouting() {
         reading.value = null; message.value = "No skin contact. Adjust the chest strap and retry if needed."
         hr.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled HR failure.")
-        mount(); visible("Last received (phone): --"); visible("Mean HR: 120.3 bpm")
+        mount(); visible("Last received (phone): --"); visible("Mean HR: 120 bpm")
         visible(message.value!!); visible("Controlled HR failure.")
         compose.onNodeWithText("Retry HR").performScrollTo().performClick()
         assertEquals(listOf(PolarDeviceDataType.HR), retried)
@@ -228,10 +231,10 @@ class SessionMetricsTest {
     @Test fun stoppedObservedZerosAndNewSessionStateAreRenderedWithoutCaching() {
         reading.value = null; session.value = session.value.copy(status = SessionStatus.STOPPED)
         motion.value = motion.value.copy(cadence = 0.0, speed = 0.0, message = "Stopped.")
-        mount(); visible("0"); visible("0.0"); visible("Mean HR: 120.3 bpm"); visible("121")
+        mount(); visible("0"); visible("Mean HR: 120 bpm"); visible("121")
         compose.runOnIdle { motion.value = StepState(); statistics.value = HeartRateStatistics()
             zones.value = HeartRateZoneState(); session.value = SessionState(SessionStatus.STARTING) }
-        visible("Mean HR: -- bpm"); visible("All zones: 00:00")
+        visible("Mean HR: -- bpm");
         compose.onAllNodesWithText("121").assertCountEquals(0)
         compose.onAllNodesWithText("0").assertCountEquals(0)
     }
@@ -251,7 +254,7 @@ class SessionMetricsTest {
         bar(2, "100:00").performScrollTo()
         val longMaximum = bar(2, "100:00").fetchSemanticsNode().boundsInRoot.width
         assertEquals(longMaximum / 2, bar(1, "50:00").fetchSemanticsNode().boundsInRoot.width, 1f)
-        visible("Unclassified time: 00:00")
+
     }
 
     @Test fun fiveZoneBarsRenderTheExactPaletteInBothThemes() {
@@ -269,8 +272,8 @@ class SessionMetricsTest {
             }
             screenshot(if (night) "dark-zone-bars" else "light-zone-bars")
         }
-        visible("Zone 3 · Moderate"); visible("125–139 bpm")
-        visible("Zone 5 · Very high"); visible("≥155 bpm")
+        visible("Z3"); visible("125–139 bpm")
+        visible("Z5"); visible("≥155 bpm")
         visible("Unclassified time: 00:01")
     }
 
@@ -284,14 +287,14 @@ class SessionMetricsTest {
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
             noOverflow("123"); visible("bpm"); screenshot("${if (night) "dark" else "light"}-font2-hr")
-            noOverflow("124"); visible("steps/min"); visible("4.5"); visible("km/h")
+            noOverflow("124"); visible("steps/min");
             screenshot("${if (night) "dark" else "light"}-font2-motion")
             noOverflow(motion.value.message); noOverflow(acc.value.error!!)
             compose.onNodeWithText("Retry ACC").performScrollTo().assertIsDisplayed()
             screenshot("${if (night) "dark" else "light"}-font2-recovery")
             noOverflow("240:00"); noOverflow("123456"); noOverflow("65432.1"); visible("m")
             screenshot("${if (night) "dark" else "light"}-font2-summary")
-            noOverflow("Zone 5 · Very high"); noOverflow("≥155 bpm")
+            noOverflow("Z5"); noOverflow("≥155 bpm")
             screenshot("${if (night) "dark" else "light"}-font2-zone-details")
         }
     }
@@ -313,11 +316,11 @@ class SessionMetricsTest {
         scale.value = null; mount()
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
-            for (title in listOf("Heart rate", "Motion", "Activity summary", "Heart rate zones")) visible(title)
+            for (title in listOf("Max HR: 130 bpm", "Cadence", "Activity Summary", "HR Zone")) visible(title)
             val prefix = "system-${if (night) "dark" else "light"}"
             noOverflow("123"); screenshot("$prefix-Heart-rate")
             noOverflow("124"); visible("steps/min")
-            noOverflow("4.5"); visible("km/h"); screenshot("$prefix-Motion")
+            screenshot("$prefix-Motion")
             noOverflow("100.0"); visible("m"); screenshot("$prefix-Activity-summary")
             visible("Unclassified time: 00:01"); screenshot("$prefix-Heart-rate-zones")
         }

@@ -140,7 +140,8 @@ class SessionHeaderTest {
         mount(); open()
         compose.onNodeWithText("Current device").assertIsDisplayed()
         compose.onNodeWithText("Close").performClick()
-        compose.onNodeWithText("Session: Running").performScrollTo().assertIsDisplayed()
+        assertEquals(SessionStatus.RUNNING, session.value.status)
+        compose.onNodeWithText("Session: Running").assertDoesNotExist()
         assertEquals(0, scansStarted); assertEquals(0, scansStopped)
         assertEquals(0, bluetoothActions); assertEquals(0, disconnects)
         assertEquals(0, starts); assertEquals(0, stops); assertEquals(null, connectedId)
@@ -253,7 +254,7 @@ class SessionHeaderTest {
             compose.runOnIdle { zones.value = zones.value.copy(current = zone) }
             compose.onNodeWithText("${zone.label} · Zone ${zone.ordinal + 1}").performScrollTo().assertIsDisplayed()
         }
-        compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(1)
+        compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(0)
         compose.runOnIdle { zones.value = zones.value.copy(current = null); message.value = "No skin contact." }
         compose.onNodeWithText("No skin contact.").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { hr.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled HR failure") }

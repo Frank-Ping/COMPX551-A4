@@ -44,6 +44,8 @@ class SessionChromeTest {
     private val scale = mutableStateOf<Float?>(1f)
     private var starts = 0
     private var stops = 0
+    private var pauses = 0
+    private var resumes = 0
     private var retries = 0
 
     @Composable private fun Fixture(controller: SessionSaveController? = null, db: SessionDatabase? = null) {
@@ -60,7 +62,11 @@ class SessionChromeTest {
                     controller?.let { SavePanel(save, it, session.value.record?.id) }
                 }
                 SessionScaffold(history, { history = it },
-                    controls = { SessionControls(disabled == null, session.value.ongoing, { starts++ }, { stops++ }) },
+                    controls = { SessionControls(disabled == null, session.value.open, { starts++ }, { stops++ },
+                        canPause = session.value.status == SessionStatus.RUNNING,
+                        canResume = session.value.status == SessionStatus.PAUSED && connection.value.status == ConnectionStatus.CONNECTED,
+                        paused = session.value.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED),
+                        onPause = { pauses++ }, onResume = { resumes++ }) },
                     historyContent = {
                         if (db != null) HistoryPanel(db, save.sessionId.takeIf { save.status == SaveStatus.SAVED },
                             { history = false }, status)
@@ -117,6 +123,26 @@ class SessionChromeTest {
         compose.onNodeWithText("Session").performClick()
         compose.onNodeWithText("Bottom chart fixture").assertIsDisplayed()
         assertEquals(0, starts); assertEquals(0, stops); assertEquals(0, retries)
+    }
+
+    @Test fun pauseContinueAndStopUseActualSessionStateWithoutStartingAnotherSession() {
+        session.value = session.value.copy(status = SessionStatus.RUNNING)
+        mount()
+        compose.onNodeWithContentDescription("Pause").assertIsEnabled().performClick()
+        assertEquals(1, pauses)
+        compose.onNodeWithContentDescription("Start").assertIsNotEnabled()
+        compose.runOnIdle { session.value = session.value.copy(status = SessionStatus.PAUSING) }
+        compose.onNodeWithContentDescription("Continue").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Stop").assertIsEnabled()
+        compose.runOnIdle { session.value = session.value.copy(status = SessionStatus.PAUSED) }
+        compose.onNodeWithContentDescription("Pause").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Continue").assertIsEnabled().performClick()
+        assertEquals(1, resumes)
+        assertEquals(0, starts)
+        compose.runOnIdle { connection.value = ConnectionState() }
+        compose.onNodeWithContentDescription("Continue").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Stop").performClick()
+        assertEquals(1, stops)
     }
 
     @Test fun startingCanStopAndStoppingCannotDuplicateStart() {

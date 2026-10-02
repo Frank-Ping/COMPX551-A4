@@ -6,6 +6,7 @@ import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.DataReadiness
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
+import com.example.polarh10activityviewer.session.SessionStatus
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +39,7 @@ internal fun LiveChartPanel(manager: PolarBleManager,
     val kind by manager.liveCharts.selection.collectAsState()
     val hrStatistics by manager.heartRateStatistics.collectAsState()
     val steps by manager.stepState.collectAsState()
+    val session by manager.sessionState.collectAsState()
     var snapshot by remember(manager, kind) { mutableStateOf(manager.chartSnapshot(kind)) }
     // Only the selected chart takes display snapshots. Sampling remains independent.
     LaunchedEffect(manager, kind) {
@@ -58,8 +60,9 @@ internal fun LiveChartPanel(manager: PolarBleManager,
         ChartKind.SPEED -> steps.maximumSpeed?.times(3.6)
         ChartKind.ELECTROCARDIOGRAM -> null
     }
-    LiveChartCard(kind, manager.liveCharts.motionSelection, snapshot, mean, maximum, subscriptions, readiness,
-        canRetryEcg, manager.liveCharts::select, onRetryEcg)
+    LiveChartCard(kind, snapshot, mean, maximum, subscriptions, readiness,
+        canRetryEcg, manager.liveCharts::select, onRetryEcg,
+        paused = session.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED))
 }
 
 @Composable

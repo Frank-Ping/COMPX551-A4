@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 internal enum class SessionStatus(val label: String) {
-    IDLE("Idle"), STARTING("Starting"), RUNNING("Running"), STOPPING("Stopping"), STOPPED("Stopped")
+    IDLE("Idle"), STARTING("Starting"), RUNNING("Running"), PAUSING("Pausing"), PAUSED("Paused"),
+    STOPPING("Stopping"), STOPPED("Stopped")
 }
 
 internal data class SessionState(
@@ -23,6 +24,7 @@ internal data class SessionState(
     val record: SessionRecord? = null
 ) {
     val ongoing: Boolean get() = status == SessionStatus.STARTING || status == SessionStatus.RUNNING
+    val open: Boolean get() = ongoing || status == SessionStatus.PAUSING || status == SessionStatus.PAUSED
 }
 
 // Session timing and coordination reuse the existing subscription owner.
@@ -35,20 +37,23 @@ internal class SessionController(
     private val readSummary: (Long) -> SessionSummary,
     private val wallNow: () -> Long = System::currentTimeMillis,
     private val onSummaryFrozen: (SessionRecord) -> Unit = {},
-    private val canStart: () -> Boolean = { true }
+    private val canStart: () -> Boolean = { true },
+    private val onResume: () -> Unit = {}
 ) {
     private val mutableState = MutableStateFlow(SessionState())
     val state = mutableState.asStateFlow()
     private var startedAt: Long? = null
+    private var accumulatedMs = 0L
     private var startingStreams = false
 
     fun accepts(generation: Long) = state.value.generation == generation && state.value.ongoing
 
     fun start(eligible: Boolean, device: ConnectionDevice? = null, startStreams: () -> Unit): Boolean {
-        if (!eligible || !canStart() || state.value.ongoing || state.value.status == SessionStatus.STOPPING ||
+        if (!eligible || !canStart() || state.value.open || state.value.status == SessionStatus.STOPPING ||
             checkedDataTypes.any(subscriptions::isActive)) return false
         startingStreams = true
         startedAt = null
+        accumulatedMs = 0
         mutableState.value = SessionState(SessionStatus.STARTING, state.value.generation + 1,
             record = SessionRecord(UUID.randomUUID().toString(), wallNow(), device?.copy()))
         subscriptions.reset()
@@ -56,6 +61,33 @@ internal class SessionController(
         try {
             startStreams()
         } finally {
+            startingStreams = false
+            finishIfIdle()
+        }
+        return true
+    }
+
+    fun pause(): Boolean {
+        if (state.value.status != SessionStatus.RUNNING || checkTimeLimit()) return false
+        accumulatedMs = elapsed()
+        startedAt = null
+        mutableState.value = state.value.copy(status = SessionStatus.PAUSING, elapsedMs = accumulatedMs)
+        clearHr()
+        mutableState.value = state.value.copy(record = state.value.record!!.copy(
+            durationMs = accumulatedMs, summary = readSummary(accumulatedMs)))
+        subscriptions.stopAll()
+        finishIfIdle()
+        return true
+    }
+
+    fun resume(eligible: Boolean, startStreams: () -> Unit): Boolean {
+        if (!eligible || state.value.status != SessionStatus.PAUSED ||
+            checkedDataTypes.any(subscriptions::isActive)) return false
+        startingStreams = true
+        mutableState.value = state.value.copy(status = SessionStatus.STARTING,
+            generation = state.value.generation + 1)
+        onResume()
+        try { startStreams() } finally {
             startingStreams = false
             finishIfIdle()
         }
@@ -74,7 +106,7 @@ internal class SessionController(
         if (state.value.status == SessionStatus.STARTING) {
             startedAt = at
             mutableState.value = state.value.copy(status = SessionStatus.RUNNING,
-                record = state.value.record?.copy(startedAt = receivedAt))
+                record = state.value.record?.let { it.copy(startedAt = it.startedAt ?: receivedAt) })
         }
     }
 
@@ -109,7 +141,7 @@ internal class SessionController(
         }
     }
 
-    private fun elapsed(at: Long = now()) = startedAt?.let { at - it } ?: 0L
+    private fun elapsed(at: Long = now()) = accumulatedMs + (startedAt?.let { at - it } ?: 0L)
 
     // Chart reads do not advance session state or resume a stopped viewport.
     fun elapsedAt(at: Long = now()): Long =
@@ -124,7 +156,7 @@ internal class SessionController(
     }
 
     fun stop(reason: String, interrupted: Boolean = true) {
-        if (!state.value.ongoing || checkTimeLimit()) return
+        if (!state.value.open || checkTimeLimit()) return
         finish(reason, interrupted, elapsed(), wallNow())
     }
 
@@ -150,7 +182,7 @@ internal class SessionController(
         if (startingStreams || checkedDataTypes.any(subscriptions::isActive)) return
         if (checkTimeLimit(at)) return
         if (state.value.ongoing) {
-            val reason = if (startedAt == null) "No data received. All stream attempts ended."
+            val reason = if (state.value.record?.startedAt == null) "No data received. All stream attempts ended."
                 else "All streams ended."
             mutableState.value = state.value.copy(
                 status = SessionStatus.STOPPED, elapsedMs = elapsed(at), endReason = reason,
@@ -160,6 +192,8 @@ internal class SessionController(
             freezeSummary()
         } else if (state.value.status == SessionStatus.STOPPING) {
             mutableState.value = state.value.copy(status = SessionStatus.STOPPED)
+        } else if (state.value.status == SessionStatus.PAUSING) {
+            mutableState.value = state.value.copy(status = SessionStatus.PAUSED)
         }
     }
 

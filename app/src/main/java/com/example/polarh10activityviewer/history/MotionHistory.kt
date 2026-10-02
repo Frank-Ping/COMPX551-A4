@@ -67,5 +67,11 @@ internal class MotionHistory {
         if (state.value.sessionId != null) mutableState.value = state.value.copy(frozen = true)
     }
 
+    fun resume() {
+        breakBefore = true
+        previousSegment = null
+        mutableState.value = state.value.copy(frozen = false)
+    }
+
     fun snapshot(): List<MotionHistoryPoint> = points.toList()
 }

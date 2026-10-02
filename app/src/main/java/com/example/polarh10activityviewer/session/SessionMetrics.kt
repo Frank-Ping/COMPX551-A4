@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,10 +46,10 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
-private fun MetricCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun MetricCard(title: String?, content: @Composable ColumnScope.() -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius)) {
         Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            title?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
             content()
         }
     }
@@ -79,7 +78,6 @@ private fun decimal(value: Double?): String =
     value?.let { String.format(Locale.ENGLISH, "%.1f", it) } ?: "--"
 
 private fun cadence(value: Double?): String = value?.roundToInt()?.toString() ?: "--"
-private fun speed(value: Double?): String = decimal(value?.times(3.6))
 
 @Composable
 internal fun HeartRateCard(
@@ -92,10 +90,9 @@ internal fun HeartRateCard(
     canRetry: Boolean,
     onRetry: () -> Unit
 ) {
-    MetricCard("Heart rate") {
+    MetricCard(null) {
         val current = zones.current.takeUnless { stopped || reading == null || subscription.status == SubscriptionStatus.FAILED }
         Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            SecondaryText("Heart rate intensity")
             Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
                 current?.let { Box(Modifier.size(12.dp).background(HeartRateZoneColors[it.ordinal])) }
                 Text(current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--",
@@ -111,19 +108,15 @@ internal fun HeartRateCard(
         MetricColumns(
             current = { MetricValue(reading?.bpm?.toString() ?: "--", "bpm", heartRate = true) },
             statistics = {
-                SecondaryText("Min HR: ${statistics.min ?: "--"} bpm")
                 SecondaryText("Max HR: ${statistics.max ?: "--"} bpm")
-                SecondaryText("Mean HR: ${decimal(statistics.average)} bpm")
+                SecondaryText("Mean HR: ${cadence(statistics.average)} bpm")
             }
         )
-        SecondaryText("Mean of valid HR samples")
         val receivedAt = reading?.let {
             DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH)
                 .format(Date(it.receivedAt))
         } ?: "--"
         SecondaryText("Last received (phone): $receivedAt")
-        SecondaryText("Phone reception time, not sensor sampling time.")
-        SecondaryText("HR stream: ${subscription.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
         message?.let { Text(it) }
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         StreamRetryButton(PolarDeviceDataType.HR, subscription, canRetry, onRetry)
@@ -131,35 +124,24 @@ internal fun HeartRateCard(
 }
 
 @Composable
-internal fun MotionCard(steps: StepState, subscription: SubscriptionState, canRetry: Boolean, onRetry: () -> Unit) {
-    MetricCard("Motion") {
-        Text("Cadence")
+internal fun MotionCard(steps: StepState, subscription: SubscriptionState, canRetry: Boolean, onRetry: () -> Unit,
+    paused: Boolean = false) {
+    MetricCard("Cadence") {
         MetricColumns(
-            current = { MetricValue(cadence(steps.cadence), "steps/min") },
+            current = { MetricValue(if (paused) "--" else cadence(steps.cadence), "steps/min", heartRate = true) },
             statistics = {
                 SecondaryText("Mean cadence: ${cadence(steps.meanCadence)} steps/min")
-                SecondaryText("Min cadence: ${cadence(steps.minimumCadence)} steps/min")
                 SecondaryText("Max cadence: ${cadence(steps.maximumCadence)} steps/min")
             }
         )
-        HorizontalDivider()
-        Text("Estimated speed")
-        MetricColumns(
-            current = { MetricValue(speed(steps.speed), "km/h") },
-            statistics = {
-                SecondaryText("Mean speed: ${speed(steps.averageSpeed)} km/h")
-                SecondaryText("Max speed: ${speed(steps.maximumSpeed)} km/h")
-            }
-        )
-        SecondaryText("Averages include all Running time. Extrema use qualifying five-second ACC windows.")
         if (!steps.receivedAcc) SecondaryText("No ACC observations. Statistics are unavailable.")
         else {
-            if (steps.durationMs == 0L) SecondaryText("Mean cadence and speed need a positive Running duration.")
-            if (steps.minimumCadence == null) SecondaryText("No qualifying five-second ACC window yet.")
+            if (steps.durationMs == 0L) SecondaryText("Mean cadence needs a positive Running duration.")
         }
-        Text(steps.message)
+        if (paused) Text("Paused")
+        else if (steps.message != "Detecting steps.") Text(steps.message)
         if (steps.incompleteAcc) SecondaryText(
-            "Incomplete ACC data. Missing data may lower recorded distance and mean speed/cadence. Extrema describe recorded windows."
+            "Incomplete ACC data. Mean cadence may be lower."
         )
         subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         StreamRetryButton(PolarDeviceDataType.ACC, subscription, canRetry, onRetry)
@@ -185,18 +167,17 @@ private fun MetricColumns(current: @Composable () -> Unit, statistics: @Composab
 
 @Composable
 internal fun ActivitySummaryCard(session: SessionState, steps: StepState) {
-    MetricCard("Activity summary") {
+    MetricCard("Activity Summary") {
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
             verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
             val minimumWidth = 140.dp * LocalDensity.current.fontScale
-            SummaryMetric("Running duration (mm:ss)", formatZoneDuration(session.elapsedMs),
+            SummaryMetric("Duration", formatZoneDuration(session.elapsedMs),
                 Modifier.weight(1f).widthIn(min = minimumWidth))
             SummaryMetric("Total steps", steps.totalSteps?.toString() ?: "--",
                 Modifier.weight(1f).widthIn(min = minimumWidth))
             SummaryMetric("Estimated distance", decimal(steps.distance),
                 Modifier.weight(1f).widthIn(min = minimumWidth), "m")
         }
-        SecondaryText("Running time includes stationary/rest and missing-data periods. Distance and speed are estimates.")
     }
 }
 

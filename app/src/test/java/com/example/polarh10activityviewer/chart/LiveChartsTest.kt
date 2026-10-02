@@ -19,6 +19,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveChartsTest {
+    @Test fun resumePreservesFiveMinuteHrAndCadenceAndBreaksBothSegments() {
+        val charts = running()
+        charts.receiveHr(1000, reading(110))
+        charts.recordMotion(1000, motion(), false, 1)
+        charts.stop(2000)
+        charts.resume()
+        charts.onSubscriptionState(HR, SubscriptionStatus.STARTING, 2000)
+        charts.onSubscriptionState(ACC, SubscriptionStatus.STARTING, 2000)
+        charts.receiveHr(2100, reading(120))
+        charts.recordMotion(2250, motion(), false, 2)
+        val hr = charts.snapshot(ChartKind.HEART_RATE, 2500)
+        val cadence = charts.snapshot(ChartKind.CADENCE, 2500)
+        assertEquals(300_000.0, hr.windowMs, 0.0)
+        assertEquals(300_000.0, cadence.windowMs, 0.0)
+        assertEquals(2, hr.points.size)
+        assertEquals(2, cadence.points.size)
+        assertTrue(hr.points.last().breakBefore)
+        assertTrue(cadence.points.last().breakBefore)
+    }
     private fun running(buffer: EcgBuffer = EcgBuffer()) = LiveCharts { buffer.samples.value }.apply {
         checkedDataTypes.forEach { onSubscriptionState(it, SubscriptionStatus.STARTING, 0) }
     }
@@ -82,21 +101,21 @@ class LiveChartsTest {
 
     @Test fun hrAndMotionStayBoundedAndRemoveExpiredDataWithoutPadding() {
         val charts = running()
-        for (time in 0L..180_000L step 10) {
+        for (time in 0L..600_000L step 10) {
             charts.receiveHr(time, reading(100))
             charts.recordMotion(time, motion(), false, 1)
             charts.advance(time)
         }
-        val hr = charts.snapshot(ChartKind.HEART_RATE, 180_000)
-        val cadence = charts.snapshot(ChartKind.CADENCE, 180_000)
-        assertTrue(hr.points.size <= 61)
-        assertTrue(cadence.points.size <= 241)
-        assertTrue(hr.points.all { it.elapsedMs > 120_000 })
-        assertTrue(cadence.points.all { it.elapsedMs > 120_000 })
-        assertEquals(180_000.0, cadence.points.last().elapsedMs, 0.0)
-        charts.advance(300_000)
-        assertTrue(charts.snapshot(ChartKind.HEART_RATE, 180_000).points.isEmpty())
-        assertTrue(charts.snapshot(ChartKind.CADENCE, 180_000).points.isEmpty())
+        val hr = charts.snapshot(ChartKind.HEART_RATE, 600_000)
+        val cadence = charts.snapshot(ChartKind.CADENCE, 600_000)
+        assertEquals(301, hr.points.size)
+        assertEquals(1200, cadence.points.size)
+        assertTrue(hr.points.all { it.elapsedMs > 300_000 })
+        assertTrue(cadence.points.all { it.elapsedMs > 300_000 })
+        assertEquals(600_000.0, cadence.points.last().elapsedMs, 0.0)
+        charts.advance(1_000_000)
+        assertTrue(charts.snapshot(ChartKind.HEART_RATE, 600_000).points.isEmpty())
+        assertTrue(charts.snapshot(ChartKind.CADENCE, 600_000).points.isEmpty())
     }
 
     @Test fun motionRecordsOnlyAtRefreshAndSeparatesWarmupMissingAndMeasuredZero() {
@@ -264,7 +283,7 @@ class LiveChartsTest {
         charts.advance(200_000)
         charts.stop(200_000)
         assertEquals(stopped, charts.snapshot(ChartKind.CADENCE, 200_000))
-        assertEquals(120.0, stopped.points.single().value!!, 0.0)
+        assertEquals(listOf(120.0, 120.0), stopped.points.map { it.value })
         assertEquals(71_000.0, stopped.endMs, 0.0)
     }
 

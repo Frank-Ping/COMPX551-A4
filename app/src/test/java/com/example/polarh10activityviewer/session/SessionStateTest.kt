@@ -459,6 +459,86 @@ class SessionStateTest {
         f.session.stop("Done")
     }
 
+    @Test fun pauseExcludesTimeAndResumeKeepsIdentityStatisticsAndOriginalStart() = runTest {
+        val f = Fixture(this)
+        assertFalse(f.session.pause())
+        assertFalse(f.session.resume(true) { error("Not paused") })
+        f.start(listOf(HR)); runCurrent()
+        val record = f.state.record!!
+        f.now = 2500
+        assertTrue(f.session.pause())
+        assertEquals(SessionStatus.PAUSING, f.state.status)
+        assertFalse(f.session.accepts(f.state.generation))
+        assertNull(f.state.record!!.endedAt)
+        assertFalse(f.start())
+        assertFalse(f.session.resume(true) { error("Cleanup still owns the stream") })
+        runCurrent()
+        assertEquals(SessionStatus.PAUSED, f.state.status)
+        f.now = 100_000
+        f.session.refresh(f.state.generation)
+        assertEquals(2500L, f.state.elapsedMs)
+        assertFalse(f.session.retry(HR, true) { error("No retry while paused") })
+        assertFalse(f.session.resume(false) { error("Disconnected") })
+        assertTrue(f.session.resume(true) { f.startStream(HR, f.running(90)) })
+        runCurrent()
+        assertEquals(record.id, f.state.record!!.id)
+        assertEquals(record.startedAt, f.state.record!!.startedAt)
+        assertEquals(2L, f.hr.statistics.value.count)
+        f.now = 101_500
+        f.session.refresh(f.state.generation)
+        assertEquals(4000L, f.state.elapsedMs)
+        f.session.stop("Stop", interrupted = false); runCurrent()
+        assertEquals(4000L, f.state.record!!.durationMs)
+        assertEquals(2L, f.state.record!!.summary.validHrCount)
+    }
+
+    @Test fun stoppingOrDisconnectingPausedSessionFreezesOnlyActiveTime() = runTest {
+        for (reason in listOf("Stopped by user.", "Connection ended.")) {
+            val f = Fixture(this)
+            f.start(listOf(HR)); runCurrent()
+            f.now = 1000; f.session.pause(); runCurrent()
+            f.now = 999_000
+            f.session.stop(reason, interrupted = reason != "Stopped by user.")
+            assertEquals(SessionStatus.STOPPED, f.state.status)
+            assertEquals(1000L, f.state.record!!.durationMs)
+            assertEquals(reason, f.state.record!!.endReason)
+            assertFalse(f.session.resume(true) { error("Session ended") })
+        }
+    }
+
+    @Test fun resumeWaitsForRealDataAndAllFailedResumeAttemptsEndExistingSession() = runTest {
+        val f = Fixture(this)
+        f.start(listOf(HR)); runCurrent()
+        f.now = 1000; f.session.pause(); runCurrent()
+        val id = f.state.record!!.id
+        val source = MutableSharedFlow<Int>()
+        f.now = 10_000
+        f.session.resume(true) { f.startStream(HR, source) }; runCurrent()
+        f.now = 20_000; f.session.refresh(f.state.generation)
+        assertEquals(1000L, f.state.elapsedMs)
+        source.emit(80); runCurrent()
+        f.now = 21_000; f.session.refresh(f.state.generation)
+        assertEquals(2000L, f.state.elapsedMs)
+        f.session.pause(); runCurrent()
+        f.session.resume(true) { f.startStream(HR, flow { error("Resume failed") }) }; runCurrent()
+        assertEquals(SessionStatus.STOPPED, f.state.status)
+        assertEquals(id, f.state.record!!.id)
+        assertEquals(2000L, f.state.record!!.durationMs)
+    }
+
+    @Test fun resumedSessionStillEndsAtFourHoursOfActiveTime() = runTest {
+        val f = Fixture(this)
+        f.start(listOf(HR)); runCurrent()
+        f.now = SessionController.TIME_LIMIT_MS - 1000
+        f.session.pause(); runCurrent()
+        f.now += 999_000
+        f.session.resume(true) { f.startStream(HR, f.running()) }; runCurrent()
+        f.now += 1000
+        f.session.refresh(f.state.generation); runCurrent()
+        assertEquals("TIME_LIMIT", f.state.endReason)
+        assertEquals(SessionController.TIME_LIMIT_MS, f.state.record!!.durationMs)
+    }
+
     @Test fun invalidOnlyHrCompletionEndsAtZeroWithoutStatistics() = runTest {
         val f = Fixture(this)
         f.session.start(true) { f.startStream(HR, flow { emit(0); emit(-1) }) }

@@ -1721,6 +1721,10 @@ Implement only step 8.3 under Section 5.31 of AGENTS.md and modify project files
 
 使用方式 / Usage：按 8.4a → 8.4b → 8.4c → 8.4d 顺序，每次复制“通用要求＋对应步骤”的中文或英文版本，只执行一个子步骤。规则见 AGENTS.md 第 5.32 节。 / Follow a → b → c → d. For each run, use one language version of the shared instructions plus the selected substep only. See AGENTS.md Section 5.32.
 
+最新修订（2026-10-03） / Latest revision：用户要求“注意 Motion 中不需要有速度，只需要展示步频，同步这一点到文档和执行计划中”。以下通用要求及 b/c/d 提示词已同步为最终目标：Session Motion 指标卡和图表只展示步频，现有速度 UI 在 8.4d 移除。本轮仅修改两对文档，不实施 App；8.4a—8.4c 已实施，8.4d/8.5 pending。上述原始状态和下方实施结果属于当时记录，不代表本次移除速度 UI 已完成。 / The user requested cadence-only Motion and synchronization of documentation and the execution plan. The shared instructions and b/c/d prompts below now express the final target: both Session Motion metrics and its plot show cadence only; remove existing speed UI during 8.4d. This turn updates both documentation pairs only. Steps 8.4a–8.4c are implemented; 8.4d/8.5 remain pending. The original status above and implementation records below retain their historical meaning and do not establish completion of this speed-UI removal.
+
+最新执行规则：用户随后确认全部按图示，包括暂停/继续和五分钟窗口；下列旧通用要求/子步骤提示词保留为前次提示记录，发生冲突时以本文件末尾“图示功能对齐”提示词和 AGENTS.md 5.33 为准。 / Latest execution rules: The user subsequently confirmed all reference functions, including Pause/Continue and five-minute windows. The older prompts below remain prior prompt records; conflicts are superseded by the final reference-function alignment prompt at the end and AGENTS.md 5.33.
+
 ### 通用要求 / Shared instructions
 
 #### 中文 Prompt
@@ -1736,8 +1740,10 @@ ui/Session-ECG.png
 
 按本次指定的 8.4 子步骤直接修改项目文件。8.4 扩展为 Session 最终界面整合，允许调整已有展示布局；新的强度位置、卡片顺序和 Session 横向区间条覆盖此前相关布局规定，其他功能规则保持不变。
 
+Motion 最新规则覆盖此前保留 Session 速度展示的要求：指标卡只显示当前步频及整场 Mean/Min/Max cadence（steps/min）；图表 Motion 只选择 Cadence，不显示速度或 Cadence/Speed 子切换。现有速度 UI 的移除列入 8.4d；速度计算、状态、缓存、历史存储及 History 速度统计保留，Activity summary 的估计距离保留。此次文档同步不授权提前实施 8.4d。
+
 沿用 Kotlin、Compose、Material 3、固定系统深浅主题和默认字体。
-字号：页面标题 24 sp、分区标题 18 sp、正文 16 sp、次要统计 14 sp、当前 HR 56 sp、当前步频/速度 28 sp。
+字号：页面标题 24 sp、分区标题 18 sp、正文 16 sp、次要统计 14 sp、当前 HR 56 sp、当前步频 28 sp。
 页面/卡片 padding、卡片间距和圆角 16 dp，内部间距 8/12 dp，图标 24 dp，触控至少 48 dp。
 
 UI 和代码注释使用英文。尊重系统字体缩放和安全区域，允许滚动、增高、换行，横屏保留内容顺序，不裁剪数值、单位或按钮。
@@ -1764,8 +1770,10 @@ ui/Session-ECG.png
 
 Modify project files directly for the requested 8.4 substep only. Step 8.4 now includes final Session UI integration. The new intensity placement, card order and horizontal Session zone bars supersede the corresponding earlier layout rules. Preserve all other functional rules.
 
+The latest Motion rule supersedes earlier requirements to retain Session speed displays: show only current and whole-session Mean/Min/Max cadence in steps/min in the metric card; Motion selects only Cadence, with no speed display or Cadence/Speed sub-selection. Remove existing speed UI during 8.4d. Preserve speed calculations, state, buffers, history storage, History speed statistics and summary estimated distance. This documentation update does not authorize early implementation of 8.4d.
+
 Reuse Kotlin, Compose, Material 3, the fixed system light/dark theme and default font family.
-Use 24 sp page titles, 18 sp section titles, 16 sp body text, 14 sp secondary statistics, 56 sp current HR and 28 sp current cadence/speed.
+Use 24 sp page titles, 18 sp section titles, 16 sp body text, 14 sp secondary statistics, 56 sp current HR and 28 sp current cadence.
 Use 16 dp page/card padding, card spacing and corners; 8/12 dp internal spacing; 24 dp icons; and touch targets of at least 48 dp.
 
 Keep UI and comments in English. Respect system font scaling and system insets. Allow scrolling, growing cards and wrapping, retaining content order in landscape without clipping values, units or buttons.
@@ -1832,7 +1840,7 @@ Implement only 8.4a, following the shared instructions.
 
 2. 将当前强度从顶部移入 Heart rate 卡，只显示一处。使用共用颜色和英文标签，例如 Moderate · Zone 3。宽度足够时左侧为当前 HR/bpm，右侧为整场 Min/Max/Mean HR；底部显示真实 Last received (phone)。保留无效 HR、接触、停止、失败及 Retry HR 规则。停止或当前无效时不显示有效强度，未知为 --。
 
-3. Motion 参考图中步频大值与统计分栏。保留当前步频、整场 Mean/Min/Max cadence；在同一卡片增加独立的 Estimated speed、Mean speed、Max speed 区域。不得删除图片未画出的速度、最小步频、缺失说明或 Retry ACC。窄屏/大字体时纵排。
+3. Motion 参考图中步频大值与统计分栏，只展示当前步频及整场 Mean/Min/Max cadence，单位 steps/min。保留缺失、预热、停止、失败说明和 Retry ACC；不显示 Estimated speed、Mean speed、Max speed 或 km/h。窄屏/大字体时纵排。按最新修订，已实施版本的速度区域在 8.4d 移除。
 
 4. Activity summary 使用三个并列小区域：Running duration、Total steps、Estimated distance；空间不足时换行或纵排。复用真实值，保留 mm:ss、m、--、真实零及估计含义。
 
@@ -1840,7 +1848,7 @@ Implement only 8.4a, following the shared instructions.
 
 6. Session 横向区间卡随内容增高，替代此前 160 dp 竖向绘图区规定。History 保留原展示，避免共享组件改动提前影响 8.5。
 
-7. 检查全部统计仍存在、未知/零/停止状态正确，以及深浅/大字体/横屏布局。不实施 8.4c、8.4d。
+7. 检查规定的 HR/步频/汇总/区间统计仍存在、未知/零/停止状态正确，以及深浅/大字体/横屏布局。不实施 8.4c、8.4d。
 ```
 
 #### English Prompt
@@ -1854,7 +1862,7 @@ Move the existing chart card without redesigning its plot in this substep.
 
 2. Move current intensity from the header into the Heart rate card, displaying it once with the shared color and English label, such as Moderate · Zone 3. When space allows, place current HR/bpm on the left and whole-session Min/Max/Mean HR on the right. Show the actual Last received (phone) time below. Preserve invalid HR, contact, stopped, failed and Retry HR behavior. Do not show valid current intensity when stopped or invalid; unknown values remain --.
 
-3. Follow the reference cadence-value/statistics arrangement in Motion. Retain current cadence and whole-session Mean/Min/Max cadence. Keep Estimated speed, Mean speed and Max speed as a separate area in the same card. Do not remove speed, minimum cadence, missing-data explanations or Retry ACC simply because the images omit them. Stack content when width or font scaling requires it.
+3. Follow the reference cadence-value/statistics arrangement in Motion, showing only current and whole-session Mean/Min/Max cadence in steps/min. Retain missing, warmup, stopped and failed explanations and Retry ACC. Do not show Estimated speed, Mean speed, Max speed or km/h. Stack content when width or font scaling requires it. Under the latest revision, remove the implemented version's existing speed area during 8.4d.
 
 4. Present Activity summary as three adjacent areas: Running duration, Total steps and Estimated distance. Wrap or stack when necessary. Reuse real values and retain mm:ss, m, --, genuine zeros and estimate wording.
 
@@ -1862,7 +1870,7 @@ Move the existing chart card without redesigning its plot in this substep.
 
 6. Let the Session horizontal-zone card grow with its content, superseding the previous 160 dp vertical-plot requirement. Preserve History's existing presentation and avoid shared-component changes that implement 8.5 prematurely.
 
-7. Check that every statistic remains available, unknown/zero/stopped states are correct, and light/dark, enlarged-font and landscape layouts work. Do not implement 8.4c or 8.4d.
+7. Check that required HR/cadence/summary/zone statistics remain available, unknown/zero/stopped states are correct, and light/dark, enlarged-font and landscape layouts work. Do not implement 8.4c or 8.4d.
 ```
 
 ### 8.4c：三类实时曲线 / Three live chart views
@@ -1872,7 +1880,7 @@ Move the existing chart card without redesigning its plot in this substep.
 ```text
 只实施 8.4c，遵循通用要求，复用 8.4a、8.4b 的页面结构。
 
-1. 按三张图片改进 Live charts 卡片。HR/Motion/ECG 使用胶囊选择控件，选中为主题蓝色，未选中为中性色，并提供明确选中语义。Motion 保留 Cadence/Speed 子切换，不共用不同单位的纵轴。
+1. 按三张图片改进 Live charts 卡片。HR/Motion/ECG 使用胶囊选择控件，选中为主题蓝色，未选中为中性色，并提供明确选中语义。Motion 只选择 Cadence（steps/min），不提供 Cadence/Speed 子切换或速度曲线；按最新修订，已实施版本的速度入口在 8.4d 移除。
 
 2. 保留原有选择持有者、刷新频率、缓存、时间锚点、断段、冻结及 Retry 条件。绘图区 220 dp；HR/运动仍显示最近 60 秒，ECG 最近 5 秒，不能照搬图片五分钟 HR/运动窗口。
 
@@ -1880,11 +1888,11 @@ Move the existing chart card without redesigning its plot in this substep.
 
 4. 增加清晰的网格和纵轴刻度，沿用 8.3 的范围、留白和精度规则。轴边界不是统计最值。横轴显示真实 Running 单调时间 mm:ss，标签数量随可用空间调整；ECG 宽屏可增加秒刻度，窄屏/大字体减少，禁止重叠或缩字。
 
-5. HR/运动图上方复用已有整场统计，明确标为 Session mean / Session max。均值虚线使用同一个整场均值，只有有效且位于当前比例尺内时绘制；不重算统计或强行扩展坐标范围。ECG 显示实际选中采样率和当前窗口实际样本数量，未知为 --，不硬编码 130/650。
+5. HR/运动图上方复用已有整场统计，明确标为 Session mean / Session max，Motion 使用步频统计。均值虚线使用同一个整场均值，只有有效且位于当前比例尺内时绘制；不重算统计或强行扩展坐标范围。ECG 显示实际选中采样率和当前窗口实际样本数量，未知为 --，不硬编码 130/650。
 
 6. 保留空数据、等待、失败、冻结、配置错误和原恢复入口；ECG 失败时，即使选中 HR/Motion，仍可找到 ECG Retry。正常状态下精简重复说明，不新增缩放、拖动、动画或图表依赖。
 
-7. 检查 HR、Cadence、Speed、ECG 四种展示，包含真实零、负值、断段、空窗口、长标签、深浅模式、大字体和横屏。明确受控截图不能证明实时 ECG 性能。不实施 8.4d。
+7. 最终检查 HR、Cadence、ECG 三种展示，包含真实零、负值、断段、空窗口、长标签、深浅模式、大字体和横屏。明确受控截图不能证明实时 ECG 性能。不实施 8.4d。
 ```
 
 #### English Prompt
@@ -1892,7 +1900,7 @@ Move the existing chart card without redesigning its plot in this substep.
 ```text
 Implement only 8.4c, following the shared instructions and reusing the 8.4a/8.4b screen structure.
 
-1. Refine Live charts using the three reference images. Use pill-shaped HR/Motion/ECG selectors with theme-blue selection, neutral unselected backgrounds and explicit selection semantics. Retain Cadence/Speed sub-selection within Motion, with separate units and axes.
+1. Refine Live charts using the three reference images. Use pill-shaped HR/Motion/ECG selectors with theme-blue selection, neutral unselected backgrounds and explicit selection semantics. Motion selects only Cadence in steps/min, with no Cadence/Speed sub-selection or speed plot. Under the latest revision, remove the implemented version's existing speed entry during 8.4d.
 
 2. Preserve selection ownership, refresh intervals, buffers, time anchors, gaps, freezing and Retry guards. Keep a 220 dp plot. HR/motion still display the latest 60 seconds and ECG the latest five seconds; do not copy the reference five-minute HR/motion window.
 
@@ -1900,11 +1908,11 @@ Implement only 8.4c, following the shared instructions and reusing the 8.4a/8.4b
 
 4. Add readable grid lines and Y-axis ticks while retaining 8.3 range, margin and precision rules. Axis bounds are not statistical extrema. Use actual monotonic elapsed Running time in mm:ss on the X-axis, adapting label count to available space. Wider ECG plots may show more second ticks; reduce ticks for narrow screens/enlarged fonts without overlaps or shrinking text.
 
-5. Reuse existing whole-session statistics above HR/motion plots, explicitly labeled Session mean and Session max. Use the same whole-session mean for the dashed reference line, drawing it only when valid and within the current display bounds. Do not recalculate statistics or force an axis expansion. Show ECG's actual selected sampling rate and actual visible-window sample count; use -- when unknown and never hardcode 130/650.
+5. Reuse existing whole-session statistics above HR/motion plots, explicitly labeled Session mean and Session max, using cadence statistics for Motion. Use the same whole-session mean for the dashed reference line, drawing it only when valid and within the current display bounds. Do not recalculate statistics or force an axis expansion. Show ECG's actual selected sampling rate and actual visible-window sample count; use -- when unknown and never hardcode 130/650.
 
 6. Retain empty, waiting, failed, frozen and configuration-error states with existing recovery actions. ECG Retry must remain reachable after an ECG failure even while HR/Motion is selected. Reduce redundant normal-state explanations. Add no zooming, dragging, animation or chart dependency.
 
-7. Check HR, Cadence, Speed and ECG, including genuine zeros, negative values, gaps, empty windows, long labels, light/dark mode, enlarged fonts and landscape. Distinguish controlled screenshots from real-time ECG performance validation. Do not implement 8.4d.
+7. Check the final HR, Cadence and ECG views, including genuine zeros, negative values, gaps, empty windows, long labels, light/dark mode, enlarged fonts and landscape. Distinguish controlled screenshots from real-time ECG performance validation. Do not implement 8.4d.
 ```
 
 ### 8.4d：最终整合、清理与验收 / Final integration, cleanup and validation
@@ -1914,17 +1922,17 @@ Implement only 8.4c, following the shared instructions and reusing the 8.4a/8.4b
 ```text
 只实施 8.4d，遵循通用要求。先确认 8.4a–8.4c 已落实；若缺失，说明具体缺口，不将未实施内容写成已完成。
 
-1. 对照三张参考图检查最终 Session 结构、对齐、卡片层次、选择状态及控件位置。只修复本阶段遗留的界面问题，不新增设计或功能。保留与图片不同但已明确要求的 Start/Stop、速度指标、真实数据窗口和必要恢复信息。
+1. 对照三张参考图检查最终 Session 结构、对齐、卡片层次、选择状态及控件位置，并落实用户最新 Motion 只展示步频的要求：指标卡移除 Estimated speed/Mean speed/Max speed、km/h 和仅与速度有关的说明；保留当前步频、整场 Mean/Min/Max cadence、steps/min、缺失/预热/停止/失败说明及 Retry ACC。Live charts 的 Motion 入口直接选择 Cadence，移除 Cadence/Speed 子切换、速度曲线/单位/图上速度统计；沿用原选择持有者，并确保返回、切页和旋转后不会恢复隐藏的 Speed 视图。保留步频蓝线/浅蓝填充、60 秒窗口、整场 Session mean/max 和有效范围内的均值虚线。其余只修复本阶段遗留界面问题，不新增设计或功能；保留 Start/Stop、真实窗口和必要恢复信息。
 
 2. 清理被正式界面替代的开发标题、UUID、缓存计数、重复统计和常驻调试说明。保留 8.4c 明确要求的实际 ECG 采样率/窗口样本数。确认无引用和其他用途后才删除纯 UI 文件，不删除数据持有者、业务代码、测试证据或历史材料。
 
-3. 验证系统深浅模式、字体 1.0/2.0、竖屏/横屏及滚动。检查固定页签和底部按钮不遮挡内容，数字、单位、刻度、错误和恢复按钮均可读可达。
+3. 将相关 UI 检查更新为 HR/Cadence/ECG 三视图，确认 Session Motion 没有速度数值、km/h 或 Speed 入口，步频统计、必要状态和 Retry ACC 仍正确。验证系统深浅模式、字体 1.0/2.0、竖屏/横屏及滚动。检查固定页签和底部按钮不遮挡内容，数字、单位、刻度、错误和恢复按钮均可读可达。此前 b/c 四视图测试与截图属于旧布局证据，不能作为此次只步频布局已通过的证据。
 
 4. 验证无设备、权限/蓝牙不可用、Starting、Running、Stopping、Stopped、单流失败/Retry、保存失败/Retry/Discard 和 Session/History 切换。切换和旋转不清零或重复订阅；History 查询、分页、删除和返回行为保持原规则。
 
 5. 运行相关单元测试、Compose/SQLite 回归、debug 构建及 lint。保存并实际查看可执行范围内的截图。分别记录源码检查、自动检查、实际视觉和 Samsung/H10 真机结果，未执行项标为 pending，不将演示数据或编译成功写成真机通过。
 
-6. 用 Git diff 核查整个 8.4a–8.4d 范围，确认数据层、算法、存储和 SDK 代码没有修改。若发现差异，说明文件、原因和影响，不静默覆盖用户改动。
+6. 保留 Activity summary 的 Running duration/Total steps/Estimated distance，以及速度计算、状态、缓存、历史字段、SQLite schema/已保存数据和 History 速度统计；只移除无其他用途的速度 UI，不以删除底层速度数据实现隐藏。用 Git diff 核查整个 8.4a–8.4d 范围，确认数据层、算法、存储和 SDK 代码没有修改。若发现差异，说明文件、原因和影响，不静默覆盖用户改动。
 
 7. 同步两份 AGENTS.md 和两份 prompt.md 的中英文实际结果、最终布局规则和未验证项。提供英文 commit message 和实际修改文件清单，不自动提交或推送，不推进 8.5。
 ```
@@ -1934,17 +1942,17 @@ Implement only 8.4c, following the shared instructions and reusing the 8.4a/8.4b
 ```text
 Implement only 8.4d, following the shared instructions. First confirm that 8.4a–8.4c are implemented. Report specific missing prerequisites without describing unimplemented work as complete.
 
-1. Compare the final Session structure, alignment, card hierarchy, selected states and control placement with all three references. Fix only remaining UI issues from this stage. Preserve deliberate differences: Start/Stop, speed metrics, real data windows and necessary recovery information.
+1. Compare the final Session structure, alignment, card hierarchy, selected states and control placement with all three references, implementing the user's latest cadence-only Motion requirement. Remove Estimated speed/Mean speed/Max speed, km/h and speed-only explanations from the metric card. Retain current cadence, whole-session Mean/Min/Max cadence, steps/min, missing/warmup/stopped/failed explanations and Retry ACC. Route Live charts Motion directly to Cadence, removing Cadence/Speed sub-selection, the speed plot/units/plot statistics. Reuse selection ownership and ensure return, tab switching and rotation cannot restore a hidden Speed view. Keep the blue cadence line/subtle fill, 60-second window, whole-session Session mean/max and valid in-range mean line. Otherwise fix only remaining UI issues from this stage without new designs or features, preserving Start/Stop, real windows and recovery information.
 
 2. Remove development headings, UUID displays, buffer counts, duplicate statistics and persistent debugging explanations replaced by the final UI. Retain the actual ECG sampling rate/window sample count explicitly required by 8.4c. Delete UI-only files only after confirming they have no remaining references or other purposes. Preserve data owners, business code, validation evidence and historical materials.
 
-3. Check system light/dark modes, font scales 1.0/2.0, portrait/landscape and scrolling. Ensure fixed tabs and bottom controls do not obscure content, and values, units, ticks, errors and recovery actions remain readable and reachable.
+3. Update relevant UI checks to HR/Cadence/ECG and confirm that Session Motion contains no speed values, km/h or Speed entry, with correct cadence statistics, necessary states and Retry ACC. Check system light/dark modes, font scales 1.0/2.0, portrait/landscape and scrolling. Ensure fixed tabs and bottom controls do not obscure content, and values, units, ticks, errors and recovery actions remain readable and reachable. Earlier b/c four-view checks and captures describe the previous layout, not validation of this cadence-only layout.
 
 4. Check no-device and unavailable-permission/Bluetooth states, Starting, Running, Stopping, Stopped, individual stream failure/Retry, save failure/Retry/Discard and Session/History switching. Switching and rotation must not clear data or duplicate subscriptions. Preserve History query, pagination, deletion and back behavior.
 
 5. Run relevant unit tests, Compose/SQLite regression checks, a debug build and lint. Save and actually inspect screenshots within the available execution scope. Record source inspection, automated checks, actual visuals and Samsung/H10 results separately, marking unperformed checks pending. Do not describe demo data or successful compilation as hardware validation.
 
-6. Review the Git diff across the entire 8.4a–8.4d change range and confirm that data-layer, algorithm, storage and SDK code were not modified. If differences exist, report the files, reasons and impact without silently overwriting user changes.
+6. Preserve summary Running duration/Total steps/Estimated distance, speed calculations, state, buffers, history fields, SQLite schema/saved data and History speed statistics. Remove only speed UI with no other purpose; do not remove underlying speed data to hide it. Review the Git diff across the entire 8.4a–8.4d change range and confirm that data-layer, algorithm, storage and SDK code were not modified. If differences exist, report the files, reasons and impact without silently overwriting user changes.
 
 7. Synchronize actual bilingual results, final layout rules and pending validation in both AGENTS.md files and both prompt.md files. Provide an English commit message and the actual changed-file list. Do not automatically commit, push or advance to 8.5.
 ```
@@ -2020,3 +2028,61 @@ The user requests implementing and validating only 8.4c under AGENTS.md 5.32.3 a
 - 未验证：Samsung/H10 未安装或操作；真实 HR/运动/ECG 信号、持续滚动及 ECG 性能、真实单流恢复/停止/旋转/切页及采集保存全链路仍 pending。静态/受控截图不作为真机或实时性能证据。8.4d/8.5 未实施，无 commit/push。
   Limits: No Samsung/H10 installation or operation. Real HR/motion/ECG signals, continuous scrolling/ECG performance, actual stream recovery/stopping/rotation/switching and acquisition-to-storage behavior remain pending. Static/controlled captures do not prove hardware behavior or real-time performance. No 8.4d/8.5 implementation, commit or push.
 - 建议英文提交信息 / Suggested English commit message：`feat: refine live chart selectors axes and session references`
+
+## 2026-10-03 Motion 只展示步频：文档与执行计划同步 / Cadence-only Motion documentation and execution plan
+
+- 用户指令 / User request：注意 Motion 中不需要有速度，只需要展示步频，同步这一点到文档和执行计划中。 / Motion needs no speed; show only cadence and synchronize the documentation and execution plan.
+- 采用与范围：最终 Session Motion 卡片只保留当前步频及整场 Mean/Min/Max cadence（steps/min）；Motion 图表只显示 Cadence，移除速度展示、速度曲线、km/h 和 Cadence/Speed 子切换。保留步频状态/Retry ACC、Activity summary 估计距离、底层速度计算/缓存/历史及 History 速度统计。AGENTS.md 的界面规则、5.32 最新规则和 8.4d 执行项/步骤表，以及本文件的通用要求与 b/c/d 双语提示词已更新并同步两对文档。
+  Adopted scope: Final Session Motion metrics retain only current and whole-session Mean/Min/Max cadence in steps/min. Its plot shows only Cadence, removing speed displays/plots, km/h and Cadence/Speed sub-selection. Preserve cadence states/Retry ACC, summary estimated distance, underlying speed calculations/buffers/history and History speed statistics. Updated and synchronized both documentation pairs: AGENTS.md screen rules, latest 5.32 rules and 8.4d execution items/step table, plus this file's shared instructions and bilingual b/c/d prompts.
+- 实施与验证状态：本轮只修改文档，App/测试文件未修改；现有 Motion 速度 UI 尚在，移除工作列入 8.4d pending。此前 b/c 实施与四视图验证记录按当时事实保留。本轮未运行新的构建、单元/Compose/SQLite、模拟器视觉或 Samsung/H10 检查，无 commit/push，不推进 8.5。
+  Implementation/validation status: Documentation only; App/tests are unchanged. Existing Motion speed UI remains, with removal pending 8.4d. Prior b/c implementation and four-view validation records retain their historical meaning. No new build, unit/Compose/SQLite, emulator-visual or Samsung/H10 check, commit, push or 8.5 implementation was performed.
+
+## 2026-10-03 图示功能对齐：最新执行 Prompt / Latest reference-function alignment prompt
+
+用户要求 / User request：检查图示与规划的功能差异，严格按图示实施；明确选择“全部按图示：加入暂停/继续，HR/步频窗口改为 5 分钟”。 / Check reference/plan differences and implement the shown functions, explicitly including Pause/Continue and five-minute HR/cadence windows.
+
+### 中文 Prompt
+
+```text
+只完成当前 Session 参考图功能对齐，先阅读 AGENTS.md 5.33 并查看 ui/Session-HR.png、Session-Motion.png、Session-ECG.png。用户最新要求覆盖此前保留速度、Min、仅 Start/Stop、60 秒窗口的例外。
+1. HR 卡只显示当前 HR/bpm、强度、Max HR、Mean HR、Last received；步频卡显示 Cadence、当前值、Mean/Max steps/min。删除 Session 的 Min HR、Min cadence、全部速度指标、km/h、速度曲线和 Cadence/Speed 子切换。
+2. 图表只有 HR/Motion/ECG；Motion 直接显示 Cadence。HR 红线/浅红填充，步频蓝线/浅蓝填充；两者最近 300 秒、最多 301/1201 点。图上 HR 使用 Average HR/Max HR，步频 Mean/Max；复用原整场统计和有效范围内均值虚线。ECG 保持五秒、有符号原值、全部可见样本，Sampling Rate/Samples 使用实际配置与实际窗口数量。
+3. 汇总仅 Duration、Total steps、Estimated distance。HR Zone 每行仅 Z1–Z5、bpm 范围、横条、mm:ss；保留五色共尺及真实零/未知。删除正常态重复标题、说明和统计；必要错误/缺失/恢复只按真实状态出现。
+4. 左 Pause、中 Start/Continue、右 Stop，实际行为按 AGENTS.md 5.33：暂停取消采集、保留连接/同场身份/累计/历史、停止计时且不保存；完成取消后才允许继续。继续重新检查连接/就绪，复用原流入口，首个真实数据恢复计时、ACC 重新预热，历史/HR步频曲线保持前段并断开、ECG 重新锚定；拒绝旧回调与重复请求。暂停时长不计入 duration/均值/区间/四小时上限。暂停中 Stop 或生命周期中断也结束并保存一次。
+5. 保留算法、K=0.45、采样设置、HR阈值、SQLite字段/schema/事务和 History 页面。仅为暂停增加会话计时/历史恢复逻辑，为五分钟增加有界显示缓存；明确报告这些数据路径变化，不能再声称数据层完全未变。速度/最小值计算和保存仍保留供 History 使用。
+6. 验证暂停恢复身份/累计/时间/历史断段/重新预热/一次保存/四小时边界、三视图、恢复、深浅主题、字号1.0/2.0、竖横屏、滚动和 History/SQLite 回归。运行 unit/debug/lint/测试APK与可用模拟器检查并实际查看截图；区分自动、受控视觉、实际无H10 App和 Samsung/H10，未做项 pending。同步两对文档，不 commit/push，不推进8.5。
+```
+
+### English Prompt
+
+```text
+Implement only the current Session reference-function alignment. Read AGENTS.md 5.33 and inspect the three ui/Session-*.png references. The latest user request supersedes earlier retained speed/minimum displays, Start/Stop-only controls and 60-second windows.
+1. HR shows current HR/bpm, intensity, Max HR, Mean HR and Last received. Cadence shows its current value and Mean/Max steps/min. Remove Session Min HR/Min cadence, every speed metric, km/h, the speed plot and Cadence/Speed sub-selection.
+2. Keep only HR/Motion/ECG; Motion directly selects Cadence. Use red HR/subtle red fill and blue cadence/subtle blue fill, both spanning the latest 300 seconds with 301/1201-point bounds. Label existing whole-session statistics Average HR/Max HR or Mean/Max, with valid in-range mean lines. ECG retains five seconds, signed original values and every visible sample; Sampling Rate/Samples use real settings and actual window counts.
+3. Summary contains only Duration, Total steps and Estimated distance. HR Zone rows contain Z1–Z5, bpm range, horizontal bar and mm:ss on the existing shared five-color duration scale. Preserve genuine zeros/unknowns. Remove normal-state redundant headings/explanations/statistics; display necessary errors, missing states and recovery according to real state.
+4. Place Pause, Start/Continue and Stop from left to right. Implement AGENTS.md 5.33 behavior: pause cancels acquisition, retains connection/identity/totals/history and freezes time without saving; continue is unavailable until cleanup completes. Continue rechecks connectivity/readiness and reuses original stream starts, resuming time on the first real sample and rewarming ACC. Retain prior HR/cadence/history points with explicit breaks and reanchor ECG. Reject stale events and duplicate requests. Exclude paused time from duration/means/zones/the four-hour limit. Stop while paused or lifecycle interruptions must end/freeze/save once.
+5. Preserve algorithms, K=0.45, sample settings, HR thresholds, SQLite fields/schema/transactions and History UI. Limit data-path changes to pause timing/history recovery and bounded five-minute display buffers; report those changes accurately. Keep underlying speed/minimum calculations and storage for History.
+6. Check pause/resume identity/totals/time/gaps/warmup/one final save/four-hour limits, the three views, recovery, themes, 1.0/2.0 fonts, orientations/scrolling and History/SQLite regression. Run unit/debug/lint/test-APK and available emulator checks, actually inspecting captures. Separate automated, controlled visuals, actual no-H10 App and Samsung/H10 evidence; mark unperformed work pending. Synchronize both documentation pairs without commit/push or 8.5.
+```
+
+## 2026-10-03 图示功能对齐实施结果 / Reference-function alignment results
+
+#### 5.33.1 图示功能对齐实施与验证（2026-10-03） / Implementation and validation
+
+- 文件已修改：Session HR 卡删除 Min HR/常驻重复说明，保留当前值、强度、Max/Mean 和接收时间；Cadence 卡删除全部速度/Min cadence，保留当前值及 Mean/Max，当前 HR/步频均 56 sp。Live charts 删除速度子切换、开发标题/额外说明，只提供 HR/Motion/ECG；图上字段采用 Average HR/Max HR、Mean/Max 和 Sampling Rate/Samples，轴单位和实际刻度保留。Activity Summary 仅三项；HR Zone 简化为 Z1–Z5/范围/横条/时长，未归类仅 >0 显示。未知/真实零/无效/等待/失败和恢复保留。
+  Files changed: Removed Session Min HR/redundant explanations, retaining current HR, intensity, Max/Mean and reception time. Cadence retains current and Mean/Max only, removing speed/minimum displays; HR/cadence current values use 56 sp. Charts expose only HR/Motion/ECG without speed sub-selection/development headings/extra explanations, using the specified statistics/ECG metadata and actual unit/ticks. Summary has three fields; zones use Z1–Z5/range/bar/duration with positive unclassified time only. Preserve unknown/zero/invalid/waiting/failure/recovery states.
+- 暂停/继续已接入真实会话控制器与原三路流入口，新增 Pausing/Paused 和暂停图标；Pause/Start或Continue/Stop 按状态启用。暂停取消订阅但保留连接/同场 UUID/开始日期/累计/历史，不提交保存；继续等待取消完成，重新检查连接/配置，首个数据恢复时钟，更新代次，ACC 重预热；HR/运动曲线及两类历史恢复保留并断段，ECG 沿原启动路径清缓存/重新锚定。暂停期间停止/中断可正常结束一次。Duration、均值、区间、四小时上限只累计实际 Running 段。
+  Pause/Continue uses the real session controller and existing stream starts, adding Pausing/Paused and the pause icon. Controls follow actual state. Pause cancels streams while retaining connection/UUID/start date/totals/history without saving. Continue waits for cleanup, rechecks eligibility, resumes timing on first data, changes generation and rewarms ACC. Prior HR/motion charts and histories resume with explicit breaks; ECG clears/reanchors through its original start path. Stop/interruption during pause ends once. Duration/means/zones/four-hour limits count active Running segments only.
+- 五分钟缓存已实施：HR/运动窗口 300,000 ms，缓存上限 301/1201；密集输入的十分钟受控检查确实保留 301 个 HR 点和 1200 个 250 ms 运动点，并检查过期移除。ECG 五秒与原始样本缓存未改。保存字段/schema/事务、计步/K=0.45/采样配置/HR阈值/统计公式/History 展示未改；SDK 启动/检查/采集回调和 DataSubscriptions 类文本与基线一致。会话计时、LiveCharts 缓存与两类历史 resume 是本次授权的数据路径变更，不能声称全部数据层未变。
+  Five-minute caching uses 300,000 ms windows and 301/1201 bounds; dense ten-minute fixtures retain exactly 301 HR points and 1200 motion points sampled at 250 ms, with expiry verified. ECG/raw buffers remain unchanged. Save fields/schema/transactions, step algorithms/K/sample settings/HR thresholds/statistical formulas/History presentation are unchanged; SDK stream starts/checks/callbacks and DataSubscriptions text match baseline. Session timing, LiveCharts and history-resume changes are explicitly authorized data-path changes, not an unchanged data layer.
+- 自动检查：最终离线 unit/debug/lint/测试 APK 构建成功；XML 224 tests，0 failures/errors/skipped；lint 0 errors、15 warnings。独立 API 37 Pixel 9 模拟器全套 OK (80 tests)，其中 79 Compose/SQLite 与 1 基础包名检查；系统 font_scale=2.0 下竖屏与横屏各 OK (3 tests)，两主题的指标/三曲线/固定控件可达性重复检查不另计不同测试。6 新单元用例覆盖暂停计时/身份/清理门控/恢复等待/失败/中断/四小时/历史断段及最终仅冻结一次；新 UI 用例覆盖 Pause/Continue/Stop 启用与路由，现有 UI 检查更新为仅图示指标/三视图，History/SQLite 回归保留。
+  Automated checks: Final offline unit/debug/lint/test-APK tasks passed: 224 unit tests, zero failures/errors/skips; lint 0 errors/15 warnings. The independent API 37 Pixel 9 emulator passed all 80 cases (79 Compose/SQLite plus one package check). Real system font 2.0 portrait/landscape each passed three repeated checks of both themes/metrics/three charts/fixed controls; repeats are not additional distinct tests. Six new unit cases cover pause timing/identity/cleanup/first-data waiting/failure/interruption/four-hour limits/history breaks and one final freeze. A new UI case checks control state/routing; existing reference-display/History/SQLite checks remain.
+- 首轮与修复：原窗口用例按 60 秒过期预期失败，调整为真实五分钟范围；新历史恢复用例最初误要求保留同秒旧点，按既定同桶末点替换规则修正 fixture。首轮仪器 80 项中两项仍依赖旧常驻 Running 标签/广义 Max 文本而失败，改为状态事实/实际轴约束后，最终 80 项全通过。这些修复未删除生产错误恢复路径。
+  Initial failures/repairs: Earlier window tests assumed 60-second expiry and were updated to five minutes. The new history-resume fixture initially expected an old point within the same second; it now respects the existing final-point replacement rule. Two initial instrumentation cases depended on the removed persistent Running label/an overly broad Max-text match. After correcting assertions, all 80 passed. No production recovery path was removed to pass checks.
+- 实际视觉：已查看本轮深浅正常/受控大字号 HR/Cadence/ECG、运动/汇总/五行区间与长错误恢复截图，以及实际系统字体 2.0 竖横屏受控指标/区间截图。画面明确标注 no H10 data，样例只来自测试 fixture；截图目录中遗留的 speed PNG 为旧轮文件，不作为本轮证据。另运行最终无 H10/未授予权限 App，查看浅色 1.0 竖屏与深色 2.0 横屏共四张 PNG；未知 ECG 信息、空图、三固定控件和 History 返回后的滚动/选择保留检查通过。大字体/横屏需要滚动，视口边缘部分内容不是 Text 自身裁剪；不宣称所有真实 App 主题/字体组合、暂停 SDK 真机行为或实时性能已验证。
+  Actual visuals: Inspected current controlled theme/font HR/Cadence/ECG, metrics/summary/zones/long-recovery captures and actual-system-font 2.0 portrait/landscape metrics/zones. Fixtures explicitly identify no H10 data. Old speed PNGs left in shared capture folders are excluded. Also ran the final no-H10/ungranted-permission App and inspected four captures covering light 1.0 portrait and dark 2.0 landscape; unknown ECG metadata, empty plots, three fixed controls and retained scroll/selection after History passed. Enlarged/landscape layouts require scrolling; partial viewport edges are not Text layout clipping. This does not validate every actual App theme/font combination, hardware pause behavior or real-time performance.
+- 范围与证据：修改 SensorActivity.kt；session/SessionMetrics.kt、SessionChrome.kt、SessionState.kt；chart/LiveChartCard.kt、LiveChartPanel.kt、LiveChartPlot.kt、LiveCharts.kt；heartrate/SessionHeartRateZonePanel.kt；history/HrHistory.kt、MotionHistory.kt；新增 drawable/ic_pause.xml；修改四个单元测试文件（LiveChartsTest、HrHistoryLifecycleTest、SessionStateTest、SessionSnapshotTest）和四个 UI 测试文件（SessionMetricsTest、SessionChromeTest、SessionHeaderTest、LiveChartCardTest），同步两对文档。完整日志、基线哈希/SDK与History绘图审计、受控/实际截图在忽略的 build/reference-validation/；验证脚本/图片不进入 APK。独立模拟器已关闭，未操作 Samsung。
+  Scope/evidence: Changed SensorActivity; SessionMetrics/Chrome/State; LiveChartCard/Panel/Plot/LiveCharts; SessionHeartRateZonePanel; HrHistory/MotionHistory; added drawable/ic_pause.xml; updated four unit and four UI test files and both documentation pairs. Logs, baseline hashes/SDK and History-plot audits and controlled/actual captures are in ignored build/reference-validation/. Validation scripts/images do not enter the APK. The independent emulator was closed without operating Samsung.
+- 未验证：Samsung/H10 的真实暂停取消/继续、旧包拒绝、HR/ACC/ECG 重订阅、计步准确率、五分钟实时滚动/ECG 性能、生命周期和采集→暂停→继续→结束→保存→重启 History 全链路仍 pending。8.4d 的图示功能整合与清理已实施；8.5 未实施，无 commit/push。
+  Limits: Samsung/H10 pause cancellation/resume/stale packets/resubscription, step accuracy, five-minute live scrolling/ECG performance, lifecycle and the full acquisition–pause–resume–stop–save–reopen-History path remain pending. The 8.4d reference-function integration/cleanup is implemented. No 8.5, commit or push.
+- 建议英文提交信息 / Suggested English commit message：`feat: align session metrics and add pause resume with five-minute charts`

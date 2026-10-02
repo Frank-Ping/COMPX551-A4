@@ -40,9 +40,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     val ink = if (kind == ChartKind.HEART_RATE) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
     val axis = MaterialTheme.colorScheme.outline
     val meanInk = if (kind == ChartKind.HEART_RATE) Color(0xFFF59E0B) else ink
-    val lower = if (valid) chartScaleLabel(scale.lower, kind) else "--"
-    val upper = if (valid) chartScaleLabel(scale.upper, kind) else "--"
-    Text("Scale (${kind.unit}): $lower to $upper", style = style, color = textColor)
+    Text(kind.unit, style = style, color = textColor)
     Row(Modifier.fillMaxWidth()) {
         Box(Modifier.width(gutter).height(LivePlotHeight)) {
             labels.forEachIndexed { index, label ->

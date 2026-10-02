@@ -88,7 +88,7 @@ class SessionSnapshotTest {
                 assertSame(session.state.value.record, record)
                 freezes++
                 snapshot = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
-            })
+            }, onResume = { hrHistory.resume(); motionHistory.resume(); charts.resume() })
         }
 
         fun start(source: Flow<PolarAccelerometerData>, heartRates: Flow<Int>? = flow { awaitCancellation() }) =
@@ -302,19 +302,49 @@ class SessionSnapshotTest {
         f.stop()
     }
 
+    @Test fun pauseResumeKeepsHistoryAndTotalsAndFreezesOnlyWhenFinallyStopped() = runTest {
+        val f = Fixture(this)
+        f.start(flow { emit(samples()); awaitCancellation() }); runCurrent()
+        f.tick()
+        f.now += 1000; f.tick()
+        val id = f.session.state.value.record!!.id
+        val before = f.detector.state.value
+        val points = f.motionHistory.snapshot()
+        f.session.pause(); runCurrent()
+        assertNull(f.snapshot)
+        assertEquals(0, f.freezes)
+        f.now += 100_000; f.tick()
+        assertEquals(points, f.motionHistory.snapshot())
+        f.session.resume(true) {
+            f.accStream(flow { emit(samples(startNs = 900_000_000_000, count = 40)); awaitCancellation() })
+        }
+        runCurrent(); f.now += 250; f.tick()
+        assertEquals(id, f.session.state.value.record!!.id)
+        assertEquals(before.totalSteps, f.detector.state.value.totalSteps)
+        assertEquals(before.distance, f.detector.state.value.distance)
+        assertTrue(f.detector.isWarmingUp)
+        assertEquals(points.first(), f.motionHistory.snapshot().first())
+        assertTrue(f.motionHistory.snapshot().last().breakBefore)
+        f.stop(); runCurrent()
+        assertEquals(1, f.freezes)
+        assertEquals(1250L, f.snapshot!!.record.durationMs)
+        assertEquals(id, f.snapshot!!.record.id)
+        assertEquals(f.motionHistory.snapshot(), f.snapshot!!.motionPoints)
+    }
+
     @Test fun historiesKeepEarlyDataAndIndependentCountsAndFreezeAtSharedDeadline() = runTest {
         val f = Fixture(this)
         val hrs = MutableSharedFlow<Int>()
         f.start(flow { emit(samples()); awaitCancellation() }, hrs); runCurrent()
         hrs.emit(120); runCurrent()
-        for (second in 0..75) { f.now = 5000 + second * 1000L; f.tick() }
-        assertEquals(76, f.motionHistory.state.value.pointCount)
+        for (second in 0..375) { f.now = 5000 + second * 1000L; f.tick() }
+        assertEquals(376, f.motionHistory.state.value.pointCount)
         assertEquals(1, f.hrHistory.state.value.pointCount)
         assertEquals(0L, f.motionHistory.snapshot().first().elapsedMs)
-        assertTrue(f.charts.snapshot(ChartKind.CADENCE, 75_000).points.first().elapsedMs > 0)
+        assertTrue(f.charts.snapshot(ChartKind.CADENCE, 375_000).points.first().elapsedMs > 0)
         f.now = 5000 + HrHistory.MAX_ELAPSED_MS
         hrs.emit(130); runCurrent(); f.tick()
-        assertEquals(75_000L, f.motionHistory.snapshot().last().elapsedMs)
+        assertEquals(375_000L, f.motionHistory.snapshot().last().elapsedMs)
         assertEquals(0L, f.hrHistory.snapshot().last().elapsedMs)
         val motion = f.motionHistory.snapshot()
         val hr = f.hrHistory.snapshot()

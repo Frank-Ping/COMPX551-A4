@@ -10,37 +10,25 @@ import com.example.polarh10activityviewer.session.StreamRetryButton
 import com.example.polarh10activityviewer.ui.theme.*
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
-import java.util.Locale
 
 @Composable
 internal fun LiveChartCard(
-    kind: ChartKind, motionSelection: ChartKind, snapshot: ChartSnapshot,
+    kind: ChartKind, snapshot: ChartSnapshot,
     sessionMean: Double?, sessionMaximum: Double?,
     subscriptions: Map<PolarDeviceDataType, SubscriptionState>,
     readiness: Map<PolarDeviceDataType, DataReadiness>,
-    canRetryEcg: Boolean, onSelect: (ChartKind) -> Unit, onRetryEcg: () -> Unit
+    canRetryEcg: Boolean, onSelect: (ChartKind) -> Unit, onRetryEcg: () -> Unit, paused: Boolean
 ) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius),
         color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            Text("Live charts", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
                 verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                listOf("HR" to ChartKind.HEART_RATE, "Motion" to motionSelection,
+                listOf("HR" to ChartKind.HEART_RATE, "Motion" to ChartKind.CADENCE,
                     "ECG" to ChartKind.ELECTROCARDIOGRAM).forEach { (label, choice) ->
                     ChartChoice(label, kind.type == choice.type) { onSelect(choice) }
                 }
             }
-            if (kind.type == PolarDeviceDataType.ACC) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
-                    verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    listOf(ChartKind.CADENCE, ChartKind.SPEED).forEach { choice ->
-                        ChartChoice(if (choice == ChartKind.SPEED) "Speed" else choice.label,
-                            kind == choice) { onSelect(choice) }
-                    }
-                }
-            }
-            Text("${kind.label} (${kind.unit})")
             if (kind == ChartKind.ELECTROCARDIOGRAM) {
                 val rate = readiness[PolarDeviceDataType.ECG]?.selected
                     ?.get(SettingType.SAMPLE_RATE)
@@ -49,22 +37,21 @@ internal fun LiveChartCard(
                     listOf(SubscriptionStatus.IDLE, SubscriptionStatus.STARTING)) "--" else "$count"
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
                     verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    Text("Selected sample rate: ${rate?.let { "$it Hz" } ?: "--"}")
-                    Text("Window samples: $countLabel")
+                    Text("Sampling Rate: ${rate?.let { "$it Hz" } ?: "--"}")
+                    Text("Samples: $countLabel")
                 }
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
                     verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    Text("Session mean: ${sessionMean?.let {
-                        if (kind == ChartKind.HEART_RATE) String.format(Locale.ENGLISH, "%.1f", it)
-                        else chartScaleLabel(it, kind)
+                    Text("${if (kind == ChartKind.HEART_RATE) "Average HR" else "Mean"}: ${sessionMean?.let {
+                        chartScaleLabel(it, kind)
                     } ?: "--"} ${kind.unit}")
-                    Text("Session max: ${sessionMaximum?.let { chartScaleLabel(it, kind) } ?: "--"} ${kind.unit}")
+                    Text("${if (kind == ChartKind.HEART_RATE) "Max HR" else "Max"}: ${sessionMaximum?.let { chartScaleLabel(it, kind) } ?: "--"} ${kind.unit}")
                 }
             }
-            SecondaryChartText("Window: ${if (kind == ChartKind.ELECTROCARDIOGRAM) 5 else 60} s · elapsed since Running (mm:ss)")
             val valid = snapshot.points.any { it.value != null }
-            Text(when (snapshot.status) {
+            if (paused) Text("Paused · chart frozen")
+            else if (snapshot.status != SubscriptionStatus.RECEIVING || !valid) Text(when (snapshot.status) {
                 SubscriptionStatus.IDLE -> "Not started"
                 SubscriptionStatus.STARTING -> "Waiting for data"
                 SubscriptionStatus.RECEIVING -> if (valid) "Live" else "Waiting for valid data"
@@ -87,16 +74,9 @@ internal fun LiveChartCard(
                 StreamRetryButton(PolarDeviceDataType.ECG, ecg, canRetryEcg, onRetryEcg)
             }
             LivePlot(snapshot, kind, sessionMean)
-            if (kind == ChartKind.ELECTROCARDIOGRAM) {
-                SecondaryChartText("Approximate time alignment includes transmission delay. All visible ECG samples are drawn.")
-            }
         }
     }
 }
-
-@Composable
-private fun SecondaryChartText(text: String) = Text(text, style = MaterialTheme.typography.bodySmall,
-    color = MaterialTheme.colorScheme.onSurfaceVariant)
 
 @Composable
 private fun ChartChoice(label: String, selected: Boolean, onClick: () -> Unit) {

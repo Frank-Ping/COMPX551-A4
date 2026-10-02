@@ -82,7 +82,7 @@ internal fun startDisabledReason(
     subscriptions: List<SubscriptionState>,
     readiness: Collection<DataReadiness>
 ): String? = when {
-    session.ongoing -> "Stop the current session before starting another."
+    session.open -> "Stop the current session before starting another."
     session.status == SessionStatus.STOPPING -> "Waiting for streams to stop."
     savingBlocksStart -> "Finish saving or discard the failed session before Start."
     !actionEnabled -> "Complete the Bluetooth system request."
@@ -96,15 +96,19 @@ internal fun startDisabledReason(
 }
 
 @Composable
-internal fun SessionControls(canStart: Boolean, canStop: Boolean, onStart: () -> Unit, onStop: () -> Unit) {
+internal fun SessionControls(canStart: Boolean, canStop: Boolean, onStart: () -> Unit, onStop: () -> Unit,
+    canPause: Boolean, canResume: Boolean, paused: Boolean,
+    onPause: () -> Unit, onResume: () -> Unit) {
     Surface(shadowElevation = 3.dp) {
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(PagePadding),
             horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally)) {
-            listOf(Triple("Start", R.drawable.ic_start, canStart), Triple("Stop", R.drawable.ic_stop, canStop))
+            listOf(Triple("Pause", R.drawable.ic_pause, canPause),
+                Triple(if (paused) "Continue" else "Start", R.drawable.ic_start, if (paused) canResume else canStart),
+                Triple("Stop", R.drawable.ic_stop, canStop))
                 .forEach { (label, icon, enabled) ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                        Button(onClick = if (label == "Start") onStart else onStop, enabled = enabled,
+                        Button(onClick = when (label) { "Pause" -> onPause; "Continue" -> onResume; "Start" -> onStart; else -> onStop }, enabled = enabled,
                             shape = CircleShape, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
                             modifier = Modifier.size(64.dp).semantics { contentDescription = label }) {
                             Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(IconSize))
@@ -118,8 +122,8 @@ internal fun SessionControls(canStart: Boolean, canStop: Boolean, onStart: () ->
 
 @Composable
 internal fun SessionStatusPanel(session: SessionState, disabledReason: String?) {
-    Text("Session: ${session.status.label}", style = MaterialTheme.typography.titleMedium)
-    if (!session.ongoing) disabledReason?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+    if (session.status != SessionStatus.RUNNING) Text("Session: ${session.status.label}", style = MaterialTheme.typography.titleMedium)
+    if (!session.open) disabledReason?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
     if (session.status == SessionStatus.STARTING) Text("Waiting for the first sensor data.")
     session.endReason?.let { Text(if (it == "TIME_LIMIT") "Session time limit reached." else it) }
 }
