@@ -39,12 +39,15 @@ class LiveChartCardTest {
     private val retryAllowed = mutableStateOf(true)
     private val dark = mutableStateOf(false)
     private val font = mutableStateOf<Float?>(1f)
+    private val mean = mutableStateOf<Double?>(null)
+    private val maximum = mutableStateOf<Double?>(null)
     private var retries = 0
 
     @Composable private fun Card(canRetry: Boolean = retryAllowed.value, retry: () -> Unit = { retries++ }) {
         val kind by charts.selection.collectAsState()
         LiveChartCard(kind, charts.motionSelection,
             ChartSnapshot(points.value, end.value, if (kind == ChartKind.ELECTROCARDIOGRAM) 5000.0 else 60_000.0, status.value),
+            mean.value, maximum.value,
             checkedDataTypes.associateWith { if (it == PolarDeviceDataType.ECG) ecg.value else SubscriptionState() },
             readiness.value, canRetry, charts::select, retry)
     }
@@ -85,8 +88,10 @@ class LiveChartCardTest {
         }
     }
     private fun capture(name: String) {
+        compose.mainClock.advanceTimeBy(500)
+        compose.waitForIdle()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val directory = File(context.getExternalFilesDir(null), "step83-controlled-visual").apply { mkdirs() }
+        val directory = File(context.getExternalFilesDir(null), "step84c-controlled-visual").apply { mkdirs() }
         File(directory, "$name.png").outputStream().use {
             compose.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
         }
@@ -100,7 +105,7 @@ class LiveChartCardTest {
         click("ECG"); visible("ECG (µV)"); compose.onAllNodesWithText("Speed").assertCountEquals(0)
         assertEquals(ChartKind.SPEED, charts.motionSelection)
     }
-    @Test fun sessionChartIsLastAndHasOnlyFormalDisplays() {
+    @Test fun sessionChartKeepsFormalDisplaysInTheMetricsLayout() {
         mount(session = true); visible("Activity summary"); visible("Live charts")
         visible("Scale (bpm): 0 to 121"); visible("01:00")
         compose.onAllNodesWithText("development check", substring = true).assertCountEquals(0)
@@ -140,6 +145,44 @@ class LiveChartCardTest {
         mount(); visible("ACC: Controlled configuration error.")
         visible("Open Devices to confirm ECG configuration before starting.")
     }
+    @Test fun wholeSessionStatisticsAndDashedMeanDoNotExpandWindowScale() {
+        mean.value = 85.0; maximum.value = 300.0; mount()
+        visible("Session mean: 85.0 bpm"); visible("Session max: 300 bpm")
+        visible("Scale (bpm): 0 to 121")
+        fun meanPixels(): Int {
+            val plot = compose.onNodeWithTag("live-chart-plot").performScrollTo().captureToImage().asAndroidBitmap()
+            return (0 until plot.width).sumOf { x -> (0 until plot.height).count { y ->
+                plot.getPixel(x, y) == android.graphics.Color.rgb(245, 158, 11)
+            } }
+        }
+        assertTrue(meanPixels() > 100)
+        compose.runOnIdle { mean.value = 300.0 }
+        visible("Session mean: 300.0 bpm"); visible("Scale (bpm): 0 to 121")
+        assertEquals(0, meanPixels())
+        compose.runOnIdle { mean.value = null; maximum.value = null }
+        visible("Session mean: -- bpm"); visible("Session max: -- bpm")
+        assertEquals(0, meanPixels())
+    }
+    @Test fun ecgMetadataUsesSelectedRateAndActualWindowCountIncludingEmpty() {
+        charts.select(ChartKind.ELECTROCARDIOGRAM)
+        points.value = listOf(ChartPoint(58_000.0, -10.0, true), ChartPoint(59_000.0, 20.0, false))
+        readiness.value = mapOf(PolarDeviceDataType.ECG to DataReadiness(
+            selected = mapOf(com.polar.sdk.api.model.PolarSensorSetting.SettingType.SAMPLE_RATE to 200)))
+        mount(); visible("Selected sample rate: 200 Hz"); visible("Window samples: 2")
+        compose.runOnIdle { points.value = emptyList(); readiness.value = emptyMap() }
+        visible("Selected sample rate: --"); visible("Window samples: 0")
+        compose.runOnIdle { status.value = SubscriptionStatus.STARTING }
+        visible("Window samples: --"); visible("Waiting for data")
+    }
+    @Test fun longElapsedLabelsKeepTheirFontAndReduceTickCount() {
+        end.value = 14_400_000.0; font.value = 2f; mount()
+        noOverflow("Window: 60 s · elapsed since Running (mm:ss)")
+        noOverflow("239:00"); noOverflow("240:00")
+        val nodes = compose.onAllNodes(hasText("239:00") or hasText("239:30") or hasText("240:00")).fetchSemanticsNodes()
+        val boxes = nodes.map { it.boundsInRoot }.sortedBy { it.left }
+        boxes.zipWithNext().forEach { (a, b) -> assertTrue(a.right <= b.left) }
+        capture("long-running-font2")
+    }
     @Test fun idleWaitingAndStoppedStatusesAreNotMisreportedAsLive() {
         points.value = emptyList(); status.value = SubscriptionStatus.IDLE; mount(); visible("Not started")
         compose.runOnIdle { status.value = SubscriptionStatus.STARTING }; visible("Waiting for data")
@@ -148,6 +191,7 @@ class LiveChartCardTest {
         compose.runOnIdle { status.value = SubscriptionStatus.STOPPED }; visible("Stopped · chart frozen")
     }
     @Test fun isolatedNegativeEcgSampleRemainsVisibleWithoutAConnectingLine() {
+        mean.value = 0.0 // ECG must never show a session reference line, even if one is supplied.
         points.value = listOf(ChartPoint(58_000.0, -100.0, true)); charts.select(ChartKind.ELECTROCARDIOGRAM)
         mount(); visible("Scale (µV): -110 to 10")
         val plot = compose.onNodeWithTag("live-chart-plot").performScrollTo().captureToImage().asAndroidBitmap()
@@ -167,10 +211,17 @@ class LiveChartCardTest {
                     listOf(ChartPoint(45_000.0, 80.0, true), ChartPoint(54_000.0, 80.0, false))
             }
             val plot = compose.onNodeWithTag("live-chart-plot").performScrollTo().captureToImage().asAndroidBitmap()
-            fun inkAt(x: Int): Int = (0 until plot.height).count { y -> plot.getPixel(x, y) == android.graphics.Color.rgb(37, 99, 235) }
+            fun inkAt(x: Int): Int = (0 until plot.height).count { y -> plot.getPixel(x, y) == android.graphics.Color.rgb(239, 68, 68) }
             assertTrue(inkAt(plot.width / 5) > 0)
             assertEquals(0, inkAt(plot.width / 2))
             assertTrue(inkAt(plot.width * 4 / 5) > 0)
+            // The lower filled area must also end before the missing interval.
+            val y = plot.height * 3 / 4
+            val leftFill = android.graphics.Color.red(plot.getPixel(plot.width / 5, y)) -
+                android.graphics.Color.green(plot.getPixel(plot.width / 5, y))
+            val gapFill = android.graphics.Color.red(plot.getPixel(plot.width / 2, y)) -
+                android.graphics.Color.green(plot.getPixel(plot.width / 2, y))
+            assertTrue(leftFill > gapFill + 10)
         }
     }
     @Test fun enlargedFontsAndBothThemesKeepLabelsErrorsAndButtonsReadable() {
@@ -181,18 +232,37 @@ class LiveChartCardTest {
     }
     private fun checkVisuals(prefix: String) {
         for (night in listOf(false, true)) {
-            compose.runOnIdle { dark.value = night }
+            compose.runOnIdle { dark.value = night; mean.value = 85.0; maximum.value = 145.0 }
             visible("Live charts"); noOverflow("Window: 60 s · elapsed since Running (mm:ss)")
             noOverflow("Scale (bpm): 0 to 121")
             compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-hr")
-            click("Motion"); click("Speed"); noOverflow("Estimated speed (km/h)")
+            noOverflow("Session mean: 85.0 bpm"); noOverflow("Session max: 145 bpm")
+            click("Motion"); click("Cadence")
+            compose.runOnIdle {
+                mean.value = 96.0; maximum.value = 144.0
+                points.value = listOf(ChartPoint(10_000.0, 108.0, true), ChartPoint(20_000.0, 0.0, false),
+                    ChartPoint(40_000.0, 120.0, true))
+            }
+            noOverflow("Cadence (steps/min)"); noOverflow("Session mean: 96 steps/min")
+            compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-cadence")
+            click("Speed"); noOverflow("Estimated speed (km/h)")
+            compose.runOnIdle {
+                mean.value = 4.5; maximum.value = 9.0
+                points.value = listOf(ChartPoint(10_000.0, 6.5, true), ChartPoint(20_000.0, 0.0, false),
+                    ChartPoint(40_000.0, 8.1, true))
+            }
+            noOverflow("Session mean: 4.5 km/h"); noOverflow("Scale (km/h): 0.0 to 9.0")
+            compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-speed")
             click("ECG")
             compose.runOnIdle {
                 points.value = (0 until 650).map { i -> ChartPoint(55_001.0 + i * 7.69, kotlin.math.sin(i / 10.0) * 200, i == 0) }
                 ecg.value = SubscriptionState(SubscriptionStatus.FAILED,
                     "Controlled long ECG recovery message: check the chest strap and Devices, reconnect manually if required, then retry ECG.")
                 status.value = SubscriptionStatus.FAILED
+                readiness.value = readiness.value + (PolarDeviceDataType.ECG to DataReadiness(
+                    selected = mapOf(com.polar.sdk.api.model.PolarSensorSetting.SettingType.SAMPLE_RATE to 130)))
             }
+            noOverflow("Selected sample rate: 130 Hz"); noOverflow("Window samples: 650")
             noOverflow("ECG: ${ecg.value.error}"); visible("Retry ECG")
             noOverflow("Approximate time alignment includes transmission delay. All visible ECG samples are drawn.")
             compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-ecg")

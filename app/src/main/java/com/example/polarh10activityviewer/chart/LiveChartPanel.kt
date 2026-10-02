@@ -36,6 +36,8 @@ internal fun LiveChartPanel(manager: PolarBleManager,
     canRetryEcg: Boolean, onRetryEcg: () -> Unit
 ) {
     val kind by manager.liveCharts.selection.collectAsState()
+    val hrStatistics by manager.heartRateStatistics.collectAsState()
+    val steps by manager.stepState.collectAsState()
     var snapshot by remember(manager, kind) { mutableStateOf(manager.chartSnapshot(kind)) }
     // Only the selected chart takes display snapshots. Sampling remains independent.
     LaunchedEffect(manager, kind) {
@@ -44,7 +46,19 @@ internal fun LiveChartPanel(manager: PolarBleManager,
             delay(if (kind == ChartKind.ELECTROCARDIOGRAM) 100 else 250)
         }
     }
-    LiveChartCard(kind, manager.liveCharts.motionSelection, snapshot, subscriptions, readiness,
+    val mean = when (kind) {
+        ChartKind.HEART_RATE -> hrStatistics.average
+        ChartKind.CADENCE -> steps.meanCadence
+        ChartKind.SPEED -> steps.averageSpeed?.times(3.6)
+        ChartKind.ELECTROCARDIOGRAM -> null
+    }
+    val maximum = when (kind) {
+        ChartKind.HEART_RATE -> hrStatistics.max?.toDouble()
+        ChartKind.CADENCE -> steps.maximumCadence
+        ChartKind.SPEED -> steps.maximumSpeed?.times(3.6)
+        ChartKind.ELECTROCARDIOGRAM -> null
+    }
+    LiveChartCard(kind, manager.liveCharts.motionSelection, snapshot, mean, maximum, subscriptions, readiness,
         canRetryEcg, manager.liveCharts::select, onRetryEcg)
 }
 
