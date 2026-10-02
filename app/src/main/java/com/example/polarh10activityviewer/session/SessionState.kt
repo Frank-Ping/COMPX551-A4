@@ -45,6 +45,7 @@ internal class SessionController(
     private var startedAt: Long? = null
     private var accumulatedMs = 0L
     private var startingStreams = false
+    private var resetAfterStop = false
 
     fun accepts(generation: Long) = state.value.generation == generation && state.value.ongoing
 
@@ -155,8 +156,10 @@ internal class SessionController(
         return true
     }
 
-    fun stop(reason: String, interrupted: Boolean = true) {
-        if (!state.value.open || checkTimeLimit()) return
+    fun stop(reason: String, interrupted: Boolean = true, reset: Boolean = false) {
+        if (!state.value.open) return
+        resetAfterStop = reset
+        if (checkTimeLimit()) return
         finish(reason, interrupted, elapsed(), wallNow())
     }
 
@@ -191,7 +194,17 @@ internal class SessionController(
             clearHr()
             freezeSummary()
         } else if (state.value.status == SessionStatus.STOPPING) {
-            mutableState.value = state.value.copy(status = SessionStatus.STOPPED)
+            if (resetAfterStop) {
+                // The save callback already owns a frozen snapshot; wait for stream cleanup before resetting.
+                resetAfterStop = false
+                startedAt = null
+                accumulatedMs = 0L
+                mutableState.value = SessionState(generation = state.value.generation + 1)
+                subscriptions.reset()
+                clearAllReadings()
+            } else {
+                mutableState.value = state.value.copy(status = SessionStatus.STOPPED)
+            }
         } else if (state.value.status == SessionStatus.PAUSING) {
             mutableState.value = state.value.copy(status = SessionStatus.PAUSED)
         }

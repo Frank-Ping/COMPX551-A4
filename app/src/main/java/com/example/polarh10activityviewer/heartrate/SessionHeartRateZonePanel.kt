@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,19 +22,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import com.example.polarh10activityviewer.ui.theme.CardCornerRadius
+import androidx.compose.ui.draw.clip
+import com.example.polarh10activityviewer.session.SessionCard
+import com.example.polarh10activityviewer.session.sessionBlue
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
-import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
-import com.example.polarh10activityviewer.ui.theme.PagePadding
 
 @Composable
-internal fun SessionHeartRateZonePanel(state: HeartRateZoneState, stopped: Boolean) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius)) {
-        Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            Text("HR Zone", style = MaterialTheme.typography.titleMedium)
-            if (stopped) Text("Stopped.")
-            if (!state.receivedValidHr) Text("No valid HR data")
+internal fun SessionHeartRateZonePanel(state: HeartRateZoneState) {
+    SessionCard(title = "HR Zone") {
             val maximum = state.durationsMs.max()
             val textMeasurer = rememberTextMeasurer()
             val durationWidth = with(LocalDensity.current) {
@@ -47,19 +42,21 @@ internal fun SessionHeartRateZonePanel(state: HeartRateZoneState, stopped: Boole
             HeartRateZone.entries.forEach { zone ->
                 val duration = state.durationsMs[zone.ordinal]
                 val color = HeartRateZoneColors[zone.ordinal]
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val inline = maxWidth >= 320.dp * LocalDensity.current.fontScale
+                BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    val inline = maxWidth >= 280.dp * LocalDensity.current.fontScale
                     val labels: @Composable () -> Unit = {
-                        Text("Z${zone.ordinal + 1}", Modifier.width(28.dp * LocalDensity.current.fontScale))
-                        Text("${zone.range} bpm", Modifier.width(100.dp * LocalDensity.current.fontScale),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Text("Z${zone.ordinal + 1}", Modifier.width(22.dp * LocalDensity.current.fontScale),
+                            style = MaterialTheme.typography.bodySmall)
+                        Text("${zone.range} bpm", Modifier.width(74.dp * LocalDensity.current.fontScale),
+                            style = MaterialTheme.typography.bodySmall, color = sessionBlue())
                     }
                     val bar: @Composable () -> Unit = {
                       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                        Box(Modifier.weight(1f).padding(top = 4.dp).height(12.dp).background(color.copy(alpha = 0.12f))) {
+                        Box(Modifier.weight(1f).padding(top = 2.dp).height(10.dp).clip(RoundedCornerShape(2.dp))
+                            .background(color.copy(alpha = 0.12f))) {
                             // Scale uses milliseconds, including subsecond durations.
                             val fraction = if (maximum == 0L) 0f else duration.toFloat() / maximum
-                            Box(Modifier.fillMaxWidth(fraction).height(12.dp).background(color).semantics {
+                            Box(Modifier.fillMaxWidth(fraction).height(10.dp).clip(RoundedCornerShape(2.dp)).background(color).semantics {
                                 contentDescription = "Zone ${zone.ordinal + 1}, cumulative duration ${formatZoneDuration(duration)}"
                             })
                         }
@@ -82,7 +79,6 @@ internal fun SessionHeartRateZonePanel(state: HeartRateZoneState, stopped: Boole
                     }
                 }
             }
-            if (state.unclassifiedMs > 0) Text("Unclassified time: ${formatZoneDuration(state.unclassifiedMs)}")
-        }
+            if (state.unclassifiedMs > 0) Text("Unclassified time: ${formatZoneDuration(state.unclassifiedMs)}", style = MaterialTheme.typography.bodySmall)
     }
 }

@@ -1,8 +1,6 @@
 package com.example.polarh10activityviewer.chart
 
 import com.example.polarh10activityviewer.ble.PolarBleManager
-import com.example.polarh10activityviewer.ble.SubscriptionStatus
-import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.DataReadiness
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
@@ -15,13 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -32,17 +30,15 @@ import java.util.Locale
 
 @Composable
 internal fun LiveChartPanel(manager: PolarBleManager,
-    subscriptions: Map<PolarDeviceDataType, SubscriptionState>,
-    readiness: Map<PolarDeviceDataType, DataReadiness>,
-    canRetryEcg: Boolean, onRetryEcg: () -> Unit
+    readiness: Map<PolarDeviceDataType, DataReadiness>
 ) {
     val kind by manager.liveCharts.selection.collectAsState()
     val hrStatistics by manager.heartRateStatistics.collectAsState()
     val steps by manager.stepState.collectAsState()
     val session by manager.sessionState.collectAsState()
-    var snapshot by remember(manager, kind) { mutableStateOf(manager.chartSnapshot(kind)) }
+    var snapshot by remember(manager, kind, session.generation) { mutableStateOf(manager.chartSnapshot(kind)) }
     // Only the selected chart takes display snapshots. Sampling remains independent.
-    LaunchedEffect(manager, kind) {
+    LaunchedEffect(manager, kind, session.generation) {
         while (true) {
             snapshot = manager.chartSnapshot(kind)
             delay(if (kind == ChartKind.ELECTROCARDIOGRAM) 100 else 250)
@@ -60,8 +56,8 @@ internal fun LiveChartPanel(manager: PolarBleManager,
         ChartKind.SPEED -> steps.maximumSpeed?.times(3.6)
         ChartKind.ELECTROCARDIOGRAM -> null
     }
-    LiveChartCard(kind, snapshot, mean, maximum, subscriptions, readiness,
-        canRetryEcg, manager.liveCharts::select, onRetryEcg,
+    LiveChartCard(kind, snapshot, mean, maximum, readiness,
+        manager.liveCharts::select,
         paused = session.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED))
 }
 

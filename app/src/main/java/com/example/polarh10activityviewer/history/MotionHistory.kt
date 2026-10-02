@@ -24,7 +24,7 @@ internal class MotionHistory {
     private var previousSegment: Long? = null
     private var breakBefore = true
 
-    fun start(sessionId: String) {
+    fun reset(sessionId: String? = null) {
         points.clear()
         status = SubscriptionStatus.IDLE
         previousSegment = null

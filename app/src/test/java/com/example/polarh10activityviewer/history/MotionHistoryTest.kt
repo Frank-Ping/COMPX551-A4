@@ -8,7 +8,7 @@ import org.junit.Test
 class MotionHistoryTest {
     private val moving = StepState(cadence = 123.456, speed = 1.234567, receivedAcc = true)
     private fun history() = MotionHistory().apply {
-        start("session")
+        reset("session")
         onSubscriptionState(SubscriptionStatus.RECEIVING)
     }
 
@@ -110,7 +110,7 @@ class MotionHistoryTest {
         h.stop()
         assertEquals(frozen, h.snapshot())
         assertTrue(h.state.value.frozen)
-        h.start("next")
+        h.reset("next")
         assertEquals(0, h.state.value.pointCount)
         assertNull(h.state.value.lastElapsedMs)
         assertFalse(h.state.value.frozen)

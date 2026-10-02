@@ -58,7 +58,8 @@ internal fun DevicesDialog(
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
     onRecheck: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    sessionDetails: @Composable () -> Unit = {}
 ) {
     val connected = actionEnabled && availability == BluetoothAvailability.READY &&
         connection.status == ConnectionStatus.CONNECTED
@@ -148,6 +149,7 @@ internal fun DevicesDialog(
                         }
                     }
                 }
+                sessionDetails()
                 Text("Nearby Polar H10 devices", style = MaterialTheme.typography.titleMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
                     verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {

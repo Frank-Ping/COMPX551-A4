@@ -26,7 +26,7 @@ import com.example.polarh10activityviewer.storage.SessionSaveController
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 
 @Composable
-internal fun SavePanel(state: SaveState, controller: SessionSaveController, currentSessionId: String?) {
+internal fun SavePanel(state: SaveState, controller: SessionSaveController, currentSessionId: String?, showRetry: Boolean = true) {
     // Blocking writes remain recoverable on either page; terminal status belongs to its session.
     if (state.status == SaveStatus.IDLE || (!state.blocksStart && state.sessionId != currentSessionId)) return
     var confirmDiscard by rememberSaveable(state.sessionId) { mutableStateOf(false) }
@@ -35,7 +35,7 @@ internal fun SavePanel(state: SaveState, controller: SessionSaveController, curr
         Text(state.error ?: "Unable to save session.", color = MaterialTheme.colorScheme.error)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
             verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            Button(onClick = { controller.retry() }) { Text("Retry save") }
+            if (showRetry) Button(onClick = { controller.retry() }) { Text("Retry save") }
             TextButton(onClick = { confirmDiscard = true }) { Text("Discard session") }
         }
     }

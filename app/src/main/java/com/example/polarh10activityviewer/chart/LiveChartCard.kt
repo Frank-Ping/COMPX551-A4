@@ -5,8 +5,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import com.example.polarh10activityviewer.session.SessionCard
+import com.example.polarh10activityviewer.session.SessionStatistic
+import com.example.polarh10activityviewer.session.sessionBlue
 import com.example.polarh10activityviewer.ble.*
-import com.example.polarh10activityviewer.session.StreamRetryButton
 import com.example.polarh10activityviewer.ui.theme.*
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.polar.sdk.api.model.PolarSensorSetting.SettingType
@@ -15,18 +25,15 @@ import com.polar.sdk.api.model.PolarSensorSetting.SettingType
 internal fun LiveChartCard(
     kind: ChartKind, snapshot: ChartSnapshot,
     sessionMean: Double?, sessionMaximum: Double?,
-    subscriptions: Map<PolarDeviceDataType, SubscriptionState>,
     readiness: Map<PolarDeviceDataType, DataReadiness>,
-    canRetryEcg: Boolean, onSelect: (ChartKind) -> Unit, onRetryEcg: () -> Unit, paused: Boolean
+    onSelect: (ChartKind) -> Unit, paused: Boolean
 ) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius),
-        color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
-                verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+    SessionCard(modifier = Modifier.testTag("live-chart-card")) {
+            Row(Modifier.fillMaxWidth(if (LocalDensity.current.fontScale > 1.2f) 1f else 0.76f)
+                .align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("HR" to ChartKind.HEART_RATE, "Motion" to ChartKind.CADENCE,
                     "ECG" to ChartKind.ELECTROCARDIOGRAM).forEach { (label, choice) ->
-                    ChartChoice(label, kind.type == choice.type) { onSelect(choice) }
+                    ChartChoice(label, kind.type == choice.type, Modifier.weight(1f)) { onSelect(choice) }
                 }
             }
             if (kind == ChartKind.ELECTROCARDIOGRAM) {
@@ -35,56 +42,53 @@ internal fun LiveChartCard(
                 val count = snapshot.points.count { it.value != null }
                 val countLabel = if (count == 0 && snapshot.status in
                     listOf(SubscriptionStatus.IDLE, SubscriptionStatus.STARTING)) "--" else "$count"
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
-                    verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    Text("Sampling Rate: ${rate?.let { "$it Hz" } ?: "--"}")
-                    Text("Samples: $countLabel")
-                }
+                ChartStatistics("Sampling Rate", rate?.let { "$it Hz" } ?: "--", "Samples", countLabel)
             } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
-                    verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    Text("${if (kind == ChartKind.HEART_RATE) "Average HR" else "Mean"}: ${sessionMean?.let {
+                ChartStatistics(if (kind == ChartKind.HEART_RATE) "Average HR" else "Mean", "${sessionMean?.let {
                         chartScaleLabel(it, kind)
-                    } ?: "--"} ${kind.unit}")
-                    Text("${if (kind == ChartKind.HEART_RATE) "Max HR" else "Max"}: ${sessionMaximum?.let { chartScaleLabel(it, kind) } ?: "--"} ${kind.unit}")
-                }
+                    } ?: "--"} ${kind.unit}", if (kind == ChartKind.HEART_RATE) "Max HR" else "Max",
+                    "${sessionMaximum?.let { chartScaleLabel(it, kind) } ?: "--"} ${kind.unit}")
             }
             val valid = snapshot.points.any { it.value != null }
-            if (paused) Text("Paused · chart frozen")
-            else if (snapshot.status != SubscriptionStatus.RECEIVING || !valid) Text(when (snapshot.status) {
-                SubscriptionStatus.IDLE -> "Not started"
-                SubscriptionStatus.STARTING -> "Waiting for data"
-                SubscriptionStatus.RECEIVING -> if (valid) "Live" else "Waiting for valid data"
-                SubscriptionStatus.STOPPING -> "Stopping · chart frozen"
-                SubscriptionStatus.STOPPED -> "Stopped · chart frozen"
-                SubscriptionStatus.FAILED -> "Failed · chart frozen"
-            })
-            // Keep configuration failures reachable even after removing raw sample panels.
-            listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG).forEach { type ->
-                val state = readiness[type] ?: DataReadiness()
-                state.error?.let { Text("$type: $it", color = MaterialTheme.colorScheme.error) }
-                if (state.status == DataReadinessStatus.READY && !state.configurationComplete && state.error == null) {
-                    Text("Open Devices to confirm $type configuration before starting.")
+            val statusLabel = if (kind == ChartKind.HEART_RATE) {
+                if (paused) "Paused · chart frozen"
+                else when (snapshot.status) {
+                    SubscriptionStatus.IDLE -> null
+                    SubscriptionStatus.STARTING -> "Waiting for data"
+                    SubscriptionStatus.RECEIVING -> if (valid) null else "Waiting for valid data"
+                    SubscriptionStatus.STOPPING -> "Stopping · chart frozen"
+                    SubscriptionStatus.STOPPED -> "Stopped · chart frozen"
+                    SubscriptionStatus.FAILED -> "Failed · chart frozen"
                 }
+            } else null
+            LivePlot(snapshot, kind, sessionMean, statusLabel)
+    }
+}
+
+@Composable
+private fun ChartStatistics(left: String, leftValue: String, right: String, rightValue: String) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 280.dp * LocalDensity.current.fontScale) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                SessionStatistic(left, leftValue); SessionStatistic(right, rightValue)
             }
-            val ecg = subscriptions[PolarDeviceDataType.ECG] ?: SubscriptionState()
-            // ECG recovery stays visible while viewing HR or Motion, with the original guards.
-            if (kind == ChartKind.ELECTROCARDIOGRAM || ecg.error != null || ecg.status == SubscriptionStatus.FAILED) {
-                ecg.error?.let { Text("ECG: $it", color = MaterialTheme.colorScheme.error) }
-                StreamRetryButton(PolarDeviceDataType.ECG, ecg, canRetryEcg, onRetryEcg)
-            }
-            LivePlot(snapshot, kind, sessionMean)
+        } else Row(Modifier.fillMaxWidth()) {
+            SessionStatistic(left, leftValue, Modifier.weight(1f))
+            SessionStatistic(right, rightValue, Modifier.weight(1f), TextAlign.End)
         }
     }
 }
 
 @Composable
-private fun ChartChoice(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label) },
-        modifier = Modifier.heightIn(min = MinimumTouchTarget), shape = RoundedCornerShape(50), border = null,
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-            labelColor = MaterialTheme.colorScheme.onSurface,
-            selectedContainerColor = MaterialTheme.colorScheme.primary,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimary))
+private fun ChartChoice(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Box(modifier.heightIn(min = MinimumTouchTarget).clip(RoundedCornerShape(50))
+        .selectable(selected, role = Role.Tab, onClick = onClick),
+        contentAlignment = Alignment.Center) {
+        Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(50),
+            color = if (selected) sessionBlue() else sessionBlue().copy(alpha = 0.07f),
+            contentColor = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurface) {
+            Text(label, Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                textAlign = TextAlign.Center, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
 }

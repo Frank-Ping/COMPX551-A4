@@ -23,7 +23,7 @@ internal class HrHistory {
     private var previousElapsedMs: Long? = null
     private var breakBefore = true
 
-    fun start(sessionId: String) {
+    fun reset(sessionId: String? = null) {
         points.clear()
         previousElapsedMs = null
         breakBefore = true

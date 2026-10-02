@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.polarh10activityviewer.*
 import com.example.polarh10activityviewer.ble.*
@@ -44,13 +45,12 @@ class LiveChartCardTest {
     private var retries = 0
     private val paused = mutableStateOf(false)
 
-    @Composable private fun Card(canRetry: Boolean = retryAllowed.value, retry: () -> Unit = { retries++ }) {
+    @Composable private fun Card() {
         val kind by charts.selection.collectAsState()
         LiveChartCard(kind,
             ChartSnapshot(points.value, end.value, if (kind == ChartKind.ELECTROCARDIOGRAM) 5000.0 else 300_000.0, status.value),
             mean.value, maximum.value,
-            checkedDataTypes.associateWith { if (it == PolarDeviceDataType.ECG) ecg.value else SubscriptionState() },
-            readiness.value, canRetry, charts::select, retry, paused.value)
+            readiness.value, charts::select, paused.value)
     }
     private fun mount(session: Boolean = false) = compose.setContent {
         val density = LocalDensity.current
@@ -64,7 +64,7 @@ class LiveChartCardTest {
                             onStartScan = {}, onStopScan = {}, connectionState = ConnectionState(),
                             onConnect = {}, savedDevicesState = SavedDevicesState(loading = false),
                             onDisconnect = {}, onRetryDisconnect = {}, dataReadiness = readiness.value,
-                            onRecheckData = {}, charts = { allowed, retry -> Card(allowed, retry) })
+                            onRecheckData = {}, ecgSubscription = ecg.value, charts = { Card() })
                     } else Column(Modifier.padding(padding).verticalScroll(rememberScrollState()).padding(16.dp)) {
                         Text("Controlled UI fixture — no H10 data")
                         Card()
@@ -73,11 +73,11 @@ class LiveChartCardTest {
             }
         }
     }
-    private fun visible(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
-    private fun click(text: String) = compose.onNodeWithText(text).performScrollTo().performClick()
+    private fun visible(text: String) = compose.onNodeWithText(text).reveal().assertIsDisplayed()
+    private fun click(text: String) = compose.onNodeWithText(text).reveal().performClick()
     private fun noOverflow(text: String) {
         val results = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(text).performScrollTo().performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
+        compose.onNodeWithText(text).reveal().performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
             assertTrue(it(results))
         }
         val result = results.single()
@@ -109,22 +109,23 @@ class LiveChartCardTest {
         click("ECG"); visible("µV")
     }
     @Test fun sessionChartKeepsFormalDisplaysInTheMetricsLayout() {
-        mount(session = true); visible("Activity Summary"); visible("HR")
-        compose.onNodeWithTag("live-chart-plot").performScrollTo(); visible("01:00")
+        mount(session = true); visible("Duration"); visible("HR")
+        compose.onNodeWithTag("live-chart-plot").reveal(); visible("01:00")
         compose.onAllNodesWithText("development check", substring = true).assertCountEquals(0)
         compose.onAllNodesWithText("Buffer:", substring = true).assertCountEquals(0)
     }
-    @Test fun plotHeightIs220DpAndAxisIsNotLabeledAsStatistics() {
-        mount(); compose.onNodeWithTag("live-chart-plot").performScrollTo().assertHeightIsEqualTo(220.dp)
+    @Test fun plotHasWideReferenceAspectAndAxisIsNotLabeledAsStatistics() {
+        mount(); val bounds = compose.onNodeWithTag("live-chart-plot").reveal().fetchSemanticsNode().boundsInRoot
+        assertTrue("The normal reference plot should be wider than tall", bounds.width > bounds.height * 2.5f)
         visible("00:00"); visible("00:30"); visible("01:00")
         compose.onAllNodesWithText("Min ", substring = true).assertCountEquals(0)
         compose.onAllNodesWithText("Max 121", substring = true).assertCountEquals(0)
     }
     @Test fun emptyAndGenuineZeroAreDistinct() {
-        points.value = emptyList(); mount(); compose.onNodeWithTag("live-chart-plot").performScrollTo()
-        visible("Waiting for valid data"); visible("No valid chart data in this window")
+        points.value = emptyList(); mount(); compose.onNodeWithTag("live-chart-plot").reveal()
+        visible("Waiting for valid data"); compose.onNodeWithContentDescription("Heart rate line chart: no valid data").assertExists()
         compose.runOnIdle { points.value = listOf(ChartPoint(30_000.0, 0.0, true)) }
-        compose.onNodeWithText("Live").assertDoesNotExist(); compose.onNodeWithTag("live-chart-plot").performScrollTo()
+        compose.onNodeWithText("Live").assertDoesNotExist(); compose.onNodeWithTag("live-chart-plot").reveal()
         compose.onAllNodesWithText("No valid chart data in this window").assertCountEquals(0)
     }
     @Test fun shortWindowCollapsesDuplicateSecondLabels() {
@@ -133,34 +134,39 @@ class LiveChartCardTest {
         compose.runOnIdle { end.value = 1100.0 }
         visible("00:00"); visible("00:01")
     }
-    @Test fun ecgNegativeScaleAndFrozenStatusKeepRecoveryAccessibleFromHr() {
+    @Test fun ecgFailureDetailsRemainReachableWithoutCardRetry() {
         points.value = listOf(ChartPoint(58_000.0, -100.0, true), ChartPoint(59_000.0, 200.0, false))
-        ecg.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled ECG failure. Open Devices and retry.")
-        mount(); visible("ECG: ${ecg.value.error}"); click("Retry ECG"); assertEquals(1, retries)
+        ecg.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled ECG failure.")
+        mount(session = true)
+        compose.onAllNodesWithText("Retry ECG").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Open Devices").performClick()
+        visible("ECG: Controlled ECG failure.")
+        compose.onNodeWithText("Close").performClick()
         click("ECG"); compose.runOnIdle { status.value = SubscriptionStatus.FAILED }
-        visible("Failed · chart frozen"); compose.onNodeWithTag("live-chart-plot").performScrollTo()
-        compose.runOnIdle { retryAllowed.value = false }
-        compose.onNodeWithText("Retry ECG").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Failed · chart frozen").assertDoesNotExist()
+        compose.onNodeWithTag("live-chart-plot").assertIsDisplayed()
     }
+
     @Test fun configurationErrorsRemainAfterRawPanelsAreRemoved() {
         readiness.value = mapOf(PolarDeviceDataType.ACC to DataReadiness(error = "Controlled configuration error."),
             PolarDeviceDataType.ECG to DataReadiness(DataReadinessStatus.READY, configurationComplete = false))
-        mount(); visible("ACC: Controlled configuration error.")
+        mount(session = true); compose.onNodeWithContentDescription("Open Devices").performClick()
+        visible("ACC: Controlled configuration error.")
         visible("Open Devices to confirm ECG configuration before starting.")
     }
     @Test fun wholeSessionStatisticsAndDashedMeanDoNotExpandWindowScale() {
         mean.value = 85.0; maximum.value = 300.0; mount()
         visible("Average HR: 85 bpm"); visible("Max HR: 300 bpm")
-        compose.onNodeWithTag("live-chart-plot").performScrollTo();
+        compose.onNodeWithTag("live-chart-plot").reveal();
         fun meanPixels(): Int {
-            val plot = compose.onNodeWithTag("live-chart-plot").performScrollTo().captureToImage().asAndroidBitmap()
+            val plot = compose.onNodeWithTag("live-chart-plot").reveal().captureToImage().asAndroidBitmap()
             return (0 until plot.width).sumOf { x -> (0 until plot.height).count { y ->
                 plot.getPixel(x, y) == android.graphics.Color.rgb(245, 158, 11)
             } }
         }
         assertTrue(meanPixels() > 100)
         compose.runOnIdle { mean.value = 300.0 }
-        visible("Average HR: 300 bpm"); compose.onNodeWithTag("live-chart-plot").performScrollTo()
+        visible("Average HR: 300 bpm"); compose.onNodeWithTag("live-chart-plot").reveal()
         assertEquals(0, meanPixels())
         compose.runOnIdle { mean.value = null; maximum.value = null }
         visible("Average HR: -- bpm"); visible("Max HR: -- bpm")
@@ -175,7 +181,7 @@ class LiveChartCardTest {
         compose.runOnIdle { points.value = emptyList(); readiness.value = emptyMap() }
         visible("Sampling Rate: --"); visible("Samples: 0")
         compose.runOnIdle { status.value = SubscriptionStatus.STARTING }
-        visible("Samples: --"); visible("Waiting for data")
+        visible("Samples: --"); compose.onNodeWithText("Waiting for data").assertDoesNotExist()
     }
     @Test fun longElapsedLabelsKeepTheirFontAndReduceTickCount() {
         end.value = 14_400_000.0; font.value = 2f; mount()
@@ -187,22 +193,45 @@ class LiveChartCardTest {
         capture("long-running-font2")
     }
     @Test fun idleWaitingAndStoppedStatusesAreNotMisreportedAsLive() {
-        points.value = emptyList(); status.value = SubscriptionStatus.IDLE; mount(); visible("Not started")
-        compose.runOnIdle { status.value = SubscriptionStatus.STARTING }; visible("Waiting for data")
-        compose.runOnIdle { status.value = SubscriptionStatus.RECEIVING }; visible("Waiting for valid data")
-        compose.runOnIdle { status.value = SubscriptionStatus.STOPPING }; visible("Stopping · chart frozen")
-        compose.runOnIdle { status.value = SubscriptionStatus.STOPPED }; visible("Stopped · chart frozen")
-        compose.runOnIdle { paused.value = true }; visible("Paused · chart frozen")
+        points.value = emptyList(); status.value = SubscriptionStatus.IDLE; mount()
+        val cardHeight = compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot().height
+        val plotHeight = compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot().height
+        fun sameSize() {
+            assertEquals(cardHeight, compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot().height)
+            assertEquals(plotHeight, compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot().height)
+        }
+        compose.onNodeWithText("Not started").assertDoesNotExist()
+        compose.onNodeWithText("Live").assertDoesNotExist()
+        compose.runOnIdle { status.value = SubscriptionStatus.STARTING }; visible("Waiting for data"); sameSize()
+        compose.runOnIdle { status.value = SubscriptionStatus.RECEIVING }; visible("Waiting for valid data"); sameSize()
+        compose.runOnIdle { status.value = SubscriptionStatus.STOPPING }; visible("Stopping · chart frozen"); sameSize()
+        compose.runOnIdle { status.value = SubscriptionStatus.STOPPED }; visible("Stopped · chart frozen"); sameSize()
+        compose.runOnIdle { status.value = SubscriptionStatus.FAILED }; visible("Failed · chart frozen"); sameSize()
+        compose.runOnIdle { paused.value = true }; visible("Paused · chart frozen"); sameSize()
         compose.onNodeWithText("Stopped · chart frozen").assertDoesNotExist()
+        for (label in listOf("Motion", "ECG")) {
+            click(label)
+            SubscriptionStatus.entries.forEach { state ->
+                compose.runOnIdle { status.value = state; paused.value = false }
+                sameSize()
+                listOf("Not started", "Waiting for data", "Waiting for valid data", "Stopping · chart frozen",
+                    "Stopped · chart frozen", "Failed · chart frozen").forEach {
+                    compose.onNodeWithText(it).assertDoesNotExist()
+                }
+            }
+            compose.runOnIdle { paused.value = true }
+            sameSize()
+            compose.onNodeWithText("Paused · chart frozen").assertDoesNotExist()
+        }
     }
     @Test fun isolatedNegativeEcgSampleRemainsVisibleWithoutAConnectingLine() {
         mean.value = 0.0 // ECG must never show a session reference line, even if one is supplied.
         points.value = listOf(ChartPoint(58_000.0, -100.0, true)); charts.select(ChartKind.ELECTROCARDIOGRAM)
-        mount(); compose.onNodeWithTag("live-chart-plot").performScrollTo()
-        val plot = compose.onNodeWithTag("live-chart-plot").performScrollTo().captureToImage().asAndroidBitmap()
+        mount(); compose.onNodeWithTag("live-chart-plot").reveal()
+        val plot = compose.onNodeWithTag("live-chart-plot").reveal().captureToImage().asAndroidBitmap()
         var inkCount = 0
         for (x in 0 until plot.width) for (y in 0 until plot.height) {
-            if (plot.getPixel(x, y) == android.graphics.Color.rgb(37, 99, 235)) inkCount++
+            if (plot.getPixel(x, y) == android.graphics.Color.rgb(0, 85, 255)) inkCount++
         }
         assertTrue(inkCount > 0)
         assertTrue("A single sample must not form a line", inkCount < 200)
@@ -215,7 +244,7 @@ class LiveChartCardTest {
                     (if (hasNull) listOf(ChartPoint(30_000.0, null, false)) else emptyList()) +
                     listOf(ChartPoint(45_000.0, 80.0, true), ChartPoint(54_000.0, 80.0, false))
             }
-            val plot = compose.onNodeWithTag("live-chart-plot").performScrollTo().captureToImage().asAndroidBitmap()
+            val plot = compose.onNodeWithTag("live-chart-plot").reveal().captureToImage().asAndroidBitmap()
             fun inkAt(x: Int): Int = (0 until plot.height).count { y -> plot.getPixel(x, y) == android.graphics.Color.rgb(239, 68, 68) }
             assertTrue(inkAt(plot.width / 5) > 0)
             assertEquals(0, inkAt(plot.width / 2))
@@ -240,7 +269,7 @@ class LiveChartCardTest {
             compose.runOnIdle { dark.value = night; mean.value = 85.0; maximum.value = 145.0 }
             visible("HR"); noOverflow("HR")
             noOverflow("bpm")
-            compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-hr")
+            compose.onNodeWithTag("live-chart-plot").reveal(); capture("$prefix-${if(night) "dark" else "light"}-hr")
             noOverflow("Average HR: 85 bpm"); noOverflow("Max HR: 145 bpm")
             click("Motion")
             compose.runOnIdle {
@@ -249,7 +278,7 @@ class LiveChartCardTest {
                     ChartPoint(40_000.0, 120.0, true))
             }
             noOverflow("steps/min"); noOverflow("Mean: 96 steps/min")
-            compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-cadence")
+            compose.onNodeWithTag("live-chart-plot").reveal(); capture("$prefix-${if(night) "dark" else "light"}-cadence")
             click("ECG")
             compose.runOnIdle {
                 points.value = (0 until 650).map { i -> ChartPoint(55_001.0 + i * 7.69, kotlin.math.sin(i / 10.0) * 200, i == 0) }
@@ -260,8 +289,8 @@ class LiveChartCardTest {
                     selected = mapOf(com.polar.sdk.api.model.PolarSensorSetting.SettingType.SAMPLE_RATE to 130)))
             }
             noOverflow("Sampling Rate: 130 Hz"); noOverflow("Samples: 650")
-            noOverflow("ECG: ${ecg.value.error}"); visible("Retry ECG")
-            compose.onNodeWithTag("live-chart-plot").performScrollTo(); capture("$prefix-${if(night) "dark" else "light"}-ecg")
+            compose.onAllNodesWithText("Retry ECG").assertCountEquals(0)
+            compose.onNodeWithTag("live-chart-plot").reveal(); capture("$prefix-${if(night) "dark" else "light"}-ecg")
             click("HR")
             compose.runOnIdle {
                 points.value = listOf(ChartPoint(10_000.0, 80.0, true), ChartPoint(20_000.0, 100.0, false), ChartPoint(40_000.0, 110.0, true))
@@ -269,4 +298,14 @@ class LiveChartCardTest {
             }
         }
     }
+}
+
+
+private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
+    var ancestor = fetchSemanticsNode().parent
+    while (ancestor != null) {
+        if (ancestor.config.contains(SemanticsActions.ScrollBy)) return performScrollTo()
+        ancestor = ancestor.parent
+    }
+    return this
 }

@@ -9,14 +9,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +22,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextAlign
 import com.example.polarh10activityviewer.ble.HeartRateReading
 import com.example.polarh10activityviewer.ble.HeartRateStatistics
 import com.example.polarh10activityviewer.ble.SubscriptionState
@@ -33,45 +36,33 @@ import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
 import com.example.polarh10activityviewer.motion.StepState
-import com.example.polarh10activityviewer.ui.theme.CardCornerRadius
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
-import com.example.polarh10activityviewer.ui.theme.MinimumTouchTarget
-import com.example.polarh10activityviewer.ui.theme.PagePadding
 import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
-import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
-import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
 private fun MetricCard(title: String?, content: @Composable ColumnScope.() -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius)) {
-        Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            title?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-            content()
-        }
-    }
+    SessionCard(title = title, content = content)
 }
 
 @Composable
 private fun MetricValue(value: String, unit: String? = null, heartRate: Boolean = false) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
         verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        Text(value, style = MaterialTheme.typography.titleLarge.copy(
-            fontSize = if (heartRate) 56.sp else 28.sp,
-            lineHeight = if (heartRate) 64.sp else 36.sp,
-            fontWeight = FontWeight.Medium
+        Text(value, modifier = Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge.copy(
+            fontSize = if (heartRate) 38.sp else 24.sp,
+            lineHeight = if (heartRate) 42.sp else 28.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-1).sp
         ))
-        unit?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+        unit?.let { Text(it, Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall.copy(
+            fontSize = if (!heartRate) 11.sp else if (it == "bpm") 18.sp else 14.sp,
+            lineHeight = if (heartRate) 22.sp else 16.sp)) }
     }
-}
-
-@Composable
-private fun SecondaryText(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 private fun decimal(value: Double?): String =
@@ -85,80 +76,75 @@ internal fun HeartRateCard(
     statistics: HeartRateStatistics,
     zones: HeartRateZoneState,
     stopped: Boolean,
-    message: String?,
-    subscription: SubscriptionState,
-    canRetry: Boolean,
-    onRetry: () -> Unit
+    subscription: SubscriptionState
 ) {
     MetricCard(null) {
         val current = zones.current.takeUnless { stopped || reading == null || subscription.status == SubscriptionStatus.FAILED }
-        Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
-                current?.let { Box(Modifier.size(12.dp).background(HeartRateZoneColors[it.ordinal])) }
-                Text(current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--",
-                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            }
-            if (current == null) SecondaryText(when {
-                stopped -> "Stopped"
-                subscription.status == SubscriptionStatus.FAILED -> "HR unavailable"
-                subscription.status == SubscriptionStatus.STARTING -> "Waiting for HR data"
-                else -> "No valid HR data"
-            })
-        }
         MetricColumns(
-            current = { MetricValue(reading?.bpm?.toString() ?: "--", "bpm", heartRate = true) },
+            current = {
+              Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val color = current?.let { HeartRateZoneColors[it.ordinal] } ?: MaterialTheme.colorScheme.outline
+                Surface(shape = RoundedCornerShape(6.dp), border = BorderStroke(1.dp, color), color = color.copy(alpha = 0.10f)) {
+                    Row(Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        current?.let { Box(Modifier.size(9.dp).background(color, CircleShape)) }
+                        Text(current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: when {
+                            stopped -> "Stopped"
+                            subscription.status == SubscriptionStatus.FAILED -> "HR unavailable"
+                            subscription.status == SubscriptionStatus.STARTING -> "Waiting for HR"
+                            else -> "No valid HR"
+                        },
+                            style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                    }
+                }
+                MetricValue(reading?.bpm?.toString() ?: "--", "bpm", heartRate = true)
+              }
+            },
             statistics = {
-                SecondaryText("Max HR: ${statistics.max ?: "--"} bpm")
-                SecondaryText("Mean HR: ${cadence(statistics.average)} bpm")
+                SessionStatistic("Max HR", "${statistics.max ?: "--"} bpm", Modifier.fillMaxWidth(), TextAlign.Center)
+                SessionStatistic("Mean HR", "${cadence(statistics.average)} bpm", Modifier.fillMaxWidth(), TextAlign.Center)
             }
         )
         val receivedAt = reading?.let {
-            DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH)
+            SimpleDateFormat("HH:mm, dd.MM.yyyy", Locale.ENGLISH)
                 .format(Date(it.receivedAt))
         } ?: "--"
-        SecondaryText("Last received (phone): $receivedAt")
-        message?.let { Text(it) }
-        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        StreamRetryButton(PolarDeviceDataType.HR, subscription, canRetry, onRetry)
+        Text("Last Received: $receivedAt", Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
-internal fun MotionCard(steps: StepState, subscription: SubscriptionState, canRetry: Boolean, onRetry: () -> Unit,
-    paused: Boolean = false) {
-    MetricCard("Cadence") {
+internal fun MotionCard(steps: StepState, paused: Boolean = false) {
+    MetricCard(null) {
         MetricColumns(
-            current = { MetricValue(if (paused) "--" else cadence(steps.cadence), "steps/min", heartRate = true) },
+            current = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Cadence", Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium)
+                    MetricValue(if (paused) "--" else cadence(steps.cadence), "steps/min", heartRate = true)
+                }
+            },
             statistics = {
-                SecondaryText("Mean cadence: ${cadence(steps.meanCadence)} steps/min")
-                SecondaryText("Max cadence: ${cadence(steps.maximumCadence)} steps/min")
+                SessionStatistic("Mean", "${cadence(steps.meanCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
+                SessionStatistic("Max", "${cadence(steps.maximumCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
             }
         )
-        if (!steps.receivedAcc) SecondaryText("No ACC observations. Statistics are unavailable.")
-        else {
-            if (steps.durationMs == 0L) SecondaryText("Mean cadence needs a positive Running duration.")
-        }
-        if (paused) Text("Paused")
-        else if (steps.message != "Detecting steps.") Text(steps.message)
-        if (steps.incompleteAcc) SecondaryText(
-            "Incomplete ACC data. Mean cadence may be lower."
-        )
-        subscription.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        StreamRetryButton(PolarDeviceDataType.ACC, subscription, canRetry, onRetry)
     }
 }
 
 @Composable
 private fun MetricColumns(current: @Composable () -> Unit, statistics: @Composable ColumnScope.() -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < 320.dp * LocalDensity.current.fontScale) {
+        if (maxWidth < 290.dp * LocalDensity.current.fontScale) {
             Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
                 current()
                 Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing), content = statistics)
             }
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { current() }
+                VerticalDivider(Modifier.fillMaxHeight().padding(vertical = 8.dp), color = sessionBorder())
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(ContentSpacing), content = statistics)
             }
         }
@@ -167,35 +153,32 @@ private fun MetricColumns(current: @Composable () -> Unit, statistics: @Composab
 
 @Composable
 internal fun ActivitySummaryCard(session: SessionState, steps: StepState) {
-    MetricCard("Activity Summary") {
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
-            verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            val minimumWidth = 140.dp * LocalDensity.current.fontScale
-            SummaryMetric("Duration", formatZoneDuration(session.elapsedMs),
-                Modifier.weight(1f).widthIn(min = minimumWidth))
-            SummaryMetric("Total steps", steps.totalSteps?.toString() ?: "--",
-                Modifier.weight(1f).widthIn(min = minimumWidth))
-            SummaryMetric("Estimated distance", decimal(steps.distance),
-                Modifier.weight(1f).widthIn(min = minimumWidth), "m")
+    MetricCard(null) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth >= 280.dp * LocalDensity.current.fontScale) {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SummaryMetric("Duration", formatZoneDuration(session.elapsedMs), Modifier.weight(1f).fillMaxHeight())
+                    SummaryMetric("Total Steps", steps.totalSteps?.toString() ?: "--", Modifier.weight(1f).fillMaxHeight())
+                    SummaryMetric("Estimated Distance", decimal(steps.distance), Modifier.weight(1f).fillMaxHeight(), "m")
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SummaryMetric("Duration", formatZoneDuration(session.elapsedMs), Modifier.fillMaxWidth())
+                    SummaryMetric("Total Steps", steps.totalSteps?.toString() ?: "--", Modifier.fillMaxWidth())
+                    SummaryMetric("Estimated Distance", decimal(steps.distance), Modifier.fillMaxWidth(), "m")
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun SummaryMetric(label: String, value: String, modifier: Modifier, unit: String? = null) {
-    OutlinedCard(modifier, shape = RoundedCornerShape(CardCornerRadius)) {
-        Column(Modifier.padding(ControlSpacing), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            Text(label)
+    Surface(modifier, shape = RoundedCornerShape(SessionCorner), border = BorderStroke(1.dp, sessionBorder())) {
+        Column(Modifier.padding(horizontal = 4.dp, vertical = 5.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
             MetricValue(value, unit)
-        }
-    }
-}
-
-@Composable
-internal fun StreamRetryButton(type: PolarDeviceDataType, subscription: SubscriptionState, canRetry: Boolean, onRetry: () -> Unit) {
-    if (subscription.status in setOf(SubscriptionStatus.IDLE, SubscriptionStatus.FAILED, SubscriptionStatus.STOPPED)) {
-        Button(onClick = onRetry, enabled = canRetry, modifier = Modifier.heightIn(min = MinimumTouchTarget)) {
-            Text("Retry $type")
         }
     }
 }

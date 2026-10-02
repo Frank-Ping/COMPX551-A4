@@ -9,14 +9,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,19 +21,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.example.polarh10activityviewer.BluetoothAvailability
 import com.example.polarh10activityviewer.R
 import com.example.polarh10activityviewer.ble.ConnectionState
 import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.ble.connectionStatusText
-import com.example.polarh10activityviewer.ui.theme.CardCornerRadius
-import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
 import com.example.polarh10activityviewer.ui.theme.IconSize
 import com.example.polarh10activityviewer.ui.theme.MinimumTouchTarget
-import com.example.polarh10activityviewer.ui.theme.PagePadding
 
 @Composable
 internal fun SessionHeader(
@@ -48,22 +51,22 @@ internal fun SessionHeader(
     accSubscription: SubscriptionState = SubscriptionState(),
     ecgSubscription: SubscriptionState = SubscriptionState()
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-        OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius)) {
-            BoxWithConstraints(Modifier.fillMaxWidth().padding(PagePadding)) {
-                if (maxWidth < 560.dp * LocalDensity.current.fontScale) {
+    SessionCard {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                if (maxWidth < 300.dp * LocalDensity.current.fontScale) {
                     Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
                         ConnectionDetails(availability, connection, batteryLevel, onOpenDevices)
                         StreamStates(hrSubscription, accSubscription, ecgSubscription)
                     }
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-                        Box(Modifier.weight(1f)) { ConnectionDetails(availability, connection, batteryLevel, onOpenDevices) }
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1.1f)) { ConnectionDetails(availability, connection, batteryLevel, onOpenDevices) }
+                        VerticalDivider(Modifier.fillMaxHeight(), color = sessionBorder())
                         Box(Modifier.weight(1f)) { StreamStates(hrSubscription, accSubscription, ecgSubscription) }
                     }
                 }
             }
-        }
     }
 }
 
@@ -76,25 +79,32 @@ private fun ConnectionDetails(
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).heightIn(min = MinimumTouchTarget).clickable(onClick = onOpenDevices),
-            horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
+            horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).background(sessionBlue(), CircleShape), contentAlignment = Alignment.Center) {
                 Icon(painterResource(R.drawable.ic_bluetooth), contentDescription = "Devices",
-                    modifier = Modifier.size(IconSize), tint = MaterialTheme.colorScheme.primary)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                    Text(connectionStatusText(availability, connection), style = MaterialTheme.typography.titleMedium)
+                    modifier = Modifier.size(24.dp), tint = androidx.compose.ui.graphics.Color.White)
+                }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(connectionStatusText(availability, connection), style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold)
                     Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}", style = MaterialTheme.typography.bodySmall)
                 }
         }
         IconButton(onClick = onOpenDevices, modifier = Modifier.size(MinimumTouchTarget)) {
+            Box(Modifier.size(32.dp).background(sessionBlue().copy(alpha = 0.07f), CircleShape),
+                contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_devices), contentDescription = "Open Devices",
-                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize))
+                tint = sessionBlue(), modifier = Modifier.size(IconSize))
+            }
         }
     }
 }
 
 @Composable
 private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: SubscriptionState) {
-    Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        Text("Data streams", style = MaterialTheme.typography.titleMedium)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         // Each state comes from its subscription, not data readiness.
         listOf("HR" to hr, "ACC" to acc, "ECG" to ecg).forEach { (label, stream) ->
             val color = when (stream.status) {
@@ -103,11 +113,15 @@ private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: Sub
                 SubscriptionStatus.FAILED -> MaterialTheme.colorScheme.error
                 SubscriptionStatus.IDLE, SubscriptionStatus.STOPPED -> MaterialTheme.colorScheme.outline
             }
-            Row(verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-                Box(Modifier.size(12.dp).background(color, CircleShape))
-                Text("$label: ${stream.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {
+                contentDescription = "$label: ${stream.status.name.lowercase().replaceFirstChar { it.uppercase() }}"
+                stateDescription = stream.status.name.lowercase()
+            }, horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Box(Modifier.size(13.dp).background(color, CircleShape))
+                Text(label, Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.bodySmall)
             }
+        }
         }
     }
 }

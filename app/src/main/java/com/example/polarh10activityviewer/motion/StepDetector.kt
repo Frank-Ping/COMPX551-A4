@@ -74,7 +74,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         minimumCadence = null
         maximumSpeed = null
         incompleteAcc = false
-        mutableState.value = StepState(message = "Waiting for ACC.")
+        mutableState.value = StepState()
     }
 
     fun onSubscriptionState(status: SubscriptionStatus, error: String? = null) {

@@ -158,9 +158,10 @@ class PolarBleManager(context: Context) {
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
-            hrHistory.start(session.state.value.record!!.id)
-            motionHistory.start(session.state.value.record!!.id)
+            hrHistory.reset(session.state.value.record?.id)
+            motionHistory.reset(session.state.value.record?.id)
             liveCharts.reset()
+            if (session.state.value.status == SessionStatus.IDLE) liveCharts.select(ChartKind.HEART_RATE)
             heartRateZones.reset()
             latestHeartRate.reset()
             previousHrArrival = null
@@ -214,7 +215,7 @@ class PolarBleManager(context: Context) {
     }
 
     @MainThread
-    fun stopSession() = session.stop("Stopped by user.", interrupted = false)
+    fun stopSession() = session.stop("Stopped by user.", interrupted = false, reset = true)
 
     @MainThread
     fun pauseSession() = session.pause()

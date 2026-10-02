@@ -1,5 +1,6 @@
 package com.example.polarh10activityviewer.session
 
+import androidx.compose.ui.semantics.SemanticsActions
 import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -11,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -125,8 +127,8 @@ class SessionHeaderTest {
         if (restoration == null) compose.setContent { Fixture() }
         else restoration.setContent { Fixture() }
     }
-    private fun open() = compose.onNodeWithContentDescription("Devices").performScrollTo().performClick()
-    private fun click(text: String) = compose.onNodeWithText(text).performScrollTo().performClick()
+    private fun open() = compose.onNodeWithContentDescription("Devices").reveal().performClick()
+    private fun click(text: String) = compose.onNodeWithText(text).reveal().performClick()
     private fun screenshot(name: String, dialog: Boolean = false) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(context.getExternalFilesDir(null), "step81-controlled-visual").apply { mkdirs() }
@@ -152,7 +154,7 @@ class SessionHeaderTest {
         mount(); open(); compose.onNodeWithText("Close").performClick()
         assertEquals(1, scansStopped); assertEquals(listOf(nearby), scan.value.devices)
         open()
-        compose.onNodeWithText(nearby.name).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(nearby.name).reveal().assertIsDisplayed()
         compose.onNodeWithText("Close").performClick()
         assertEquals(1, scansStopped); assertEquals(0, scansStarted); assertEquals(0, stops)
     }
@@ -219,7 +221,7 @@ class SessionHeaderTest {
         mount(); open(); click("Controlled saved fixture")
         assertEquals("SAVED123", connectedId)
         compose.onNodeWithText("Controlled saved fixture").assertIsNotEnabled()
-        compose.onNodeWithText("Start scan").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithText("Start scan").reveal().assertIsNotEnabled()
         compose.onNodeWithText("Close").performClick()
         compose.onNodeWithText("Connecting").assertIsDisplayed()
         assertEquals(0, stops); assertEquals(0, disconnects)
@@ -231,7 +233,7 @@ class SessionHeaderTest {
             DataReadinessStatus.READY, available = mapOf(SettingType.SAMPLE_RATE to setOf(50)),
             error = "ACC disabled: 100 Hz is unavailable. No alternative rate selected."))
         mount(); open()
-        compose.onNodeWithText("Sample rate (Hz): 50").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Sample rate (Hz): 50").reveal().assertIsDisplayed()
         click("Recheck data readiness"); assertEquals(1, rechecks)
         compose.runOnIdle { acc.value = SubscriptionState(SubscriptionStatus.STARTING) }
         compose.onNodeWithText("Recheck data readiness").assertIsNotEnabled()
@@ -252,20 +254,22 @@ class SessionHeaderTest {
         mount()
         HeartRateZone.entries.forEach { zone ->
             compose.runOnIdle { zones.value = zones.value.copy(current = zone) }
-            compose.onNodeWithText("${zone.label} · Zone ${zone.ordinal + 1}").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("${zone.label} · Zone ${zone.ordinal + 1}").reveal().assertIsDisplayed()
         }
         compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(0)
         compose.runOnIdle { zones.value = zones.value.copy(current = null); message.value = "No skin contact." }
-        compose.onNodeWithText("No skin contact.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open Devices").performClick()
+        compose.onNodeWithText("No skin contact.").reveal().assertIsDisplayed()
+        compose.onNodeWithText("Close").performClick()
         compose.runOnIdle { hr.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled HR failure") }
-        compose.onNodeWithText("HR unavailable").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("HR unavailable").reveal().assertIsDisplayed()
         compose.runOnIdle {
             zones.value = zones.value.copy(current = HeartRateZone.MODERATE)
             hr.value = SubscriptionState(SubscriptionStatus.RECEIVING); message.value = null
         }
-        compose.onNodeWithText("Moderate · Zone 3").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Moderate · Zone 3").reveal().assertIsDisplayed()
         compose.runOnIdle { session.value = session.value.copy(status = SessionStatus.STOPPED) }
-        compose.onNodeWithText("Stopped").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Stopped").reveal().assertIsDisplayed()
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
         assertEquals(List(5) { 2_000L }, zones.value.durationsMs)
     }
@@ -280,14 +284,24 @@ class SessionHeaderTest {
         listOf(false, true).forEach { night ->
             compose.runOnIdle { dark.value = night }
             val prefix = if (night) "controlled-dark-font2" else "controlled-light-font2"
-            compose.onNodeWithText("Moderate · Zone 3").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Moderate · Zone 3").reveal().assertIsDisplayed()
             screenshot("$prefix-header")
             open()
             compose.onNodeWithText("Close").assertIsDisplayed()
-            compose.onNodeWithText(connection.value.device!!.name).performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText(connection.value.device!!.name).reveal().assertIsDisplayed()
             screenshot("$prefix-device", dialog = true)
             compose.onNodeWithText("Close").performClick()
         }
         assertEquals(0, disconnects); assertEquals(0, stops)
     }
+}
+
+
+private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
+    var ancestor = fetchSemanticsNode().parent
+    while (ancestor != null) {
+        if (ancestor.config.contains(SemanticsActions.ScrollBy)) return performScrollTo()
+        ancestor = ancestor.parent
+    }
+    return this
 }

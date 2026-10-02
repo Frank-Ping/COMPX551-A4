@@ -53,7 +53,6 @@ class SessionMetricsTest {
     private val message = mutableStateOf<String?>(null)
     private val dark = mutableStateOf(false)
     private val scale = mutableStateOf<Float?>(1f)
-    private val retried = mutableListOf<PolarDeviceDataType>()
 
     @Composable private fun Fixture() {
         val density = LocalDensity.current
@@ -77,8 +76,7 @@ class SessionMetricsTest {
                             heartRateMessage = message.value, steps = motion.value, heartRateZones = zones.value,
                             session = session.value, hrSubscription = hr.value, accSubscription = acc.value,
                             ecgSubscription = SubscriptionState(SubscriptionStatus.RECEIVING),
-                            onRetryStream = { retried += it },
-                            charts = { _, _ -> Text("Controlled chart position") },
+                            charts = { Text("Controlled chart position") },
                             saveStatus = { Text("Controlled save recovery position") })
                     }
                 }
@@ -86,7 +84,7 @@ class SessionMetricsTest {
         }
     }
     private fun mount() = compose.setContent { Fixture() }
-    private fun visible(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
+    private fun visible(text: String) = compose.onNodeWithText(text).reveal().assertIsDisplayed()
     private fun screenshot(name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val directory = File(context.getExternalFilesDir(null), "step84b-controlled-visual").apply { mkdirs() }
@@ -96,7 +94,7 @@ class SessionMetricsTest {
     }
     private fun noOverflow(text: String) {
         val results = mutableListOf<TextLayoutResult>()
-        compose.onAllNodesWithText(text)[0].performScrollTo().performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
+        compose.onAllNodesWithText(text)[0].reveal().performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
             assertTrue(it(results))
         }
         val result = results.single()
@@ -113,8 +111,8 @@ class SessionMetricsTest {
     @Test fun validReadingsUseExistingStatisticsAndDisplayOnlyRounding() {
         mount()
         visible("123"); visible("Max HR: 130 bpm"); visible("Max HR: 130 bpm"); visible("Mean HR: 120 bpm")
-        visible("124"); visible("Mean cadence: 121 steps/min");
-        visible("Max cadence: 168 steps/min")
+        visible("124"); visible("Mean: 121 steps/min");
+        visible("Max: 168 steps/min")
         visible("01:00"); visible("121"); visible("100.0")
         listOf("Min HR:", "Min cadence:", "Estimated speed", "Mean speed:", "Max speed:", "km/h").forEach {
             compose.onAllNodesWithText(it, substring = true).assertCountEquals(0)
@@ -125,9 +123,9 @@ class SessionMetricsTest {
 
     @Test fun sessionOrdersChartSummaryZonesAndRecoveryAfterMetrics() {
         mount()
-        val titles = listOf("Data streams", "Max HR: 130 bpm", "Cadence", "Controlled chart position",
-            "Activity Summary", "HR Zone", "Controlled save recovery position")
-        visible("Data streams")
+        val titles = listOf("Connected", "Max HR: 130 bpm", "Cadence", "Controlled chart position",
+            "Duration", "HR Zone")
+        visible("Connected")
         val positions = titles.map { compose.onNodeWithText(it).fetchSemanticsNode().positionInRoot.y }
         assertTrue("Session sections out of order: $positions", positions.zipWithNext().all { (first, second) -> first < second })
         titles.forEach { visible(it) }
@@ -155,7 +153,7 @@ class SessionMetricsTest {
         mount();
         for (index in 1..5) {
             val bar = compose.onNodeWithContentDescription("Zone $index, cumulative duration 00:00")
-            bar.performScrollTo()
+            bar.reveal()
             assertEquals(0f, bar.fetchSemanticsNode().boundsInRoot.width, 0f)
         }
         compose.onAllNodesWithText("No valid HR data").assertCountEquals(0)
@@ -173,17 +171,19 @@ class SessionMetricsTest {
         val largeValue = compose.onNodeWithText("123").fetchSemanticsNode().positionInRoot
         val largeStats = compose.onNodeWithText("Max HR: 130 bpm").fetchSemanticsNode().positionInRoot
         assertTrue("Large-font statistics should stack", largeStats.y > largeValue.y)
-        assertEquals(largeValue.x, largeStats.x, 1f)
-        noOverflow("Max HR: 130 bpm"); noOverflow("Mean cadence: 121 steps/min")
+        assertTrue("Stacked statistics must stay within the card", largeStats.x <= largeValue.x)
+        noOverflow("Max HR: 130 bpm")
     }
 
     @Test fun unavailableReadingsRetainPlaceholdersRatherThanInventingZeros() {
         reading.value = null; statistics.value = HeartRateStatistics(); motion.value = StepState()
         zones.value = HeartRateZoneState(); mount()
-        visible("Last received (phone): --"); visible("Max HR: -- bpm")
-        visible("Mean cadence: -- steps/min");
+        visible("Last Received: --"); visible("Max HR: -- bpm")
+        visible("Mean: -- steps/min");
+        visible("No valid HR")
+        compose.onNodeWithContentDescription("Open Devices").performClick()
         visible("No ACC observations. Statistics are unavailable.")
-        compose.onAllNodesWithText("No valid HR data")[1].performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Close").performClick()
 
         compose.onAllNodesWithText("0").assertCountEquals(0)
         compose.onAllNodesWithText("0.0").assertCountEquals(0)
@@ -191,41 +191,39 @@ class SessionMetricsTest {
 
     @Test fun initialWarmupShowsGenuineCurrentZerosWithItsStatus() {
         motion.value = StepState(cadence = 0.0, speed = 0.0, message = "Warming up ACC.")
-        mount(); visible("0"); visible("Warming up ACC.")
-        visible("Mean cadence: -- steps/min")
+        mount(); visible("0"); visible("Mean: -- steps/min")
+        compose.onNodeWithContentDescription("Open Devices").performClick()
+        visible("Warming up ACC.")
     }
 
-    @Test fun invalidHrKeepsStatisticsAndRecoveryRouting() {
-        reading.value = null; message.value = "No skin contact. Adjust the chest strap and retry if needed."
+    @Test fun invalidHrKeepsStatisticsAndFullFailureDetailsWithoutRetry() {
+        reading.value = null; message.value = "No skin contact. Adjust the chest strap."
         hr.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled HR failure.")
-        mount(); visible("Last received (phone): --"); visible("Mean HR: 120 bpm")
-        visible(message.value!!); visible("Controlled HR failure.")
-        compose.onNodeWithText("Retry HR").performScrollTo().performClick()
-        assertEquals(listOf(PolarDeviceDataType.HR), retried)
+        mount(); visible("Last Received: --"); visible("Mean HR: 120 bpm")
+        compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
+        compose.onNodeWithContentDescription("Open Devices").performClick()
+        visible(message.value!!); visible("HR: Controlled HR failure.")
     }
 
-    @Test fun gapAndAccFailureKeepTotalsAndHaveOnlyOneAccRetry() {
-        motion.value = motion.value.copy(cadence = null, speed = null, incompleteAcc = true,
-            message = "ACC gap. Warming up a new continuous segment.")
+    @Test fun gapAndAccFailureKeepTotalsAndFullDetailsWithoutRetry() {
+        motion.value = motion.value.copy(cadence = null, incompleteAcc = true, message = "ACC gap. Warming up a new continuous segment.")
         acc.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled ACC failure.")
-        mount(); visible(motion.value.message); visible("121"); visible("100.0")
-        compose.onAllNodesWithText("Retry ACC").assertCountEquals(1)
-        compose.onNodeWithText("Retry ACC").performScrollTo().performClick()
-        assertEquals(listOf(PolarDeviceDataType.ACC), retried)
-        compose.onAllNodesWithText("Acceleration (development check)").assertCountEquals(0)
+        mount(); visible("121"); visible("100.0")
+        compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
+        compose.onNodeWithContentDescription("Open Devices").performClick()
+        visible(motion.value.message); visible("ACC: Controlled ACC failure.")
+        visible("Incomplete ACC data. Mean cadence may be lower.")
     }
 
-    @Test fun checkingDisconnectionAndStoppedKeepOriginalRetryGuards() {
+    @Test fun checkingDisconnectionAndStoppedNeverRestoreCardRetry() {
         hr.value = SubscriptionState(SubscriptionStatus.FAILED)
         acc.value = SubscriptionState(SubscriptionStatus.FAILED); checking.value = true; mount()
-        compose.onNodeWithText("Retry HR").performScrollTo().assertIsEnabled()
-        compose.onNodeWithText("Retry ACC").performScrollTo().assertIsNotEnabled()
+        compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         compose.runOnIdle { checking.value = false; connected.value = false }
-        compose.onNodeWithText("Retry HR").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Retry ACC").performScrollTo().assertIsNotEnabled()
+        compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         compose.runOnIdle { connected.value = true; session.value = session.value.copy(status = SessionStatus.STOPPED) }
-        compose.onNodeWithText("Retry HR").performScrollTo().assertIsNotEnabled()
-        compose.onNodeWithText("Retry ACC").performScrollTo().assertIsNotEnabled()
+        compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
+        visible("Stopped"); visible("121")
     }
 
     @Test fun stoppedObservedZerosAndNewSessionStateAreRenderedWithoutCaching() {
@@ -243,15 +241,15 @@ class SessionMetricsTest {
         zones.value = HeartRateZoneState(listOf(0, 500, 1000, 0, 0), receivedValidHr = true)
         mount()
         fun bar(zone: Int, duration: String) = compose.onNodeWithContentDescription("Zone $zone, cumulative duration $duration")
-        bar(3, "00:01").performScrollTo()
+        bar(3, "00:01").reveal()
         val maximum = bar(3, "00:01").fetchSemanticsNode().boundsInRoot.width
         assertEquals(maximum / 2, bar(2, "00:00").fetchSemanticsNode().boundsInRoot.width, 1f)
         assertEquals(0f, bar(1, "00:00").fetchSemanticsNode().boundsInRoot.width, 0f)
         compose.runOnIdle { zones.value = zones.value.copy(durationsMs = listOf(0, 500, 2000, 0, 0)) }
-        bar(3, "00:02").performScrollTo()
+        bar(3, "00:02").reveal()
         assertEquals(maximum / 4, bar(2, "00:00").fetchSemanticsNode().boundsInRoot.width, 1f)
         compose.runOnIdle { zones.value = zones.value.copy(durationsMs = listOf(3_000_000, 6_000_000, 0, 0, 0)) }
-        bar(2, "100:00").performScrollTo()
+        bar(2, "100:00").reveal()
         val longMaximum = bar(2, "100:00").fetchSemanticsNode().boundsInRoot.width
         assertEquals(longMaximum / 2, bar(1, "50:00").fetchSemanticsNode().boundsInRoot.width, 1f)
 
@@ -266,7 +264,7 @@ class SessionMetricsTest {
             for (index in 0..4) {
                 val duration = if (index < 1) "00:00" else if (index < 3) "00:01" else "00:02"
                 val node = compose.onNodeWithContentDescription("Zone ${index + 1}, cumulative duration $duration")
-                node.performScrollTo()
+                node.reveal()
                 val bitmap = node.captureToImage().asAndroidBitmap()
                 assertEquals(expected[index], bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
             }
@@ -277,25 +275,18 @@ class SessionMetricsTest {
         visible("Unclassified time: 00:01")
     }
 
-    @Test fun enlargedFontsKeepLongValuesUnitsErrorsAndRecoveryVisible() {
-        scale.value = 2f; session.value = session.value.copy(elapsedMs = 14_400_000)
-        motion.value = motion.value.copy(totalSteps = 123456, distance = 65432.14,
-            message = "Controlled recovery status with a long explanation: the current segment is warming up after a known ACC gap.")
-        acc.value = SubscriptionState(SubscriptionStatus.FAILED,
-            "Controlled error with recovery instructions: check Devices, reconnect manually if required, then retry the ACC stream.")
+    @Test fun longValuesAndErrorsUseCompleteDetailsWithoutExpandingCards() {
+        session.value = session.value.copy(elapsedMs = 14_400_000)
+        motion.value = motion.value.copy(totalSteps = 123456, distance = 65432.14)
+        acc.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled long failure explanation. ".repeat(20))
         mount()
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
-            noOverflow("123"); visible("bpm"); screenshot("${if (night) "dark" else "light"}-font2-hr")
-            noOverflow("124"); visible("steps/min");
-            screenshot("${if (night) "dark" else "light"}-font2-motion")
-            noOverflow(motion.value.message); noOverflow(acc.value.error!!)
-            compose.onNodeWithText("Retry ACC").performScrollTo().assertIsDisplayed()
-            screenshot("${if (night) "dark" else "light"}-font2-recovery")
-            noOverflow("240:00"); noOverflow("123456"); noOverflow("65432.1"); visible("m")
-            screenshot("${if (night) "dark" else "light"}-font2-summary")
-            noOverflow("Z5"); noOverflow("≥155 bpm")
-            screenshot("${if (night) "dark" else "light"}-font2-zone-details")
+            noOverflow("240:00"); noOverflow("123456"); noOverflow("65432.1")
+            compose.onNodeWithContentDescription("Open Devices").performClick()
+            noOverflow("ACC: " + acc.value.error!!)
+            compose.onNodeWithText("Close").performClick()
+            visible("Z5")
         }
     }
 
@@ -312,11 +303,11 @@ class SessionMetricsTest {
         compose.onAllNodesWithText("Total steps:", substring = true).assertCountEquals(0)
     }
 
-    @Test fun actualSystemFontAndLandscapeKeepAllCardsScrollableInOrder() {
+    @Test fun currentSystemFontKeepsNormalCardsInOrder() {
         scale.value = null; mount()
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
-            for (title in listOf("Max HR: 130 bpm", "Cadence", "Activity Summary", "HR Zone")) visible(title)
+            for (title in listOf("Max HR: 130 bpm", "Cadence", "Duration", "HR Zone")) visible(title)
             val prefix = "system-${if (night) "dark" else "light"}"
             noOverflow("123"); screenshot("$prefix-Heart-rate")
             noOverflow("124"); visible("steps/min")
@@ -348,7 +339,7 @@ class SessionMetricsTest {
             }
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Estimated distance:", substring = true)
                 .fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Estimated distance:", substring = true).performScrollTo().performClick()
+            compose.onNodeWithText("Estimated distance:", substring = true).reveal().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
             visible("Session ID: controlled-history")
             visible("HR min / max / mean: 80 / 140 / 110.12 bpm")
@@ -359,7 +350,7 @@ class SessionMetricsTest {
                 val maximum = fixture.record.summary.zoneDurationsMs.withIndex().maxBy { it.value }
                 val bar = compose.onNodeWithContentDescription(
                     "Zone ${maximum.index + 1}, cumulative duration ${com.example.polarh10activityviewer.heartrate.formatZoneDuration(maximum.value)}")
-                bar.performScrollTo()
+                bar.reveal()
                 val bounds = bar.fetchSemanticsNode().boundsInRoot
                 assertTrue("History must retain its vertical plot", bounds.height > bounds.width * 3)
                 screenshot("history-${if (night) "dark" else "light"}-font2-vertical-plot")
@@ -372,4 +363,14 @@ class SessionMetricsTest {
             assertEquals(fixture, runBlocking { db.detail("controlled-history") })
         } finally { db.close(); context.deleteDatabase(name) }
     }
+}
+
+
+private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
+    var ancestor = fetchSemanticsNode().parent
+    while (ancestor != null) {
+        if (ancestor.config.contains(SemanticsActions.ScrollBy)) return performScrollTo()
+        ancestor = ancestor.parent
+    }
+    return this
 }

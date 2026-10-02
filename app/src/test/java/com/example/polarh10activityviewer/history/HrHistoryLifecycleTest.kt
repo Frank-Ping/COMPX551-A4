@@ -55,7 +55,7 @@ class HrHistoryLifecycleTest {
         }
         init {
             session = SessionController(subscriptions, { now }, {
-                history.start(session.state.value.record!!.id)
+                history.reset(session.state.value.record!!.id)
                 charts.reset(); zones.reset(); hr.reset()
             }, {
                 history.stop()

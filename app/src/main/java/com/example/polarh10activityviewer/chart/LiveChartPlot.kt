@@ -22,10 +22,14 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import com.example.polarh10activityviewer.ui.theme.*
+import com.example.polarh10activityviewer.session.sessionBlue
 import kotlin.math.roundToInt
 
 @Composable
-internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Double?) {
+internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Double?, statusLabel: String?) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val plotHeight = ((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f)
+    Column {
     val scale = chartScale(snapshot.points, kind)
     val valid = snapshot.points.any { it.value != null }
     val mean = if (kind == ChartKind.ELECTROCARDIOGRAM) null else chartMeanInRange(sessionMean, scale, valid)
@@ -37,21 +41,24 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     val labels = if (valid) ticks.map { chartScaleLabel(it, kind) } else listOf("--", "--")
     val gutter = with(density) { (labels.maxOf { measurer.measure(it, style).size.width }).toDp() + ContentSpacing }
     val inset = labels.maxOf { measurer.measure(it, style).size.height } / 2f
-    val ink = if (kind == ChartKind.HEART_RATE) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
+    val ink = if (kind == ChartKind.HEART_RATE) Color(0xFFEF4444) else sessionBlue()
     val axis = MaterialTheme.colorScheme.outline
     val meanInk = if (kind == ChartKind.HEART_RATE) Color(0xFFF59E0B) else ink
-    Text(kind.unit, style = style, color = textColor)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(kind.unit, style = style, color = textColor)
+        statusLabel?.let { Text(it, style = style, color = textColor) }
+    }
     Row(Modifier.fillMaxWidth()) {
-        Box(Modifier.width(gutter).height(LivePlotHeight)) {
+        Box(Modifier.width(gutter).height(plotHeight)) {
             labels.forEachIndexed { index, label ->
                 val fraction = if (valid) ((scale.upper - ticks[index]) / (scale.upper - scale.lower)).toFloat()
                     else index.toFloat()
                 Text(label, Modifier.align(Alignment.TopEnd).padding(end = ContentSpacing)
-                    .offset { IntOffset(0, ((with(density) { LivePlotHeight.toPx() } - 2 * inset) * fraction).roundToInt()) },
+                    .offset { IntOffset(0, ((with(density) { plotHeight.toPx() } - 2 * inset) * fraction).roundToInt()) },
                     style = style, color = textColor)
             }
         }
-        Canvas(Modifier.weight(1f).height(LivePlotHeight).testTag("live-chart-plot")
+        Canvas(Modifier.weight(1f).height(plotHeight).testTag("live-chart-plot")
             .semantics { contentDescription = "${kind.label} line chart${if (valid) "" else ": no valid data"}" }) {
             val span = (snapshot.endMs - snapshot.startMs).coerceAtLeast(1.0)
             fun y(value: Double) = inset + ((size.height - 2 * inset) *
@@ -65,6 +72,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                         Offset(size.width * fraction, size.height - inset))
                 }
                 drawLine(axis, Offset(0f, inset), Offset(0f, size.height - inset))
+                drawLine(axis, Offset(0f, size.height - inset), Offset(size.width, size.height - inset))
                 if (scale.lower <= 0 && scale.upper >= 0) {
                     drawLine(axis, Offset(0f, y(0.0)), Offset(size.width, y(0.0)))
                 }
@@ -85,7 +93,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                         drawPath(fill, ink.copy(alpha = 0.10f))
                     }
                     drawPath(path, ink, style = Stroke(width = (if (kind == ChartKind.ELECTROCARDIOGRAM) 1 else 2).dp.toPx()))
-                    if (kind != ChartKind.ELECTROCARDIOGRAM || segment.size == 1) {
+                    if (segment.size == 1) {
                         segment.forEach { drawCircle(ink, 2.dp.toPx(), position(it)) }
                     }
                 }
@@ -118,5 +126,6 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
             }
         }
     }
-    if (!valid) Text("No valid chart data in this window")
+    }
+    }
 }

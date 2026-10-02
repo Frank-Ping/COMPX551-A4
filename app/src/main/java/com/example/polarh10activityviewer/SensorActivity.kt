@@ -45,16 +45,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
@@ -66,8 +64,8 @@ import com.example.polarh10activityviewer.session.SessionHeader
 import com.example.polarh10activityviewer.session.SessionControls
 import com.example.polarh10activityviewer.session.SessionScaffold
 import com.example.polarh10activityviewer.session.SessionStatusPanel
+import com.example.polarh10activityviewer.session.SessionGap
 import com.example.polarh10activityviewer.session.startDisabledReason
-import com.example.polarh10activityviewer.ui.theme.SectionSpacing
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import kotlinx.coroutines.delay
 
@@ -185,9 +183,8 @@ class SensorActivity : ComponentActivity() {
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
                         disabledReason = disabledReason,
-                        saveStatus = { SavePanel(saveState, bleManager.storage.saves, session.record?.id) },
-                        onRetryStream = ::handleRetryStream,
-                        charts = { canRetry, retry -> LiveChartPanel(bleManager, subscriptionStates, dataReadiness, canRetry, retry) },
+                        saveStatus = { SavePanel(saveState, bleManager.storage.saves, session.record?.id, showRetry = false) },
+                        charts = { LiveChartPanel(bleManager, dataReadiness) },
                     ) }
                 )
             }
@@ -296,12 +293,6 @@ class SensorActivity : ComponentActivity() {
         if (availability == BluetoothAvailability.READY) bleManager.startSession()
     }
 
-    private fun handleRetryStream(type: PolarDeviceDataType) {
-        if (systemRequestPending) return
-        refreshAvailability()
-        if (availability == BluetoothAvailability.READY) bleManager.retryStream(type)
-    }
-
     @SuppressLint("MissingPermission")
     private fun handleBluetoothAction() {
         if (systemRequestPending) return
@@ -370,8 +361,7 @@ internal fun SessionScreen(
     session: SessionState = SessionState(),
     disabledReason: String? = null,
     saveStatus: @Composable () -> Unit = {},
-    onRetryStream: (PolarDeviceDataType) -> Unit = {},
-    charts: @Composable (Boolean, () -> Unit) -> Unit = { _, _ -> }
+    charts: @Composable () -> Unit = {}
 ) {
     var showDevices by rememberSaveable { mutableStateOf(false) }
     val validBattery = batteryLevel.takeIf {
@@ -383,6 +373,27 @@ internal fun SessionScreen(
     }
     val accBusy = accSubscription.status in setOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING)
     val ecgBusy = ecgSubscription.status in setOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING)
+    val notices = buildList {
+        errorMessage?.let { add(it) }
+        heartRateMessage?.let { add(it) }
+        if (!steps.receivedAcc) add("No ACC observations. Statistics are unavailable.")
+        else if (steps.durationMs == 0L) add("Mean cadence needs a positive Running duration.")
+        if (steps.message != "Detecting steps.") add(steps.message)
+        if (steps.incompleteAcc) add("Incomplete ACC data. Mean cadence may be lower.")
+        listOf("HR" to hrSubscription, "ACC" to accSubscription, "ECG" to ecgSubscription).forEach { (name, stream) ->
+            stream.error?.let { add("$name: $it") }
+        }
+        dataReadiness.forEach { (type, state) ->
+            state.error?.let { add("$type: $it") }
+            if (state.status == DataReadinessStatus.READY && !state.configurationComplete && state.error == null)
+                add("Open Devices to confirm $type configuration before starting.")
+        }
+        session.record?.let { record ->
+            if (record.incomplete) add("Incomplete session data. Some streams have missing or failed observations.")
+            if (session.status == SessionStatus.STOPPED && !record.eligibleForSaving)
+                add("No valid observations to save. Connect a device and Start a new session.")
+        }
+    }
     if (showDevices) {
         DevicesDialog(
             availability = availability, actionEnabled = actionEnabled,
@@ -393,12 +404,17 @@ internal fun SessionScreen(
             errorMessage = errorMessage, onBluetoothAction = onBluetoothAction,
             onConnect = onConnect, onDisconnect = onDisconnect, onRetryDisconnect = onRetryDisconnect,
             onStartScan = onStartScan, onStopScan = onStopScan, onRecheck = onRecheckData,
-            onClose = ::closeDevices
+            onClose = ::closeDevices,
+            sessionDetails = {
+                SessionStatusPanel(session, disabledReason)
+                notices.distinct().forEach { Text(it) }
+                saveStatus()
+            }
         )
     }
     Column(
-        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePadding),
-        verticalArrangement = Arrangement.spacedBy(SectionSpacing)
+        modifier = modifier.fillMaxSize().padding(start = PagePadding, end = PagePadding, top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(SessionGap)
     ) {
         SessionHeader(
             availability = availability, connection = connectionState, batteryLevel = validBattery,
@@ -406,39 +422,13 @@ internal fun SessionScreen(
             accSubscription = accSubscription, ecgSubscription = ecgSubscription,
             onOpenDevices = { showDevices = true }
         )
-        val connected = actionEnabled && availability == BluetoothAvailability.READY &&
-            connectionState.status == ConnectionStatus.CONNECTED
-        HeartRateCard(
-            reading = heartRate,
-            statistics = heartRateStatistics,
-            zones = heartRateZones,
-            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED,
-            message = heartRateMessage,
-            subscription = hrSubscription,
-            canRetry = connected && session.ongoing,
-            onRetry = { onRetryStream(PolarDeviceDataType.HR) }
-        )
-        MotionCard(
-            steps = steps, subscription = accSubscription,
-            canRetry = connected && session.ongoing &&
-                dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
-            onRetry = { onRetryStream(PolarDeviceDataType.ACC) },
-            paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING)
-        )
-        charts(connected && session.ongoing &&
-            dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
-            { onRetryStream(PolarDeviceDataType.ECG) })
+        HeartRateCard(heartRate, heartRateStatistics, heartRateZones,
+            stopped = session.status in listOf(SessionStatus.STOPPING, SessionStatus.STOPPED),
+            subscription = hrSubscription)
+        MotionCard(steps, paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING))
+        charts()
         ActivitySummaryCard(session, steps)
-        SessionHeartRateZonePanel(heartRateZones,
-            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED)
-        SessionStatusPanel(session, disabledReason)
-        saveStatus()
-        session.record?.let { record ->
-            if (record.incomplete) Text("Incomplete session data. Some streams have missing or failed observations.")
-            if (session.status == SessionStatus.STOPPED && !record.eligibleForSaving) {
-                Text("No valid observations to save. Connect a device and Start a new session.")
-            }
-        }
+        SessionHeartRateZonePanel(heartRateZones)
     }
 }
 @Preview(showBackground = true)

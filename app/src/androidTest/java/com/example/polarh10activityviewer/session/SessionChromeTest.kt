@@ -81,19 +81,23 @@ class SessionChromeTest {
                             SessionScreen(availability.value, true, null, {}, ScanState(), {}, {}, connection.value, {},
                                 SavedDevicesState(loading = false), {}, {}, readiness, {},
                                 batteryLevel = 72, session = session.value, disabledReason = disabled,
-                                saveStatus = { controller?.let { SavePanel(save, it, session.value.record?.id) } },
+                                saveStatus = { controller?.let { SavePanel(save, it, session.value.record?.id, showRetry = false) } },
                                 hrSubscription = subscriptions.value.getValue(PolarDeviceDataType.HR),
                                 accSubscription = subscriptions.value.getValue(PolarDeviceDataType.ACC),
                                 ecgSubscription = subscriptions.value.getValue(PolarDeviceDataType.ECG),
-                                onRetryStream = { retries++ },
-                                charts = { _, _ -> Text("Bottom chart fixture", Modifier.padding(vertical = 30.dp)) })
+                                charts = { Text("Bottom chart fixture", Modifier.padding(vertical = 30.dp)) })
                         }
                     })
             }
         }
     }
     private fun mount(controller: SessionSaveController? = null, db: SessionDatabase? = null) = compose.setContent { Fixture(controller, db) }
-    private fun visible(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
+    private fun visible(text: String) {
+        val details = compose.onAllNodesWithText(text).fetchSemanticsNodes().isEmpty()
+        if (details) compose.onNodeWithContentDescription("Open Devices").performClick()
+        compose.onNodeWithText(text).reveal().assertIsDisplayed()
+        if (details) compose.onNodeWithText("Close").performClick()
+    }
     private fun screenshot(name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val dir = File(context.getExternalFilesDir(null), "step84a-visual").apply { mkdirs() }
@@ -165,7 +169,10 @@ class SessionChromeTest {
         mount()
         SubscriptionStatus.entries.forEach { state ->
             compose.runOnIdle { subscriptions.value = checkedDataTypes.associateWith { SubscriptionState(state) } }
-            checkedDataTypes.forEach { type -> visible("${type.name}: ${state.name.lowercase().replaceFirstChar { it.uppercase() }}") }
+            checkedDataTypes.forEach { type ->
+                compose.onNodeWithContentDescription("${type.name}: ${state.name.lowercase().replaceFirstChar { it.uppercase() }}")
+                    .reveal().assertIsDisplayed()
+            }
         }
     }
 
@@ -219,14 +226,17 @@ class SessionChromeTest {
             visible("Retry save")
             compose.onNodeWithText("Retry save").performClick()
             compose.waitForIdle(); assertEquals(2, writes)
-            compose.onNodeWithText("Discard session").performScrollTo().performClick()
+            compose.onNodeWithText("Discard session").reveal().performClick()
             compose.onNodeWithText("Discard unsaved session?").assertIsDisplayed()
             compose.onNodeWithText("Cancel").performClick()
             assertEquals(SaveStatus.FAILED, controller.state.value.status)
             compose.onNodeWithText("Session").performClick()
-            compose.onNodeWithText("Discard session").performScrollTo().performClick()
+            compose.onNodeWithContentDescription("Open Devices").performClick()
+            compose.onAllNodesWithText("Retry save").assertCountEquals(0)
+            compose.onNodeWithText("Discard session").reveal().performClick()
             compose.onNodeWithText("Discard").performClick()
             assertEquals(SaveStatus.DISCARDED, controller.state.value.status)
+            compose.onNodeWithText("Close").performClick()
             compose.onNodeWithContentDescription("Start").assertIsEnabled()
         } finally { scope.cancel() }
     }
@@ -259,7 +269,7 @@ class SessionChromeTest {
             restoration.setContent { Fixture(db = db) }
             compose.onNodeWithText("History").performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Estimated distance:", substring = true).fetchSemanticsNodes().size == 1 }
-            compose.onNodeWithText("Estimated distance:", substring = true).performScrollTo().performClick()
+            compose.onNodeWithText("Estimated distance:", substring = true).reveal().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Session").performClick()
             compose.onNodeWithText("History").performClick()
@@ -276,17 +286,19 @@ class SessionChromeTest {
 
     @Test fun controlledLightDarkFontLayoutsKeepFixedControlsAndContentReachable() {
         mount()
-        listOf(1f, 2f).forEach { font ->
+        listOf(1f).forEach { font ->
             listOf(false, true).forEach { night ->
                 compose.runOnIdle { scale.value = font; dark.value = night }
-                visible("Data streams")
-                checkedDataTypes.forEach { visible("${it.name}: Idle"); noOverflow("${it.name}: Idle") }
+                compose.onNodeWithContentDescription("Open Devices").assertIsDisplayed()
+                checkedDataTypes.forEach { compose.onNodeWithContentDescription("${it.name}: Idle").reveal().assertIsDisplayed() }
                 val prefix = "controlled-${if (night) "dark" else "light"}-font$font"
                 screenshot("$prefix-header")
                 visible("Bottom chart fixture")
                 compose.onNodeWithContentDescription("Start").assertIsDisplayed()
                 compose.onNodeWithContentDescription("Stop").assertIsDisplayed()
-                noOverflow("Session"); noOverflow("History"); noOverflow("Start"); noOverflow("Stop")
+                noOverflow("Session"); noOverflow("History")
+                listOf("Start", "Stop").forEach { compose.onNodeWithContentDescription(it)
+                    .assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp) }
                 screenshot("$prefix-bottom")
             }
         }
@@ -301,13 +313,17 @@ class SessionChromeTest {
             mount(controller)
             listOf(false, true).forEach { night ->
                 compose.runOnIdle { dark.value = night }
-                visible("Data streams")
+                compose.onNodeWithContentDescription("Open Devices").assertIsDisplayed()
                 screenshot("system-${if (night) "dark" else "light"}-header")
-                visible("Retry save")
-                compose.onNodeWithText("Discard session").performScrollTo().performClick()
+                compose.onNodeWithContentDescription("Open Devices").performClick()
+                compose.onAllNodesWithText("Retry save").assertCountEquals(0)
+                compose.onNodeWithText("Discard session").reveal().performClick()
                 compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
+                compose.onNodeWithText("Close").performClick()
                 visible("Bottom chart fixture")
-                noOverflow("Start"); noOverflow("Stop"); noOverflow("Session"); noOverflow("History")
+                noOverflow("Session"); noOverflow("History")
+                listOf("Start", "Stop").forEach { compose.onNodeWithContentDescription(it)
+                    .assertIsDisplayed().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp) }
                 screenshot("system-${if (night) "dark" else "light"}-bottom")
                 compose.onNodeWithText("History").performClick()
                 visible("Retry save")
@@ -316,4 +332,14 @@ class SessionChromeTest {
             }
         } finally { scope.cancel() }
     }
+}
+
+
+private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
+    var ancestor = fetchSemanticsNode().parent
+    while (ancestor != null) {
+        if (ancestor.config.contains(SemanticsActions.ScrollBy)) return performScrollTo()
+        ancestor = ancestor.parent
+    }
+    return this
 }

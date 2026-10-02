@@ -56,6 +56,8 @@ class SessionSnapshotTest {
         val charts = LiveCharts { emptyList() }
         var snapshot: SessionSnapshot? = null
         var freezes = 0
+        var onFreeze: (SessionSnapshot) -> Unit = {}
+        var allowStart: () -> Boolean = { true }
         lateinit var session: SessionController
         val subscriptions = DataSubscriptions(scope) { type, status ->
             if (type == HR) hrHistory.onSubscriptionState(status)
@@ -71,8 +73,8 @@ class SessionSnapshotTest {
         }
         init {
             session = SessionController(subscriptions, { now }, {
-                val id = session.state.value.record!!.id
-                hrHistory.start(id); motionHistory.start(id)
+                val id = session.state.value.record?.id
+                hrHistory.reset(id); motionHistory.reset(id)
                 charts.reset(); hr.reset(); zones.reset(); detector.reset(); acc.clear()
             }, {
                 hrHistory.stop(); motionHistory.stop()
@@ -88,7 +90,8 @@ class SessionSnapshotTest {
                 assertSame(session.state.value.record, record)
                 freezes++
                 snapshot = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
-            }, onResume = { hrHistory.resume(); motionHistory.resume(); charts.resume() })
+                onFreeze(snapshot!!)
+            }, canStart = { allowStart() }, onResume = { hrHistory.resume(); motionHistory.resume(); charts.resume() })
         }
 
         fun start(source: Flow<PolarAccelerometerData>, heartRates: Flow<Int>? = flow { awaitCancellation() }) =
@@ -139,6 +142,84 @@ class SessionSnapshotTest {
         }
 
         fun stop() = session.stop("Stopped by user.", interrupted = false)
+    }
+
+    @Test fun userStopResetWaitsForCleanupAndPreservesFailedSaveForRetry() = runTest {
+        val f = Fixture(this)
+        val cleanup = CompletableDeferred<Unit>()
+        val writeReady = CompletableDeferred<Unit>()
+        val attempts = mutableListOf<SessionSnapshot>()
+        val saves = com.example.polarh10activityviewer.storage.SessionSaveController(this) {
+            attempts.add(it)
+            writeReady.await()
+            if (attempts.size == 1) error("Controlled save failure")
+        }
+        f.onFreeze = { saves.submit(it) }
+        f.allowStart = { !saves.state.value.blocksStart }
+        val hrs = MutableSharedFlow<Int>()
+        lateinit var old: FlowCollector<PolarAccelerometerData>
+        f.start(object : Flow<PolarAccelerometerData> {
+            override suspend fun collect(collector: FlowCollector<PolarAccelerometerData>) {
+                old = collector
+                try { collector.emit(samples()); awaitCancellation() }
+                finally { withContext(NonCancellable) { cleanup.await() } }
+            }
+        }, hrs)
+        runCurrent(); hrs.emit(130); runCurrent()
+        f.now = 6250; f.tick()
+        val oldGeneration = f.session.state.value.generation
+        f.session.stop("Stopped by user.", interrupted = false, reset = true)
+        runCurrent()
+        val frozen = f.snapshot!!
+        assertTrue(frozen.record.eligibleForSaving)
+        assertTrue(frozen.hrPoints.isNotEmpty()); assertTrue(frozen.motionPoints.isNotEmpty())
+        assertEquals(10L, frozen.record.summary.totalSteps)
+        assertEquals(SessionStatus.STOPPING, f.session.state.value.status)
+        f.session.stop("Repeated Stop", interrupted = false, reset = true)
+        assertEquals(1, f.freezes)
+        assertFalse(f.start(flow { awaitCancellation() }))
+        cleanup.complete(Unit); runCurrent()
+        assertEquals(SessionState(generation = oldGeneration + 1), f.session.state.value)
+        assertTrue(f.subscriptions.states.value.values.all { it.status == SubscriptionStatus.IDLE })
+        assertEquals(com.example.polarh10activityviewer.ble.HeartRateStatistics(), f.hr.statistics.value)
+        assertEquals(com.example.polarh10activityviewer.motion.StepState(), f.detector.state.value)
+        assertEquals(com.example.polarh10activityviewer.heartrate.HeartRateZoneState(), f.zones.state.value)
+        assertNull(f.hrHistory.state.value.sessionId); assertNull(f.motionHistory.state.value.sessionId)
+        assertTrue(f.hrHistory.snapshot().isEmpty()); assertTrue(f.motionHistory.snapshot().isEmpty())
+        assertTrue(f.acc.samples.value.isEmpty())
+        assertTrue(f.charts.snapshot(ChartKind.HEART_RATE, 0).points.isEmpty())
+        assertTrue(f.charts.snapshot(ChartKind.CADENCE, 0).points.isEmpty())
+        runCatching { old.emit(samples(40_000_000_000)) }; f.now = 90_000; f.tick(oldGeneration); runCurrent()
+        assertEquals(0L, f.detector.totalSteps); assertEquals(0L, f.session.state.value.elapsedMs)
+        assertSame(frozen, attempts.single()); assertEquals(10L, frozen.record.summary.totalSteps)
+        writeReady.complete(Unit); runCurrent()
+        assertEquals(com.example.polarh10activityviewer.storage.SaveStatus.FAILED, saves.state.value.status)
+        assertFalse(f.start(flow { awaitCancellation() }))
+        assertTrue(saves.retry()); runCurrent()
+        assertEquals(com.example.polarh10activityviewer.storage.SaveStatus.SAVED, saves.state.value.status)
+        assertEquals(2, attempts.size); assertSame(frozen, attempts.last())
+        assertTrue(f.start(flow { awaitCancellation() })); runCurrent()
+        assertNotEquals(frozen.record.id, f.session.state.value.record!!.id)
+        assertEquals(0L, f.session.state.value.elapsedMs)
+        f.stop(); runCurrent()
+    }
+
+    @Test fun stopFromPausedResetsImmediatelyWithoutLosingTheFrozenSession() = runTest {
+        val f = Fixture(this)
+        f.start(flow { emit(samples()); awaitCancellation() }); runCurrent()
+        f.now = 6500; f.tick()
+        assertTrue(f.session.pause()); runCurrent()
+        assertEquals(SessionStatus.PAUSED, f.session.state.value.status)
+        f.now = 90_000
+        f.session.stop("Stopped by user.", interrupted = false, reset = true)
+        assertEquals(SessionStatus.IDLE, f.session.state.value.status)
+        assertNull(f.session.state.value.record)
+        assertEquals(0L, f.session.state.value.elapsedMs)
+        assertEquals(1500L, f.snapshot!!.record.durationMs)
+        assertEquals(10L, f.snapshot!!.record.summary.totalSteps)
+        assertTrue(f.snapshot!!.motionPoints.isNotEmpty())
+        assertTrue(f.motionHistory.snapshot().isEmpty())
+        assertEquals(1, f.freezes)
     }
 
     @Test fun summaryAndBothHistoriesFreezeOnceWithSameIdAfterSettlementAndBeforeCleanup() = runTest {

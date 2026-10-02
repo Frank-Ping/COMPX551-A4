@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -18,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -37,8 +41,6 @@ import com.example.polarh10activityviewer.ble.DataReadinessStatus
 import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
-import com.example.polarh10activityviewer.ui.theme.IconSize
-import com.example.polarh10activityviewer.ui.theme.PagePadding
 
 @Composable
 internal fun SessionScaffold(
@@ -51,14 +53,19 @@ internal fun SessionScaffold(
     val pages = rememberSaveableStateHolder()
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = if (showHistory) MaterialTheme.colorScheme.background else sessionBackground(),
         topBar = {
-            PrimaryTabRow(selectedTabIndex = if (showHistory) 1 else 0,
-                modifier = Modifier.statusBarsPadding(), contentColor = MaterialTheme.colorScheme.primary) {
+            Row(Modifier.fillMaxWidth().background(sessionBackground()).statusBarsPadding().padding(horizontal = 28.dp)) {
                 listOf("Session", "History").forEachIndexed { index, label ->
+                    val selected = showHistory == (index == 1)
                     Tab(selected = showHistory == (index == 1), onClick = { onSelectHistory(index == 1) },
-                        text = { Text(label, style = MaterialTheme.typography.titleLarge) },
-                        selectedContentColor = MaterialTheme.colorScheme.primary,
-                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                        modifier = Modifier.weight(1f),
+                        selectedContentColor = sessionBlue(),
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
+                        Text(label, Modifier.padding(top = 6.dp, bottom = 6.dp), fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                        Box(Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(2.dp)
+                            .background(if (selected) sessionBlue() else sessionBorder()))
+                    }
                 }
             }
         },
@@ -99,9 +106,9 @@ internal fun startDisabledReason(
 internal fun SessionControls(canStart: Boolean, canStop: Boolean, onStart: () -> Unit, onStop: () -> Unit,
     canPause: Boolean, canResume: Boolean, paused: Boolean,
     onPause: () -> Unit, onResume: () -> Unit) {
-    Surface(shadowElevation = 3.dp) {
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(PagePadding),
-            horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally)) {
+    Surface(color = sessionBackground()) {
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally)) {
             listOf(Triple("Pause", R.drawable.ic_pause, canPause),
                 Triple(if (paused) "Continue" else "Start", R.drawable.ic_start, if (paused) canResume else canStart),
                 Triple("Stop", R.drawable.ic_stop, canStop))
@@ -110,10 +117,13 @@ internal fun SessionControls(canStart: Boolean, canStop: Boolean, onStart: () ->
                         verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
                         Button(onClick = when (label) { "Pause" -> onPause; "Continue" -> onResume; "Start" -> onStart; else -> onStop }, enabled = enabled,
                             shape = CircleShape, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = sessionBlue(),
+                                contentColor = androidx.compose.ui.graphics.Color.White,
+                                disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+                                disabledContentColor = androidx.compose.ui.graphics.Color.White),
                             modifier = Modifier.size(64.dp).semantics { contentDescription = label }) {
-                            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(IconSize))
+                            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(32.dp))
                         }
-                        Text(label)
                     }
                 }
         }

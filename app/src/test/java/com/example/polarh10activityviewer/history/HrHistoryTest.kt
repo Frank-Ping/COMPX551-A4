@@ -7,7 +7,7 @@ import org.junit.Test
 
 class HrHistoryTest {
     private fun HrHistory.receive(at: Long, bpm: Int = 120) = receive(at, HeartRateReading(bpm, 99))
-    private fun history() = HrHistory().apply { start("session-a") }
+    private fun history() = HrHistory().apply { reset("session-a") }
 
     @Test fun eachSecondKeepsTheLastActualValueAndTimestampWithoutAveraging() {
         val history = history()
@@ -106,7 +106,7 @@ class HrHistoryTest {
         val history = HrHistory()
         history.receive(0)
         assertTrue(history.snapshot().isEmpty())
-        history.start("old")
+        history.reset("old")
         history.receive(0)
         history.receive(1789)
         history.stop()
@@ -117,7 +117,7 @@ class HrHistoryTest {
         history.stop()
         assertEquals(frozen, history.snapshot())
         assertEquals(state, history.state.value)
-        history.start("new")
+        history.reset("new")
         assertFalse(history.state.value.frozen)
         assertFalse(history.state.value.limitReached)
         assertTrue(history.snapshot().isEmpty())

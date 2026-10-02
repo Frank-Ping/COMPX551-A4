@@ -77,6 +77,32 @@ class SessionStateTest {
         }
     }
 
+    @Test fun userStopResetClearsAllThreeStreamsAndAnEmptyAttempt() = runTest {
+        val f = Fixture(this)
+        f.start(); runCurrent()
+        assertTrue(f.ecg.samples.value.isNotEmpty())
+        f.session.stop("User Stop", interrupted = false, reset = true); runCurrent()
+        assertEquals(SessionStatus.IDLE, f.state.status)
+        assertNull(f.state.record); assertEquals(0L, f.state.elapsedMs)
+        assertNull(f.hr.reading.value); assertEquals(HeartRateStatistics(), f.hr.statistics.value)
+        assertTrue(f.acc.samples.value.isEmpty()); assertTrue(f.ecg.samples.value.isEmpty())
+        assertTrue(f.subscriptions.states.value.values.all { it.status == SubscriptionStatus.IDLE })
+        assertTrue(f.connected)
+        assertTrue(f.session.start(true) { f.startStream(HR, flow { awaitCancellation() }) })
+        runCurrent(); assertEquals(SessionStatus.STARTING, f.state.status)
+        f.session.stop("Empty Stop", interrupted = false, reset = true); runCurrent()
+        assertEquals(SessionStatus.IDLE, f.state.status); assertNull(f.state.record)
+    }
+
+    @Test fun userStopAtTheTimeLimitStillResetsAfterFreezing() = runTest {
+        val f = Fixture(this)
+        f.start(); runCurrent()
+        f.now = SessionController.TIME_LIMIT_MS
+        f.session.stop("User Stop", interrupted = false, reset = true); runCurrent()
+        assertEquals(SessionStatus.IDLE, f.state.status)
+        assertEquals(0L, f.state.elapsedMs); assertNull(f.state.record)
+    }
+
     @Test fun stopThenRecheckAllowsAnotherSessionWhenHrNotificationsAreDisabled() = runTest {
         val f = Fixture(this)
         val features = mutableSetOf(
