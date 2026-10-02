@@ -1,12 +1,15 @@
 # AGENTS.md
 
+> 当前状态修订（2026-10-03）：8.4a—8.4c 已有实施记录；8.4d 已接入指标清理、Pause/Continue 和五分钟曲线，但未完成按参考图还原页面的视觉验收。按用户要求，将剩余布局、样式与对图验收独立为 **8.4e（待实施）**，方案见 5.34。8.4 整体尚未完成；8.5 为后续 History 布局。下方旧记录中的“已实施”及测试通过不代表参考图视觉还原已完成。
+> Current status correction (2026-10-03): Steps 8.4a–8.4c have implementation records. Step 8.4d implements metric cleanup, Pause/Continue and five-minute charts, but reference-layout visual acceptance is incomplete. The user has moved remaining layout, styling and reference comparison into **8.4e (pending)**; see 5.34. Overall 8.4 remains incomplete; 8.5 covers History layout. Earlier implementation/test records do not establish visual fidelity.
+
 ## 1. 项目目标
 
 - 开发连接 Polar H10 的 Android 手机 App。
 - 使用官方 Polar BLE SDK，完成心率与加速度实时采集。
 - 完成数据处理、实时可视化、会话存储与历史查询。
 - 作业依据：`req/Assignment_4.pdf`；展示依据：`req/Presentation.pdf`。
-- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 当时接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成。7.1 现已完善列表分页重试、返回/保存刷新、当前时区与旧查询取消；本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings、1 Hint）和 16 项实际 SQLite/Compose 检查通过，见 5.27.1；7.2 已完善统一日期、确认删除与失败恢复；2026-10-01 本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings）与 25 项实际 SQLite/Compose 检查通过，见 5.27.2。Samsung/H10 真机 pending；8.0 共用主题与基础尺寸已实施（见 5.28.1），8.1 顶部连接/电量、Devices 弹窗和强度已实施（见 5.29.1），8.2 四卡指标/区间/汇总已实施（见 5.30.1），8.3 底部曲线与开发显示清理已实施（见 5.31.1），8.4a 页面框架/控制/保存恢复已实施（见 5.32.1.1），8.4b 指标/汇总/横向区间已实施（见 5.32.2.1），8.4c 三类曲线/刻度/填充/整场参考已实施（见 5.32.3.1），8.4d 图示功能整合/清理、暂停继续与五分钟窗口已实施（见 5.33.1），8.5 尚未实施。
+- 当前阶段：步骤 0.1—4.4（包括 2.3 设备电量）及 5.1、5.2a—5.2d、5.3add、5.4add、5.5add 的代码已落实。2026-09-30 的 5.5add 检查中，148 项单元测试、debug 构建和 lint 已通过，lint 0 errors、18 warnings。5.3add 提供运动统计，5.4add 提供心率强度和区间时长五柱图，5.5add 当时接入 HR/步频/速度最近 60 秒及 ECG 最近五秒的有界曲线、单调时间轴、断段和简单切换。沿用三路真实 SDK 数据、Start/Stop、Retry 和统计算法；用户此前 ACC 启动反馈不代表其他真机项目已通过。真实信号/滚动、ECG 刷新性能、走跑准确率、心率柱形和设备生命周期仍待验收，见第 9 节。6.1a 会话身份与摘要现已实施：UUID、日期/单调时间、设备快照、已有摘要、保存资格、各流观测/缺失/失败及结束冻结；6.1a 当轮 161 项测试通过。6.1b 平均/最小步频现已接入摘要与英文测试显示；6.1b 当轮 168 项测试通过。6.1c 已接入整场 HR 历史，当轮 181 项测试通过。6.1d 已接入每秒末组运动历史、null/断段、前四小时/14,401 点边界及摘要/两类历史组合冻结快照；6.1d 当轮 194 项测试通过。6.2 已写入 SQLite 三表事务、应用级保存状态、四小时结束及最简单 History 查询/详情/删除；本轮 204 项单元测试、debug 构建、lint（0 errors、18 warnings）及测试 APK 构建通过。独立模拟器中 8 项真实 SQLite/Compose 测试通过，见 5.23.11；H10 真机验收待完成。7.1 现已完善列表分页重试、返回/保存刷新、当前时区与旧查询取消；本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings、1 Hint）和 16 项实际 SQLite/Compose 检查通过，见 5.27.1；7.2 已完善统一日期、确认删除与失败恢复；2026-10-01 本轮 204 项单元测试、debug/测试 APK 构建、lint（0 errors、18 warnings）与 25 项实际 SQLite/Compose 检查通过，见 5.27.2。Samsung/H10 真机 pending；8.0 共用主题与基础尺寸已实施（见 5.28.1），8.1 顶部连接/电量、Devices 弹窗和强度已实施（见 5.29.1），8.2 四卡指标/区间/汇总已实施（见 5.30.1），8.3 底部曲线与开发显示清理已实施（见 5.31.1），8.4a 页面框架/控制/保存恢复已实施（见 5.32.1.1），8.4b 指标/汇总/横向区间已实施（见 5.32.2.1），8.4c 三类曲线/刻度/填充/整场参考已实施（见 5.32.3.1），8.4d 已实施功能整合与部分清理、暂停继续和五分钟窗口（见 5.33.1）；剩余参考图布局/样式/视觉验收已列入 8.4e（见 5.34，待实施），8.4 整体未完成，8.5 尚未实施。
 
 - 第 8 阶段进度（2026-10-01）：步骤 8.0 固定深浅主题、基础字号、已使用尺寸和共用心率区间配色已实施；204 项单元测试、debug/测试 APK 构建、lint（0 errors、17 warnings）及 25 项实际 SQLite/Compose 回归检查通过；12 张模拟器截图检查三页面的深浅模式和 1.0/2.0 字号，范围及未验证项见 5.28.1。8.1 顶部与 Devices 已实施，本轮 204 项单元测试、35 项 Compose/SQLite 检查、debug/测试 APK 构建及 lint（0 errors、15 warnings）通过，实际视觉检查边界见 5.29.1；8.2 四卡与 160 dp 区间已实施，204 项单元测试、48 项不同模拟器检查、debug/测试 APK 构建及 lint（0 errors、15 warnings）通过，实际视觉/系统字号/横屏及真机边界见 5.30.1；8.3 底部曲线与开发显示清理已实施（见 5.31.1），8.4—8.5 尚未实施，Samsung/H10 pending。
 
@@ -1124,6 +1127,8 @@
 
 #### 5.32.4 8.4d：最终整合、清理与验收 / Final integration, cleanup and validation
 
+- 范围拆分（2026-10-03）：以下为原 8.4d 功能整合要求，已实施部分见 5.33.1；尚未完成的参考图布局、样式及视觉验收现划入 8.4e（5.34），不再以本节的功能/测试结果宣布整个 8.4 完成。
+  Scope split: These are the original 8.4d integration requirements; implemented work is recorded in 5.33.1. Remaining reference layout, styling and visual acceptance now belong to 8.4e (5.34). Functional/test results here do not complete overall 8.4.
 - 用户最新要求优先于此前 8.4 提示词中的功能差异保留项：按 5.33 的差异清单实施 Session 最终展示，删除速度与 Min 指标，加入真实暂停/继续及五分钟窗口；不是只隐藏按钮或更改文字。保留有效真实数据、未知/零/负 ECG、必要错误与恢复。整阶段 diff 中会话计时、HR/运动缓存和历史恢复的必要修改属于本次明确授权，必须列明，不再声称数据层完全未变。
   The latest user instruction supersedes earlier 8.4 functional exceptions: implement Section 5.33's final Session display, removing speed/minimum metrics and adding real Pause/Continue and five-minute windows. Implement behavior as well as presentation. Preserve real data, unknown/zero/signed ECG and necessary errors/recovery. The required session-timing, HR/motion-cache and history-resume changes are explicitly authorized and must be reported rather than described as an unchanged data layer.
 - 验证三视图、系统深浅、字号 1.0/2.0、竖横屏/滚动/安全区域、暂停前后身份/累计/计时/断段/预热/旧事件/结束保存、失败恢复/分页/删除/切页/旋转。运行相关 unit/Compose/SQLite/debug/lint，实际查看可执行截图，区分源码、自动、实际视觉和 Samsung/H10。不得使用图中演示值、固定采样率或固定轴值。同步两对文档，无 commit/push，不推进 8.5。
@@ -1169,9 +1174,52 @@
   Actual visuals: Inspected current controlled theme/font HR/Cadence/ECG, metrics/summary/zones/long-recovery captures and actual-system-font 2.0 portrait/landscape metrics/zones. Fixtures explicitly identify no H10 data. Old speed PNGs left in shared capture folders are excluded. Also ran the final no-H10/ungranted-permission App and inspected four captures covering light 1.0 portrait and dark 2.0 landscape; unknown ECG metadata, empty plots, three fixed controls and retained scroll/selection after History passed. Enlarged/landscape layouts require scrolling; partial viewport edges are not Text layout clipping. This does not validate every actual App theme/font combination, hardware pause behavior or real-time performance.
 - 范围与证据：修改 SensorActivity.kt；session/SessionMetrics.kt、SessionChrome.kt、SessionState.kt；chart/LiveChartCard.kt、LiveChartPanel.kt、LiveChartPlot.kt、LiveCharts.kt；heartrate/SessionHeartRateZonePanel.kt；history/HrHistory.kt、MotionHistory.kt；新增 drawable/ic_pause.xml；修改四个单元测试文件（LiveChartsTest、HrHistoryLifecycleTest、SessionStateTest、SessionSnapshotTest）和四个 UI 测试文件（SessionMetricsTest、SessionChromeTest、SessionHeaderTest、LiveChartCardTest），同步两对文档。完整日志、基线哈希/SDK与History绘图审计、受控/实际截图在忽略的 build/reference-validation/；验证脚本/图片不进入 APK。独立模拟器已关闭，未操作 Samsung。
   Scope/evidence: Changed SensorActivity; SessionMetrics/Chrome/State; LiveChartCard/Panel/Plot/LiveCharts; SessionHeartRateZonePanel; HrHistory/MotionHistory; added drawable/ic_pause.xml; updated four unit and four UI test files and both documentation pairs. Logs, baseline hashes/SDK and History-plot audits and controlled/actual captures are in ignored build/reference-validation/. Validation scripts/images do not enter the APK. The independent emulator was closed without operating Samsung.
-- 未验证：Samsung/H10 的真实暂停取消/继续、旧包拒绝、HR/ACC/ECG 重订阅、计步准确率、五分钟实时滚动/ECG 性能、生命周期和采集→暂停→继续→结束→保存→重启 History 全链路仍 pending。8.4d 的图示功能整合与清理已实施；8.5 未实施，无 commit/push。
-  Limits: Samsung/H10 pause cancellation/resume/stale packets/resubscription, step accuracy, five-minute live scrolling/ECG performance, lifecycle and the full acquisition–pause–resume–stop–save–reopen-History path remain pending. The 8.4d reference-function integration/cleanup is implemented. No 8.5, commit or push.
+- 未验证：Samsung/H10 的真实暂停取消/继续、旧包拒绝、HR/ACC/ECG 重订阅、计步准确率、五分钟实时滚动/ECG 性能、生命周期和采集→暂停→继续→结束→保存→重启 History 全链路仍 pending。8.4d 的功能整合与部分清理已实施，参考图视觉还原/验收未完成，现划入 8.4e（见 AGENTS.md 5.34，待实施）；8.4 整体未完成，8.5 未实施。本实施记录当轮无 commit/push。
+  Limits: Samsung/H10 pause cancellation/resume/stale packets/resubscription, step accuracy, five-minute live scrolling/ECG performance, lifecycle and the full acquisition–pause–resume–stop–save–reopen-History path remain pending. Step 8.4d implements functional integration and partial cleanup. Reference layout/styling/visual acceptance remain incomplete and now belong to pending 8.4e (AGENTS.md 5.34). Overall 8.4 is incomplete; 8.5 is unimplemented. No commit/push occurred in that implementation turn.
 - 建议英文提交信息 / Suggested English commit message：`feat: align session metrics and add pause resume with five-minute charts`
+
+### 5.34 步骤 8.4e：参考图布局还原与视觉验收（待实施） / Step 8.4e: Reference layout and visual acceptance (pending)
+
+- 用户要求：提取尚未实现的计划作为 8.4e，修改 AGENTS.md 的方案及 prompt.md 的中英文提示词。本轮仅修改并同步两对文档；不实施 App，不运行新的构建、测试或设备检查，不 commit/push。5.33.1 的 224 单元/80 仪器测试为此前功能验证，不是 8.4e 验收结果。
+  User request: Extract unfinished work into 8.4e and update the plan and bilingual prompts. This turn changes and synchronizes both documentation pairs only, without App implementation, new builds/tests/device checks, commit or push. The prior 224 unit/80 instrumentation results in 5.33.1 do not validate 8.4e.
+- 依据：工作区根目录 `ui/Session-HR.png`、`ui/Session-Motion.png`、`ui/Session-ECG.png`；从 Android 项目目录访问为 `../ui/Session-*.png`。沿用连接 → HR → Cadence → 曲线 → Activity Summary → HR Zone 的顺序，以及固定底部三按钮。参考图的 DEMO DATA、示例数值与波形不进入正式界面。
+  References: The three `ui/Session-*.png` files are under the workspace root (`../ui/` from the Android project). Keep connection → HR → Cadence → chart → Activity Summary → HR Zone, with three fixed bottom controls. Demo captions, example values and waveforms are not production data.
+
+#### 5.34.1 未完成项与目标 / Remaining work and targets
+
+| 区域 | 已确认的差异 | 8.4e 实施目标 |
+|---|---|---|
+| 导航与整体外观 | 页签指示线、卡片圆角/边框、背景与留白比例仍与参考图不同 | Session/History 等宽导航、图示比例的选中下划线；浅色页面底色、细边框、小圆角、统一卡宽/边距和紧凑层级；深色对应适配 |
+| 连接/Data Streams | 手机宽度下上下排列，三个流状态纵排；蓝牙/Devices 图标形式不同 | 默认手机竖屏、字体 1.0 下左右分区并有竖分隔线；左侧蓝色圆形蓝牙、连接/电量和齿轮 Devices 入口；右侧居中 Data Streams，下方三个等宽列，状态圆点在 HR/ACC/ECG 名称上方 |
+| HR | 强度是方块加文字，缺少标签底色/边框和竖分隔线；单位、统计、接收时间排版不同 | 左栏上方使用带圆点、淡底色和边框的强度标签；大 HR 与 bpm 同行按基线对齐，右侧 Max HR/Mean HR 的值加粗，左右竖线；底部居中 Last Received，按图示紧凑日期/时间显示真实手机接收时间 |
+| Cadence | 标题靠左，单位换行，Mean cadence/Max cadence 文案冗长，无分隔线 | 左栏标题居中，大值与 steps/min 同行；竖线分隔右栏 Mean/Max，单位随数值；常规手机宽度先通过比例、间距与字号匹配图示，不直接退回纵排 |
+| 曲线卡 | 选择控件随文字宽度排列，统计未按左右分栏，图高/留白比例不同 | HR/Motion/ECG 三个等宽扁平胶囊居中；统计左右对齐并加粗数值，ECG 同样排列 Sampling Rate/Samples；按图示调整网格、线条、填充、轴标签和绘图区比例，保留真实自适应轴及均值线语义 |
+| Activity Summary | 标题靠左，现有默认截图为两项加下一行距离 | 标题居中，默认手机竖屏字体 1.0 下 Duration/Total Steps/Estimated Distance 三张等宽细边框小卡同一行；标签和值居中，突出数值，距离单位 m |
+| HR Zone | 仍需统一标题、列宽、轨道与全卡比例 | 标题居中；Z1–Z5、bpm 范围、彩色条/淡色轨道、mm:ss 四列对齐，五行统一尺寸；保留既有阈值、绿蓝黄橙红顺序、共同时长尺度、零/未知/未归类规则 |
+| 底部控制 | 按钮下有常驻文字、底栏背景/高度和图标比例不同 | 左 Pause、中 Start/Continue、右 Stop，按图示圆形图标、间距与禁用色；正常态移除按钮下常驻文字但保留英文无障碍名称、真实启用条件和至少 48 dp 触摸区；底栏协调页面底色并保留安全区域 |
+
+English targets (matching the rows above):
+1. Match equal-width navigation, indicator, background, thin borders, smaller corners, consistent spacing and visual hierarchy; adapt the palette for dark mode.
+2. At the target phone's default portrait width/font 1.0, place connection and Data Streams side by side with a divider. Use the reference Bluetooth circle/Devices gear and three equal horizontal stream columns with dots above labels.
+3. Add the tinted, outlined intensity badge with a circular dot; align HR/bpm on a baseline, bold right-hand Max/Mean values, add a vertical divider and center the compact, genuine phone-reception date/time below.
+4. Center Cadence over the left column, keep the current value/unit together, add the divider and use concise Mean/Max labels on the right.
+5. Center three equal-width flat chart pills; align statistics/ECG metadata left and right with bold values. Match plot proportions, grids, strokes, fills and axis typography while retaining real adaptive scales and mean-line meaning.
+6. Center Activity Summary and keep its three equal outlined cells on one row at default phone portrait/font 1.0, with centered labels, prominent values and the distance unit.
+7. Center HR Zone and align zone/range/bar-track/duration columns across five uniform rows, retaining thresholds, color order, duration scaling and data-state rules.
+8. Match the three circular footer icons, spacing, disabled colors and background. Remove persistent captions in the normal layout while keeping English accessibility names, real enablement, at least 48 dp touch targets and safe insets.
+
+#### 5.34.2 实施边界与完成条件 / Scope and completion criteria
+
+- 实施范围：优先修改 SessionHeader.kt、SessionMetrics.kt、SessionChrome.kt、LiveChartCard.kt、LiveChartPlot.kt、SessionHeartRateZonePanel.kt 及必要的 Session 局部尺寸/颜色；SensorActivity.kt 仅在布局接入必要时改动。避免为 Session 改动 Welcome/History 的共用样式；必要共用改动必须检查其他页面。使用既有 Compose/Material 3，无新依赖、替代数据通路或无关重构。
+  Scope: Prefer the existing Session header, metrics, chrome, chart and zone UI files plus local dimensions/colors; edit SensorActivity only for required layout integration. Avoid spilling Session styling into Welcome/History; check other screens if a shared component must change. Reuse Compose/Material 3 without new dependencies, alternative data paths or unrelated refactors.
+- 功能基线：5.33 已实施的无速度/无 Min、Pause/Continue、同场身份与累计、暂停排除计时、HR/步频五分钟、ECG 五秒、断段/冻结/恢复必须保留。不重新实现这些功能，不改 SDK/订阅/计时/算法/K/采样设置/统计公式/缓存容量/历史保存与 schema；History 正式布局仍为 8.5。若视觉任务暴露独立行为错误，应报告具体问题，不能借视觉调整静默改业务。
+  Functional baseline: Preserve the implemented no-speed/no-Min displays, Pause/Continue identity/totals/timing, five-minute HR/cadence, five-second ECG and gap/freeze/recovery behavior. Do not reimplement them or alter SDK/subscriptions/timing/algorithms/K/sample settings/statistics/buffer capacities/history storage/schema. History layout remains 8.5. Report independently discovered behavior defects explicitly rather than silently changing them during styling.
+- 自适应：常规目标手机竖屏、系统字体 1.0 是对图基线；先调整局部尺寸/分栏比例，使上述横排真正成立，不沿用导致普通手机默认纵排的宽度阈值。大字号、较窄可用宽度或横屏时可增高、换行、纵排和滚动，记录具体例外；不能通过关闭系统字体缩放、裁剪文字/单位、缩小触摸区或把整张长图压入一屏来还原。必要错误、权限、等待/预热、暂停/失败、Retry 与保存恢复按真实状态展示。
+  Responsive behavior: Use the target phone's normal portrait width and system font 1.0 for reference comparison. Adjust local sizing/column ratios to achieve the specified horizontal arrangements rather than retaining breakpoints that stack ordinary phones by default. Allow documented wrapping/stacking/scrolling for enlarged fonts, narrower widths or landscape. Do not disable font scaling, clip text/units, shrink touch targets or compress the long concept into one viewport. Preserve necessary state-dependent errors, permissions, waiting/warmup, pause/failure, retry and save recovery.
+- 视觉验收：先列逐项差异；实施后实际运行 App 的 Session 页面，用明确标注的测试状态补足有数据的 HR/Motion/ECG，并以同一设备宽度/字号截取连续滚动区域，逐项对照 5.34.1。不能只拍孤立组件或用“Controlled chart position”占位代替整页曲线。保存前后截图和差异结论；正常浅色三视图均必须检查，另检查深色、系统字体 2.0、横屏、长数字/长错误、滚动、导航/控件可达及未知/真实零。图示为长页面，不要求单屏容纳全部内容；具体状态导致的额外提示应单独说明。
+  Visual acceptance: Record differences before editing. Run the actual Session composition afterward, using explicitly labeled test states where populated HR/Motion/ECG data is needed. Capture successive scroll regions at the same device width/font and compare every row of 5.34.1. Isolated components or a chart-position placeholder do not validate the whole page. Save before/after captures and findings. Inspect all three normal light-mode views plus dark mode, actual font 2.0, landscape, long values/errors, scrolling/navigation/controls and unknown/zero states. The long reference need not fit one viewport; explain additional state-dependent messages separately.
+- 回归与状态：实施时运行相关 Compose/交互与受影响共享组件检查、既有单元回归、debug/测试 APK 构建及 lint；核对三按钮、Devices、曲线切换、保存恢复及 History 导航。只有代码、相关检查及逐项视觉对照均有新证据，才能记录 8.4e 完成；未达到的差异继续列 pending。自动测试通过不代替视觉验收，受控数据不代替 Samsung/H10 验证。真机采集/性能与生命周期仍单列第 9 阶段待验收，不自动实施 8.5 或 commit/push。
+  Regression/status: When implementing, run relevant Compose/interaction/shared-component checks, existing unit regression, debug/test-APK builds and lint. Check controls, Devices, chart switching, save recovery and History navigation. Mark 8.4e complete only with new code/check evidence and item-by-item visual comparison; retain unresolved differences as pending. Automated passes do not replace visual acceptance, and controlled data does not validate Samsung/H10. Hardware acquisition/performance/lifecycle remain separately pending in Stage 9. Do not automatically implement 8.5 or commit/push.
 
 ## 6. 功能开发步骤
 
@@ -1217,11 +1265,12 @@
 | 8.1 | 已整合区域 1、2：连接/电量入口、Devices 弹窗与心率强度，见 5.29.1 | 204 项单元测试、35 项 Compose/SQLite 检查、debug/测试 APK 构建与 lint（0 errors、15 warnings）通过；实际深浅/字体/横屏检查完成所述范围，H10 pending |
 | 8.2 | 四卡指标、160 dp 五柱/明细及运动汇总已实施；规则/结果见 5.30—5.30.1 | 204 单元测试、13 新 UI + 35 回归、debug/测试构建及 lint 通过；深浅/大字体/横屏视觉已检查，Samsung/H10 pending |
 | 8.3 | 整合区域 7：三类曲线切换 | 时间轴清楚，切换后数据连续 |
-| 8.4 | 参考图 Session 最终整合，拆为 a—d；规则见 5.32，完整双语提示词见 prompt.md | a—d 已实施，当前规则/结果见 5.33—5.33.1；暂停计时与五分钟缓存为授权变更，Samsung/H10 pending |
+| 8.4 | 参考图 Session 最终整合，拆为 a—e；功能见 5.33，剩余视觉方案见 5.34，双语提示词见 prompt.md | a—c 已有实施记录；d 功能与部分清理已实施；e 视觉还原/验收 pending，整体未完成，Samsung/H10 pending |
 | 8.4a | 页面框架、连接/Data streams、Start/Stop、保存恢复与顶部导航，见 5.32.1.1 | 212 单元测试、71 项不同 Compose/SQLite 检查、debug/测试构建及 lint（0 errors、15 warnings）通过；Samsung/H10 pending |
 | 8.4b | 指标分栏、HR 内强度、三项汇总与 Session 横向区间已实施，见 5.32.2.1 | 212 单元测试、75 项不同 Compose/SQLite 检查、debug/测试构建及 lint（0 errors、15 warnings）通过；实际视觉范围见实施记录，Samsung/H10 pending |
 | 8.4c | 三类实时曲线、网格/刻度/填充/整场均值参考线已实施，见 5.32.3.1 | 218 单元测试、78 项不同 Compose/SQLite 检查（另 1 项基础检查）、debug/测试构建及 lint（0 errors、15 warnings）通过；真实窗口/断段/冻结/恢复不变，Samsung/H10 pending |
-| 8.4d | 按 5.33 删除 Session 速度/Min、精简正常态、加入 Pause/Continue 与五分钟窗口，完成参考图功能对齐 | 当前结果见 5.33.1；保留底层算法、保存 schema 与 History；Samsung/H10 pending |
+| 8.4d | 按 5.33 删除 Session 速度/Min、加入 Pause/Continue 与五分钟窗口，实施功能整合与部分清理 | 已实施部分及既有验证见 5.33.1；未完成的视觉布局/样式/对图验收移至 8.4e，不能视为整个 8.4 完成 |
+| 8.4e | 按三张 Session 图还原顶部、指标、曲线、汇总、区间、导航及底部视觉，详见 5.34 | 待实施；逐项新截图对照、深浅/字号/方向适配及相关回归通过后才可完成，不能仅凭编译/测试通过 |
 | 8.5 | 完成 History 列表与详情布局 | 可查看已保存的多次运动 |
 | 9.1 | 验证拒绝权限、断线、页面重建和后台行为 | 行为符合设计，无重复采集 |
 | 9.2 | 真机完整演示并记录性能与算法局限 | 完成采集→处理→保存→重启查询 |
@@ -1365,7 +1414,7 @@
 - 待验证：权限拒绝与设置返回；扫描筛选、去重及停止规则；真实连接、10 秒超时、重试与生命周期；设备保存、时间更新及重启保留；主动与意外断线；断开异常重试、防重复点击及回调清理。读写错误和迟到回调仍待故障注入验证。
 - 3.1 待验证与待确认：真实设备功能就绪、实际采样设置、重复请求与旋转、失败重试、断开清理和迟到结果隔离均待运行时验证，步骤见 5.12；实际 ECG 与其他多选参数尚未读取，因此没有新增参数决定。构建和配置单元测试不等于上述真机验证已通过。
 - 审查跟进：断开请求抛错后无法重试已修复；“扫描 RSSI 不会刷新”的结论已撤回；系统时间回拨影响最近连接时间更新的问题尚未修复，见 5.11。
-- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，6.2 验证及真机边界见 5.23.11；7.1 列表与 7.2 详情/删除已完善，见 5.27.1—5.27.2；8.0 共用主题与基础尺寸已实施（见 5.28.1），8.1 顶部连接/电量、Devices 弹窗和强度已实施（见 5.29.1），8.2 指标/区间/汇总已实施（见 5.30.1），8.3 底部曲线与开发显示清理已实施（见 5.31.1），8.4a/8.4b/8.4c 已实施（见 5.32.1.1、5.32.2.1、5.32.3.1），8.4d 图示功能整合/清理、暂停继续与五分钟窗口已实施（见 5.33.1），8.5 尚未实施。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 原 Start/Stop、首个数据计时及中断结束已在 5.33 扩展暂停/继续，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
+- 当前待决策：设备实际返回多组选项时尚未确认的 ECG 及其他采样参数，以及第 5 节其余待填写项。会话持久化与 History 最小方案已在 6.2 实施，6.2 验证及真机边界见 5.23.11；7.1 列表与 7.2 详情/删除已完善，见 5.27.1—5.27.2；8.0 共用主题与基础尺寸已实施（见 5.28.1），8.1 顶部连接/电量、Devices 弹窗和强度已实施（见 5.29.1），8.2 指标/区间/汇总已实施（见 5.30.1），8.3 底部曲线与开发显示清理已实施（见 5.31.1），8.4a/8.4b/8.4c 已实施（见 5.32.1.1、5.32.2.1、5.32.3.1），8.4d 已实施功能整合与部分清理、暂停继续和五分钟窗口（见 5.33.1）；剩余参考图布局/样式/视觉验收已列入 8.4e（见 5.34，待实施），8.4 整体未完成，8.5 尚未实施。HR 已确认仅保留最新心率和接收时间的方案 A，见 5.15；4.4 原 Start/Stop、首个数据计时及中断结束已在 5.33 扩展暂停/继续，见 5.18；6.2 已接入结束时保存，H10 真机全链路仍待验证。1.2 扫描规则、2.1 连接生命周期和本次 3.1—3.2 的配置选择、错误与采集恢复规则均已确认，无需重复决策；本阶段不进行后台采集。
 - 截图/录屏位置：【待填写】。
 - 5.1 实施跟进：用户要求执行已保存的中英文提示词；5.19 所列代码及自动验证已完成，真机待验证。其他第 5 阶段核心规则见 5.1—5.7、5.20—5.22，均已明确但尚未实施，不再以旧规划记录称统计口径未定。
 - 5.2 规划确认：用户采用此前技术建议，明确完整 5 点平滑后再积累 100 个 s 预热、前 100 点阈值、同一 H 上穿判断、周期 H/L 固定，以及 250 ms 步频刷新、两秒无步归零和显示用单调时间估计；规则直接更新于 5.1—5.4、5.7 及开发步骤表。2026-09-29 按用户要求检索其他计步方案，在 5.6 补充 A_min = 0.5 m/s² 的试验预设、来源差异和每次 0.1 m/s² 的手动调整方案；实测校准尚未执行。本次仅同步两份 AGENTS.md，未修改 Kotlin 或 prompt.md，未运行测试/构建或真机验收；5.2 尚未实施。

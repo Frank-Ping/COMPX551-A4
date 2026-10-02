@@ -1,3 +1,6 @@
+> 当前执行顺序修订（2026-10-03）：8.4d 已完成部分功能与界面清理，参考图视觉还原未完成。剩余工作独立为 **8.4e（待实施）**，执行方案见 AGENTS.md 5.34，完整中英文 Prompt 见本文件末尾“步骤 8.4e”。本轮仅更新文档；既有功能 Prompt 和测试结果为历史记录，不代表 8.4e 已完成。8.4e 验收后再处理用户指定的 8.5。
+> Current execution revision: Step 8.4d has implemented functionality and partial UI cleanup, while visual fidelity remains incomplete. Remaining work is **8.4e (pending)**; see AGENTS.md 5.34 and the bilingual 8.4e prompts at the end of this file. This turn updates documentation only. Earlier functional prompts/test results do not complete 8.4e. Address 8.5 only when requested after 8.4e acceptance.
+
 # 步骤 0.1：落实项目配置 / Apply the project configuration
 
 中文：
@@ -1917,6 +1920,9 @@ Implement only 8.4c, following the shared instructions and reusing the 8.4a/8.4b
 
 ### 8.4d：最终整合、清理与验收 / Final integration, cleanup and validation
 
+> 历史提示词，勿作为当前完整实施指令：功能规则由 AGENTS.md 5.33 覆盖；已实现功能见 5.33.1，剩余视觉项现拆为 8.4e（5.34 与本文件末尾）。原文中的 Min、60 秒、仅 Start/Stop 等旧要求不再生效。
+> Historical prompt, not the current complete execution instruction: AGENTS.md 5.33 supersedes its functional rules; 5.33.1 records implementation and 8.4e now owns the remaining visuals. Old Min, 60-second and Start/Stop-only requirements below are superseded.
+
 #### 中文 Prompt
 
 ```text
@@ -2037,7 +2043,9 @@ The user requests implementing and validating only 8.4c under AGENTS.md 5.32.3 a
 - 实施与验证状态：本轮只修改文档，App/测试文件未修改；现有 Motion 速度 UI 尚在，移除工作列入 8.4d pending。此前 b/c 实施与四视图验证记录按当时事实保留。本轮未运行新的构建、单元/Compose/SQLite、模拟器视觉或 Samsung/H10 检查，无 commit/push，不推进 8.5。
   Implementation/validation status: Documentation only; App/tests are unchanged. Existing Motion speed UI remains, with removal pending 8.4d. Prior b/c implementation and four-view validation records retain their historical meaning. No new build, unit/Compose/SQLite, emulator-visual or Samsung/H10 check, commit, push or 8.5 implementation was performed.
 
-## 2026-10-03 图示功能对齐：最新执行 Prompt / Latest reference-function alignment prompt
+## 2026-10-03 图示功能对齐：8.4d 功能实施 Prompt 记录 / Recorded 8.4d functional implementation prompt
+
+本段功能已接入，结果见下文；视觉还原未完成，当前剩余执行计划为文末 8.4e，不重复执行本段功能改造。 / These functions are implemented as recorded below. Visual fidelity remains incomplete; use the final 8.4e plan for remaining work rather than repeating this functional change.
 
 用户要求 / User request：检查图示与规划的功能差异，严格按图示实施；明确选择“全部按图示：加入暂停/继续，HR/步频窗口改为 5 分钟”。 / Check reference/plan differences and implement the shown functions, explicitly including Pause/Continue and five-minute HR/cadence windows.
 
@@ -2083,6 +2091,45 @@ Implement only the current Session reference-function alignment. Read AGENTS.md 
   Actual visuals: Inspected current controlled theme/font HR/Cadence/ECG, metrics/summary/zones/long-recovery captures and actual-system-font 2.0 portrait/landscape metrics/zones. Fixtures explicitly identify no H10 data. Old speed PNGs left in shared capture folders are excluded. Also ran the final no-H10/ungranted-permission App and inspected four captures covering light 1.0 portrait and dark 2.0 landscape; unknown ECG metadata, empty plots, three fixed controls and retained scroll/selection after History passed. Enlarged/landscape layouts require scrolling; partial viewport edges are not Text layout clipping. This does not validate every actual App theme/font combination, hardware pause behavior or real-time performance.
 - 范围与证据：修改 SensorActivity.kt；session/SessionMetrics.kt、SessionChrome.kt、SessionState.kt；chart/LiveChartCard.kt、LiveChartPanel.kt、LiveChartPlot.kt、LiveCharts.kt；heartrate/SessionHeartRateZonePanel.kt；history/HrHistory.kt、MotionHistory.kt；新增 drawable/ic_pause.xml；修改四个单元测试文件（LiveChartsTest、HrHistoryLifecycleTest、SessionStateTest、SessionSnapshotTest）和四个 UI 测试文件（SessionMetricsTest、SessionChromeTest、SessionHeaderTest、LiveChartCardTest），同步两对文档。完整日志、基线哈希/SDK与History绘图审计、受控/实际截图在忽略的 build/reference-validation/；验证脚本/图片不进入 APK。独立模拟器已关闭，未操作 Samsung。
   Scope/evidence: Changed SensorActivity; SessionMetrics/Chrome/State; LiveChartCard/Panel/Plot/LiveCharts; SessionHeartRateZonePanel; HrHistory/MotionHistory; added drawable/ic_pause.xml; updated four unit and four UI test files and both documentation pairs. Logs, baseline hashes/SDK and History-plot audits and controlled/actual captures are in ignored build/reference-validation/. Validation scripts/images do not enter the APK. The independent emulator was closed without operating Samsung.
-- 未验证：Samsung/H10 的真实暂停取消/继续、旧包拒绝、HR/ACC/ECG 重订阅、计步准确率、五分钟实时滚动/ECG 性能、生命周期和采集→暂停→继续→结束→保存→重启 History 全链路仍 pending。8.4d 的图示功能整合与清理已实施；8.5 未实施，无 commit/push。
-  Limits: Samsung/H10 pause cancellation/resume/stale packets/resubscription, step accuracy, five-minute live scrolling/ECG performance, lifecycle and the full acquisition–pause–resume–stop–save–reopen-History path remain pending. The 8.4d reference-function integration/cleanup is implemented. No 8.5, commit or push.
+- 未验证：Samsung/H10 的真实暂停取消/继续、旧包拒绝、HR/ACC/ECG 重订阅、计步准确率、五分钟实时滚动/ECG 性能、生命周期和采集→暂停→继续→结束→保存→重启 History 全链路仍 pending。8.4d 的功能整合与部分清理已实施，参考图视觉还原/验收未完成，现划入 8.4e（见 AGENTS.md 5.34，待实施）；8.4 整体未完成，8.5 未实施。本实施记录当轮无 commit/push。
+  Limits: Samsung/H10 pause cancellation/resume/stale packets/resubscription, step accuracy, five-minute live scrolling/ECG performance, lifecycle and the full acquisition–pause–resume–stop–save–reopen-History path remain pending. Step 8.4d implements functional integration and partial cleanup. Reference layout/styling/visual acceptance remain incomplete and now belong to pending 8.4e (AGENTS.md 5.34). Overall 8.4 is incomplete; 8.5 is unimplemented. No commit/push occurred in that implementation turn.
 - 建议英文提交信息 / Suggested English commit message：`feat: align session metrics and add pause resume with five-minute charts`
+
+
+## 2026-10-03 步骤 8.4e：参考图布局还原与视觉验收 / Step 8.4e: Reference layout and visual acceptance
+
+- 用户要求 / User request：提取出未实现的计划，作为 8.4e，修改两个文档的提示词与方案。 / Extract unfinished work as 8.4e and update both documents' prompts and plan.
+- 状态与采用范围：8.4d 的指标清理、暂停/继续和五分钟曲线已接入；未还原的布局、外观与视觉验收划入 8.4e，详见 AGENTS.md 5.34。当前仅生成并同步两对文档，8.4e/8.5 尚未实施，没有本轮新构建、测试或设备结果，无 commit/push。旧测试结果保留原范围，不能充作 8.4e 视觉验收。
+  Status/scope: Step 8.4d implements metric cleanup, Pause/Continue and five-minute charts. Remaining layout, appearance and visual acceptance now belong to 8.4e, specified in AGENTS.md 5.34. This turn only writes and synchronizes both documentation pairs; 8.4e/8.5 remain unimplemented, with no new build/test/device result or commit/push. Historical tests retain their original scope and do not validate 8.4e visuals.
+
+### 中文 Prompt
+
+```text
+只实施 8.4e：完成 Session 参考图布局还原与视觉验收。先阅读 AGENTS.md 5.33、5.33.1、5.34，并实际查看工作区根目录 ui/Session-HR.png、ui/Session-Motion.png、ui/Session-ECG.png（Android 项目目录的 ../ui/）。比较现有代码和运行截图，先列出差异；8.4d 已接入的功能不重复实施，不推进 8.5。
+
+1. 整体：保持连接 → HR → Cadence → 曲线 → Activity Summary → HR Zone，固定底部控制。按图示调整 Session/History 等宽导航与下划线、页面底色、细边框、小圆角、统一卡宽/边距和紧凑比例；深色模式保持清晰对比。参考图是长页面，允许滚动，不压缩为单屏。
+2. 顶部：常规目标手机竖屏、系统字体 1.0 下，连接信息和 Data Streams 必须左右排列并有竖分隔线。左侧为蓝色圆形蓝牙图标、连接/电量、齿轮 Devices 入口；右侧标题居中，HR/ACC/ECG 三列等宽横排，圆点在名称上方。状态来自真实订阅，保留英文无障碍状态和原 Devices 行为。
+3. HR 与 Cadence：HR 左栏上方强度标签使用圆点、淡底色和边框；大心率与 bpm 同行按基线对齐，右栏 Max HR/Mean HR 的值加粗，增加竖分隔线；底部居中紧凑 Last Received 日期/时间，使用真实手机接收时间。Cadence 左栏标题居中，大值与 steps/min 同行；右栏用 Mean/Max 简短标签及原真实统计，加竖分隔线。通过分栏、字号和间距解决常规宽度单位换行；保留必要无效/未知/失败与恢复，无速度或 Min。
+4. 曲线：HR/Motion/ECG 三个等宽扁平胶囊居中；统计左右排列并加粗值，HR 用 Average HR/Max HR，Motion 用 Mean/Max；ECG 用 Sampling Rate/Samples。匹配绘图区比例、网格、轴文字、HR 红线/浅红填充、步频蓝线/浅蓝填充及 ECG 蓝线。保留 HR/步频五分钟、ECG 五秒、真实自适应轴、有效均值线、断段、冻结与数据来源，不硬编码图中的波形、坐标、130 Hz 或 650。
+5. 汇总与区间：Activity Summary 标题居中，默认手机竖屏字体 1.0 下 Duration、Total Steps、Estimated Distance 三张等宽小卡同一行，标签和值居中，距离保留 m。HR Zone 标题居中，五行的 Z1–Z5、bpm 范围、彩条/淡色轨道和 mm:ss 对齐；保留原阈值、五色顺序、共同时长比例尺和未知/零/未归类规则。
+6. 底部：左 Pause、中 Start/Continue、右 Stop，按图示调整圆形按钮、图标、间距、禁用色和底栏背景/高度。移除常驻按钮下文字，保留英文无障碍名称、至少 48 dp 触摸区、真实状态启用和原回调；保留安全区域，不遮挡滚动内容。
+7. 自适应与范围：以目标手机正常竖屏字体 1.0 对图，先修正导致默认纵排/两列汇总的尺寸与阈值；仅在较窄空间、大字号或横屏确有需要时换行/纵排并记录。不能禁用字体缩放、裁剪数值/单位或缩小触摸区。保留必要错误、权限、预热、暂停/失败、Retry 和保存恢复。仅改现有 Session UI 与必要局部样式，不改 SDK、订阅、暂停计时、算法/K、采样、统计公式、缓存容量、保存 schema 或 History 正式布局；共用组件改动时验证 Welcome/History，不新增依赖或无关重构。
+8. 验收：实际运行完整 Session 组合；无 H10 时用明确标注的测试状态覆盖有数据三视图，不能用孤立组件或图表占位替代整页。保存同设备宽度/字号的前后截图和连续滚动区域，逐项对照 AGENTS.md 5.34.1，列出通过和未解决差异。检查正常浅色三视图、深色、实际系统字体 2.0、横屏、长数字/错误、未知/零、Devices/三按钮/切图/保存恢复/History 导航及滚动可达。运行相关 Compose、既有单元回归、debug/测试 APK 构建和 lint；不能只凭测试通过宣布对图完成。
+9. 交付：同步两份 AGENTS.md 和两份 prompt.md，分别记录代码、构建/自动检查、逐项视觉结果及 Samsung/H10 未验项目。只有差异清单和新视觉证据支持时才将 8.4e 标为完成；保留未解决项 pending。真实采集/性能/生命周期留原真机验收，不以模拟数据替代。无 commit/push，不实施 8.5。
+```
+
+### English Prompt
+
+```text
+Implement only 8.4e: complete Session reference layout and visual acceptance. Read AGENTS.md 5.33, 5.33.1 and 5.34 and actually inspect ui/Session-HR.png, ui/Session-Motion.png and ui/Session-ECG.png under the workspace root (../ui/ from the Android project). Compare current code and runtime captures and list differences first. Do not repeat implemented 8.4d functionality or advance to 8.5.
+
+1. Overall: Keep connection → HR → Cadence → chart → Activity Summary → HR Zone with fixed bottom controls. Match equal-width Session/History navigation and underline, page background, thin borders, smaller corners, consistent card widths/spacing and compact proportions. Adapt contrast for dark mode. Allow scrolling for the long reference rather than compressing it into one viewport.
+2. Header: At the target phone's normal portrait width and system font 1.0, place connection and Data Streams side by side with a vertical divider. On the left, use the blue Bluetooth circle, connection/battery and Devices gear. On the right, center the heading above three equal horizontal HR/ACC/ECG columns with dots above labels. Derive states from actual subscriptions and retain English accessibility state descriptions and existing Devices behavior.
+3. HR/Cadence: Add a tinted, outlined intensity badge with a circular dot above the HR left column. Align the large HR value/bpm on a baseline, bold right-hand Max HR/Mean HR values, add a divider and center compact Last Received text using genuine phone reception time. Center Cadence over its left column and keep its large value/steps/min together; use concise Mean/Max labels and original statistics on the right with a divider. Adjust column proportions, type and spacing to resolve normal-width unit wrapping. Keep necessary invalid/unknown/failure/recovery states without speed or minimum metrics.
+4. Charts: Center three equal-width flat HR/Motion/ECG pills. Align statistics left/right with bold values: Average HR/Max HR, Motion Mean/Max and ECG Sampling Rate/Samples. Match plot proportions, grid, axes, red HR/subtle red fill, blue cadence/subtle blue fill and blue ECG. Preserve five-minute HR/cadence, five-second ECG, real adaptive axes, valid mean lines, gaps, freezing and data sources. Never hardcode reference waveforms, axes, 130 Hz or 650.
+5. Summary/zones: Center Activity Summary and keep three equal outlined Duration/Total Steps/Estimated Distance cells on one row at normal phone portrait/font 1.0, with centered labels/values and m. Center HR Zone and align Z1–Z5, bpm ranges, colored bars/tinted tracks and mm:ss across five rows. Retain thresholds, five-color order, shared duration scaling and unknown/zero/unclassified rules.
+6. Footer: Place Pause, Start/Continue and Stop left to right. Match circular icons, spacing, disabled colors and footer background/height. Remove persistent captions below icons while retaining English accessibility names, at least 48 dp targets, actual enablement and existing callbacks. Keep safe insets and unobscured scroll content.
+7. Responsiveness/scope: Compare normal target-phone portrait/font 1.0 first and fix dimensions/breakpoints that currently force stacked headers or two-column summaries. Wrap/stack only when narrower space, larger fonts or landscape requires it, documenting exceptions. Never disable font scaling, clip values/units or shrink touch targets. Preserve necessary errors, permissions, warmup, pause/failure, retry and save recovery. Change existing Session UI/local styles only, not SDK/subscriptions/pause timing/algorithms/K/sampling/statistical formulas/buffer capacities/storage schema/History layout. Check Welcome/History if shared components change; avoid unrelated refactors and dependencies.
+8. Acceptance: Run the complete Session composition. Without H10, use explicitly labeled test states for populated HR/Motion/ECG; isolated components or chart placeholders cannot replace whole-page evidence. Save before/after captures at the same device width/font plus successive scroll regions, compare every AGENTS.md 5.34.1 item and list passed/unresolved differences. Check normal light-mode views, dark mode, actual font 2.0, landscape, long values/errors, unknown/zero states, Devices/controls/chart switching/save recovery/History navigation and scroll reachability. Run relevant Compose checks, existing unit regression, debug/test-APK builds and lint. Passing tests alone cannot establish visual completion.
+9. Delivery: Synchronize both AGENTS.md copies and both prompt.md copies. Separately record code changes, build/automated checks, itemized visuals and pending Samsung/H10 validation. Mark 8.4e complete only when the difference checklist and new visual evidence support it; keep unresolved items pending. Hardware acquisition/performance/lifecycle retain their original validation scope and cannot be replaced by fixtures. Do not commit/push or implement 8.5.
+```
