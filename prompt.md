@@ -1712,3 +1712,237 @@ Implement only step 8.3 under Section 5.31 of AGENTS.md and modify project files
 
 - 2026-10-01 K 调整：按用户要求，StrideLengthEstimator.kt 的步长系数由 0.5 改为 0.45；此前记录中的 K=0.5 为当时版本。同一组有效峰间数据下，估计距离和基于步长的速度为原值的 90%，步数/步频与 A_min=0.5 m/s² 不变。同步已有步长及运动统计测试预期；211 项单元测试通过（0 failures/errors/skipped）、debug 构建通过、lint 0 errors/15 warnings。未安装 APK 或进行本轮真机验证，K=0.45 仍为未校准试验值；已保存历史不重算，无 commit/push。
   K adjustment: Changed the stride coefficient from 0.5 to 0.45 at the user's request. Earlier K=0.5 records describe the previous version. Identical valid peak intervals yield 90% of the previous estimated distance and stride-based speeds; steps, cadence and A_min=0.5 m/s² are unchanged. Updated existing stride/motion test expectations. All 211 unit tests passed with no failures/errors/skips, the debug build passed, and lint reported 0 errors/15 warnings. No APK installation or hardware validation was performed; K=0.45 remains an uncalibrated trial value. Saved history is not recalculated. No commit/push.
+
+## 2026-10-03 步骤 8.4a—8.4d 中英文对照提示词 / Bilingual prompts for steps 8.4a–8.4d
+
+用户指令 / User request：生成中英文对照 prompt，按 8.4abcd 排列；随后要求将提示词写入文档。 / Generate bilingual prompts arranged as 8.4a–8.4d, then save them in the documentation.
+
+状态 / Status：三张参考图已实际查看。以下为待执行的提示词，本轮仅同步两份 AGENTS.md 和两份 prompt.md，8.4a—8.4d 均未实施，没有修改 App 或数据层，没有执行新的构建、自动测试、模拟器运行视觉或 H10 验证，无 commit/push。 / The three reference images were visually inspected. These prompts are pending execution. This turn synchronizes both documentation pairs only, without implementing any 8.4 substep, changing App/data-layer code, running new builds/tests/runtime visuals/hardware validation, committing or pushing.
+
+使用方式 / Usage：按 8.4a → 8.4b → 8.4c → 8.4d 顺序，每次复制“通用要求＋对应步骤”的中文或英文版本，只执行一个子步骤。规则见 AGENTS.md 第 5.32 节。 / Follow a → b → c → d. For each run, use one language version of the shared instructions plus the selected substep only. See AGENTS.md Section 5.32.
+
+### 通用要求 / Shared instructions
+
+#### 中文 Prompt
+
+```text
+工作区：C:\Users\auyhp\OneDrive\Desktop\551-a4
+Android 项目：C:\Users\auyhp\OneDrive\Desktop\551-a4\PolarH10ActivityViewer
+
+先阅读两份 AGENTS.md，并实际查看以下参考图：
+ui/Session-HR.png
+ui/Session-Motion.png
+ui/Session-ECG.png
+
+按本次指定的 8.4 子步骤直接修改项目文件。8.4 扩展为 Session 最终界面整合，允许调整已有展示布局；新的强度位置、卡片顺序和 Session 横向区间条覆盖此前相关布局规定，其他功能规则保持不变。
+
+沿用 Kotlin、Compose、Material 3、固定系统深浅主题和默认字体。
+字号：页面标题 24 sp、分区标题 18 sp、正文 16 sp、次要统计 14 sp、当前 HR 56 sp、当前步频/速度 28 sp。
+页面/卡片 padding、卡片间距和圆角 16 dp，内部间距 8/12 dp，图标 24 dp，触控至少 48 dp。
+
+UI 和代码注释使用英文。尊重系统字体缩放和安全区域，允许滚动、增高、换行，横屏保留内容顺序，不裁剪数值、单位或按钮。
+未知显示 --，保留真实零、负 ECG、必要状态、错误和恢复入口；参考图中的演示数值不得进入正常界面。
+
+不得修改 SDK 调用、采集、缓存、算法、K=0.45、HR 阈值、统计公式、计时、生命周期、会话冻结、SQLite schema、保存事务或 History 查询规则。
+不新增 RR/HRV/R 峰分析、依赖、通用样式框架或无关重构，不实施 8.5。
+
+修改前检查相关源码；只完成当前子步骤。先同步规则，再同步实际结果到两份 AGENTS.md 和两份 prompt.md，使用中英文并明确已完成与待完成。
+运行相关检查、debug 构建和 lint。分别报告源码、自动检查、实际视觉检查和 Samsung/H10 验证；未执行项标为 pending。
+提供英文 commit message，不自动 commit 或 push。
+```
+
+#### English Prompt
+
+```text
+Workspace: C:\Users\auyhp\OneDrive\Desktop\551-a4
+Android project: C:\Users\auyhp\OneDrive\Desktop\551-a4\PolarH10ActivityViewer
+
+Read both AGENTS.md files and visually inspect:
+ui/Session-HR.png
+ui/Session-Motion.png
+ui/Session-ECG.png
+
+Modify project files directly for the requested 8.4 substep only. Step 8.4 now includes final Session UI integration. The new intensity placement, card order and horizontal Session zone bars supersede the corresponding earlier layout rules. Preserve all other functional rules.
+
+Reuse Kotlin, Compose, Material 3, the fixed system light/dark theme and default font family.
+Use 24 sp page titles, 18 sp section titles, 16 sp body text, 14 sp secondary statistics, 56 sp current HR and 28 sp current cadence/speed.
+Use 16 dp page/card padding, card spacing and corners; 8/12 dp internal spacing; 24 dp icons; and touch targets of at least 48 dp.
+
+Keep UI and comments in English. Respect system font scaling and system insets. Allow scrolling, growing cards and wrapping, retaining content order in landscape without clipping values, units or buttons.
+Keep -- for unknown values, genuine zeros, negative ECG values, necessary statuses, errors and recovery actions. Do not put reference-image demo values into the normal UI.
+
+Do not change SDK calls, acquisition, buffers, algorithms, K=0.45, HR thresholds, statistical formulas, timing, lifecycle, session freezing, SQLite schema, save transactions or History query rules.
+Do not add RR/HRV/R-peak analysis, dependencies, generic styling frameworks, unrelated refactoring or step 8.5.
+
+Inspect relevant source before editing and implement only the selected substep. Synchronize its rules first, then actual bilingual results, in both AGENTS.md files and both prompt.md files. Distinguish completed and pending work.
+Run relevant checks, a debug build and lint. Report source inspection, automated checks, actual visual checks and Samsung/H10 validation separately; mark unperformed checks pending.
+Provide an English commit message without automatically committing or pushing.
+```
+
+### 8.4a：页面框架、连接状态、控制与导航 / Page structure, connection status, controls and navigation
+
+#### 中文 Prompt
+
+```text
+只实施 8.4a，遵循通用要求。
+
+1. 使用 Scaffold 整合页面：顶部固定 Session / History 等宽页签，选中项使用主题蓝色文字和下划线。去掉重复的 Session 页面标题，中间内容可滚动，Session 底部显示 Start / Stop 控制区。保留现有卡片内容，指标重排和曲线改造分别留给 8.4b、8.4c。
+
+2. 将连接和 Data streams 整合为顶部卡片。左侧显示蓝牙图标、真实连接状态、电量及 Devices 齿轮入口；连接区域和齿轮均打开原 Devices 弹窗，不新增设置页。右侧显示 HR、ACC、ECG 及实际订阅状态：Receiving 绿、Starting/Stopping 橙、Failed 红、Idle/Stopped 中性灰。每路提供可见文字状态，不仅依靠颜色，READY 不等于 Receiving。窄屏/大字体时上下排列。原强度显示暂保留，待 8.4b 移入 HR 卡。
+
+3. 图片的暂停/继续/停止改为 Start / Stop 两个控件，图标配英文标签，建议圆形按钮直径 64 dp，不提供 Pause/Resume。保留原回调及启用条件，Starting 可 Stop，Stopping/保存阻塞时不能重复 Start。显示简洁会话状态、必要禁用原因和清楚的英文结束原因。
+
+4. 保存信息靠近会话状态显示，长错误放入可滚动区域。保留 Saving、Save failed、Retry save 和 Discard session；在 Session/History 均可达。不常驻 UUID 或 No session to save，不把上一场 Saved 显示成新会话已保存。Discard 增加确认弹窗后调用原 discard，不修改保存控制器。
+
+5. 在同一个 SensorActivity 内切换 Session/History，不停止、断开、清零、重复订阅或重置曲线选择。保留 Session 滚动位置、History 返回层级、刷新/分页/重试和删除确认。保留原后台、锁屏、返回欢迎页和旋转规则，不新增导航依赖或退出拦截。
+
+6. 检查页签、Devices、按钮状态、保存失败恢复及深浅/大字体/横屏布局。底部按钮不得遮挡内容。不实施 8.4b–8.4d。
+```
+
+#### English Prompt
+
+```text
+Implement only 8.4a, following the shared instructions.
+
+1. Integrate the screen with Scaffold: fixed equal-width Session/History tabs at the top, theme-blue selected text and an underline, scrollable content, and a Session Start/Stop control area at the bottom. Remove the duplicate Session page title. Retain current card content; metric reorganization and chart changes belong to 8.4b and 8.4c.
+
+2. Combine connection information and Data streams in the header card. Show the Bluetooth icon, actual connection state, battery and Devices gear on the left. Both the connection area and gear open the existing Devices dialog; do not add a settings screen. Show HR/ACC/ECG with actual subscription states: green Receiving, orange Starting/Stopping, red Failed, and neutral gray Idle/Stopped. Include visible state text rather than color alone; READY is not Receiving. Stack content on narrow screens or with enlarged fonts. Keep the existing intensity display until 8.4b moves it into the HR card.
+
+3. Replace the reference pause/resume/stop controls with Start and Stop, using icons and English labels. A 64 dp circular button is recommended. Do not add Pause/Resume. Preserve existing callbacks and enablement guards, allow Stop during Starting, and prevent duplicate Start during Stopping or save blocking. Show concise session states, necessary disabled reasons and readable English end reasons.
+
+4. Display saving information near the session status, placing long errors in scrollable content. Retain Saving, Save failed, Retry save and Discard session on both Session and History. Remove persistent UUID and No session to save displays. Do not present a previous session's Saved status as confirmation that the new session is saved. Confirm Discard before calling the existing discard function; leave the save controller unchanged.
+
+5. Switch Session/History within the same SensorActivity without stopping, disconnecting, clearing data, resubscribing or resetting chart selection. Preserve Session scroll position and existing History back, refresh, pagination, retry and deletion-confirmation rules. Keep existing background, lock-screen, Welcome-return and rotation behavior. Add no navigation dependency or exit interception.
+
+6. Check tabs, Devices, button states, save-failure recovery and light/dark, enlarged-font and landscape layouts. Bottom controls must not obscure content. Do not implement 8.4b–8.4d.
+```
+
+### 8.4b：指标卡片、运动汇总与横向区间 / Metric cards, activity summary and horizontal zones
+
+#### 中文 Prompt
+
+```text
+只实施 8.4b，遵循通用要求，检查并复用已完成的 8.4a。
+
+1. Session 滚动内容按以下顺序排列：
+连接/Data streams → Heart rate → Motion → Live charts → Activity summary → HR zones → 必要会话状态和保存恢复信息。
+本步移动现有曲线卡片，但不提前改造其绘制。
+
+2. 将当前强度从顶部移入 Heart rate 卡，只显示一处。使用共用颜色和英文标签，例如 Moderate · Zone 3。宽度足够时左侧为当前 HR/bpm，右侧为整场 Min/Max/Mean HR；底部显示真实 Last received (phone)。保留无效 HR、接触、停止、失败及 Retry HR 规则。停止或当前无效时不显示有效强度，未知为 --。
+
+3. Motion 参考图中步频大值与统计分栏。保留当前步频、整场 Mean/Min/Max cadence；在同一卡片增加独立的 Estimated speed、Mean speed、Max speed 区域。不得删除图片未画出的速度、最小步频、缺失说明或 Retry ACC。窄屏/大字体时纵排。
+
+4. Activity summary 使用三个并列小区域：Running duration、Total steps、Estimated distance；空间不足时换行或纵排。复用真实值，保留 mm:ss、m、--、真实零及估计含义。
+
+5. 仅将 Session HR zones 改为五行横向条形。每行包含 Zone 1–5、原英文强度标签、bpm 范围、彩色条和累计 mm:ss。颜色共用绿/蓝/黄/橙/红定义。五条共用时长比例尺，以最大累计区间时长对应满宽，不将其标为 Running 百分比。全部为零显示空条和 00:00；未收到有效 HR 时遵循原占位规则。保留 Unclassified 和不完整提示，文字使用主题前景色。
+
+6. Session 横向区间卡随内容增高，替代此前 160 dp 竖向绘图区规定。History 保留原展示，避免共享组件改动提前影响 8.5。
+
+7. 检查全部统计仍存在、未知/零/停止状态正确，以及深浅/大字体/横屏布局。不实施 8.4c、8.4d。
+```
+
+#### English Prompt
+
+```text
+Implement only 8.4b, following the shared instructions and inspecting/reusing completed 8.4a work.
+
+1. Arrange Session scroll content as:
+Connection/Data streams → Heart rate → Motion → Live charts → Activity summary → HR zones → necessary session and save-recovery information.
+Move the existing chart card without redesigning its plot in this substep.
+
+2. Move current intensity from the header into the Heart rate card, displaying it once with the shared color and English label, such as Moderate · Zone 3. When space allows, place current HR/bpm on the left and whole-session Min/Max/Mean HR on the right. Show the actual Last received (phone) time below. Preserve invalid HR, contact, stopped, failed and Retry HR behavior. Do not show valid current intensity when stopped or invalid; unknown values remain --.
+
+3. Follow the reference cadence-value/statistics arrangement in Motion. Retain current cadence and whole-session Mean/Min/Max cadence. Keep Estimated speed, Mean speed and Max speed as a separate area in the same card. Do not remove speed, minimum cadence, missing-data explanations or Retry ACC simply because the images omit them. Stack content when width or font scaling requires it.
+
+4. Present Activity summary as three adjacent areas: Running duration, Total steps and Estimated distance. Wrap or stack when necessary. Reuse real values and retain mm:ss, m, --, genuine zeros and estimate wording.
+
+5. Replace only Session HR zones with five horizontal rows. Each row includes Zone 1–5, its existing English intensity label, bpm range, colored bar and cumulative mm:ss. Reuse the green/blue/yellow/orange/red palette. All bars share a duration scale, with the longest cumulative zone duration filling the track; do not label this as a percentage of Running time. All-zero durations show empty bars and 00:00; no valid HR observations retain existing placeholder behavior. Keep Unclassified and incomplete-data information, using readable theme foreground text.
+
+6. Let the Session horizontal-zone card grow with its content, superseding the previous 160 dp vertical-plot requirement. Preserve History's existing presentation and avoid shared-component changes that implement 8.5 prematurely.
+
+7. Check that every statistic remains available, unknown/zero/stopped states are correct, and light/dark, enlarged-font and landscape layouts work. Do not implement 8.4c or 8.4d.
+```
+
+### 8.4c：三类实时曲线 / Three live chart views
+
+#### 中文 Prompt
+
+```text
+只实施 8.4c，遵循通用要求，复用 8.4a、8.4b 的页面结构。
+
+1. 按三张图片改进 Live charts 卡片。HR/Motion/ECG 使用胶囊选择控件，选中为主题蓝色，未选中为中性色，并提供明确选中语义。Motion 保留 Cadence/Speed 子切换，不共用不同单位的纵轴。
+
+2. 保留原有选择持有者、刷新频率、缓存、时间锚点、断段、冻结及 Retry 条件。绘图区 220 dp；HR/运动仍显示最近 60 秒，ECG 最近 5 秒，不能照搬图片五分钟 HR/运动窗口。
+
+3. HR 使用红色曲线和浅红色填充；Motion 使用主题蓝色曲线和浅蓝色填充；ECG 使用蓝色细线。曲线及填充均按有效连续段绘制，不跨 null/breakBefore，不补造数据。ECG 保留负值及全部可见样本，不平滑或抽样。
+
+4. 增加清晰的网格和纵轴刻度，沿用 8.3 的范围、留白和精度规则。轴边界不是统计最值。横轴显示真实 Running 单调时间 mm:ss，标签数量随可用空间调整；ECG 宽屏可增加秒刻度，窄屏/大字体减少，禁止重叠或缩字。
+
+5. HR/运动图上方复用已有整场统计，明确标为 Session mean / Session max。均值虚线使用同一个整场均值，只有有效且位于当前比例尺内时绘制；不重算统计或强行扩展坐标范围。ECG 显示实际选中采样率和当前窗口实际样本数量，未知为 --，不硬编码 130/650。
+
+6. 保留空数据、等待、失败、冻结、配置错误和原恢复入口；ECG 失败时，即使选中 HR/Motion，仍可找到 ECG Retry。正常状态下精简重复说明，不新增缩放、拖动、动画或图表依赖。
+
+7. 检查 HR、Cadence、Speed、ECG 四种展示，包含真实零、负值、断段、空窗口、长标签、深浅模式、大字体和横屏。明确受控截图不能证明实时 ECG 性能。不实施 8.4d。
+```
+
+#### English Prompt
+
+```text
+Implement only 8.4c, following the shared instructions and reusing the 8.4a/8.4b screen structure.
+
+1. Refine Live charts using the three reference images. Use pill-shaped HR/Motion/ECG selectors with theme-blue selection, neutral unselected backgrounds and explicit selection semantics. Retain Cadence/Speed sub-selection within Motion, with separate units and axes.
+
+2. Preserve selection ownership, refresh intervals, buffers, time anchors, gaps, freezing and Retry guards. Keep a 220 dp plot. HR/motion still display the latest 60 seconds and ECG the latest five seconds; do not copy the reference five-minute HR/motion window.
+
+3. Use a red HR line with a subtle red fill, theme-blue motion lines with subtle blue fills, and a thin blue ECG line. Draw lines and fills separately for valid continuous segments, without crossing null/breakBefore or inventing data. Preserve negative ECG values and every visible ECG sample without smoothing or decimation.
+
+4. Add readable grid lines and Y-axis ticks while retaining 8.3 range, margin and precision rules. Axis bounds are not statistical extrema. Use actual monotonic elapsed Running time in mm:ss on the X-axis, adapting label count to available space. Wider ECG plots may show more second ticks; reduce ticks for narrow screens/enlarged fonts without overlaps or shrinking text.
+
+5. Reuse existing whole-session statistics above HR/motion plots, explicitly labeled Session mean and Session max. Use the same whole-session mean for the dashed reference line, drawing it only when valid and within the current display bounds. Do not recalculate statistics or force an axis expansion. Show ECG's actual selected sampling rate and actual visible-window sample count; use -- when unknown and never hardcode 130/650.
+
+6. Retain empty, waiting, failed, frozen and configuration-error states with existing recovery actions. ECG Retry must remain reachable after an ECG failure even while HR/Motion is selected. Reduce redundant normal-state explanations. Add no zooming, dragging, animation or chart dependency.
+
+7. Check HR, Cadence, Speed and ECG, including genuine zeros, negative values, gaps, empty windows, long labels, light/dark mode, enlarged fonts and landscape. Distinguish controlled screenshots from real-time ECG performance validation. Do not implement 8.4d.
+```
+
+### 8.4d：最终整合、清理与验收 / Final integration, cleanup and validation
+
+#### 中文 Prompt
+
+```text
+只实施 8.4d，遵循通用要求。先确认 8.4a–8.4c 已落实；若缺失，说明具体缺口，不将未实施内容写成已完成。
+
+1. 对照三张参考图检查最终 Session 结构、对齐、卡片层次、选择状态及控件位置。只修复本阶段遗留的界面问题，不新增设计或功能。保留与图片不同但已明确要求的 Start/Stop、速度指标、真实数据窗口和必要恢复信息。
+
+2. 清理被正式界面替代的开发标题、UUID、缓存计数、重复统计和常驻调试说明。保留 8.4c 明确要求的实际 ECG 采样率/窗口样本数。确认无引用和其他用途后才删除纯 UI 文件，不删除数据持有者、业务代码、测试证据或历史材料。
+
+3. 验证系统深浅模式、字体 1.0/2.0、竖屏/横屏及滚动。检查固定页签和底部按钮不遮挡内容，数字、单位、刻度、错误和恢复按钮均可读可达。
+
+4. 验证无设备、权限/蓝牙不可用、Starting、Running、Stopping、Stopped、单流失败/Retry、保存失败/Retry/Discard 和 Session/History 切换。切换和旋转不清零或重复订阅；History 查询、分页、删除和返回行为保持原规则。
+
+5. 运行相关单元测试、Compose/SQLite 回归、debug 构建及 lint。保存并实际查看可执行范围内的截图。分别记录源码检查、自动检查、实际视觉和 Samsung/H10 真机结果，未执行项标为 pending，不将演示数据或编译成功写成真机通过。
+
+6. 用 Git diff 核查整个 8.4a–8.4d 范围，确认数据层、算法、存储和 SDK 代码没有修改。若发现差异，说明文件、原因和影响，不静默覆盖用户改动。
+
+7. 同步两份 AGENTS.md 和两份 prompt.md 的中英文实际结果、最终布局规则和未验证项。提供英文 commit message 和实际修改文件清单，不自动提交或推送，不推进 8.5。
+```
+
+#### English Prompt
+
+```text
+Implement only 8.4d, following the shared instructions. First confirm that 8.4a–8.4c are implemented. Report specific missing prerequisites without describing unimplemented work as complete.
+
+1. Compare the final Session structure, alignment, card hierarchy, selected states and control placement with all three references. Fix only remaining UI issues from this stage. Preserve deliberate differences: Start/Stop, speed metrics, real data windows and necessary recovery information.
+
+2. Remove development headings, UUID displays, buffer counts, duplicate statistics and persistent debugging explanations replaced by the final UI. Retain the actual ECG sampling rate/window sample count explicitly required by 8.4c. Delete UI-only files only after confirming they have no remaining references or other purposes. Preserve data owners, business code, validation evidence and historical materials.
+
+3. Check system light/dark modes, font scales 1.0/2.0, portrait/landscape and scrolling. Ensure fixed tabs and bottom controls do not obscure content, and values, units, ticks, errors and recovery actions remain readable and reachable.
+
+4. Check no-device and unavailable-permission/Bluetooth states, Starting, Running, Stopping, Stopped, individual stream failure/Retry, save failure/Retry/Discard and Session/History switching. Switching and rotation must not clear data or duplicate subscriptions. Preserve History query, pagination, deletion and back behavior.
+
+5. Run relevant unit tests, Compose/SQLite regression checks, a debug build and lint. Save and actually inspect screenshots within the available execution scope. Record source inspection, automated checks, actual visuals and Samsung/H10 results separately, marking unperformed checks pending. Do not describe demo data or successful compilation as hardware validation.
+
+6. Review the Git diff across the entire 8.4a–8.4d change range and confirm that data-layer, algorithm, storage and SDK code were not modified. If differences exist, report the files, reasons and impact without silently overwriting user changes.
+
+7. Synchronize actual bilingual results, final layout rules and pending validation in both AGENTS.md files and both prompt.md files. Provide an English commit message and the actual changed-file list. Do not automatically commit, push or advance to 8.5.
+```

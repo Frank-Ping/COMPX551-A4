@@ -17,6 +17,9 @@
 - 步骤 8.3（2026-10-01）：按用户指定置底，正式曲线/选择/比例尺/220 dp 与开发显示清理已实施。211 单元测试、60 项不同模拟器检查、debug/测试 APK 与 lint（0 errors、15 warnings）通过；实际系统字号/横屏、受控及无 H10 App 视觉边界见 5.31.1；Samsung/H10 pending，8.4/8.5 未实施，两对文档同步，无 commit/push。
   Step 8.3 implemented with the chart last in Session, 211 unit tests and 60 distinct emulator checks passing, debug/test builds and lint passing (0 errors, 15 warnings). Source, actual system-font/landscape/controlled/no-H10 visuals and hardware limits are in 5.31.1. No 8.4/8.5, commit or push.
 
+- 步骤 8.4 文档（2026-10-03）：按三张 ui/Session-*.png 参考图制定 8.4a—8.4d 中英文提示词，规则见 5.32，完整提示词见 prompt.md 的同日章节。本轮仅修改并同步两对文档；8.4a—8.4d 和 8.5 均未实施，没有修改 App 或数据层，没有运行新的构建、自动测试、模拟器视觉或 H10 验证，无 commit/push。
+  Step 8.4 documentation: Bilingual prompts for 8.4a–8.4d follow the three ui/Session-*.png references. Rules are in 5.32 and full prompts are in the dated prompt.md section. This turn changes both documentation pairs only. All 8.4 substeps and 8.5 remain unimplemented; no App/data-layer changes, new builds, automated tests, emulator visuals or H10 validation, commit or push.
+
 ## 2. 协作规则
 
 - 每次只执行用户指定步骤，不自动推进后续步骤。
@@ -1003,6 +1006,52 @@
   Evidence/hardware limits: Final logs and controlled/system-font/actual captures are in build/step83-validation/; reports/APKs retain their app/build/ paths. No Samsung/H10 installation or operation occurred. Real signals/window scrolling, ECG 100 ms refresh performance, contact/stream failure/recovery and live rotation/background/connection lifecycle remain pending. Static controlled 650-point captures and compilation do not replace hardware acceptance. No steps 8.4/8.5, SDK, algorithm, acquisition/lifecycle, storage/query or dependency changes. Both documentation pairs record actual bilingual results; no commit/push.
 - 建议英文提交信息 / Suggested English commit message：`feat: finalize session live charts and remove development displays`
 
+### 5.32 步骤 8.4a—8.4d：参考图 Session 最终界面整合 / Reference-based final Session UI integration
+
+- 确认与状态（2026-10-03）：用户要求将此前提供的中英文提示词写入文档。参考为工作区 ui/Session-HR.png、Session-Motion.png、Session-ECG.png，三图已实际查看，均为标注 DEMO DATA 的界面概念图。本轮仅保存规则与提示词，不实施 App；各子步骤均 pending。每次使用 prompt.md 中“通用要求＋对应子步骤”的一个语言版本，按 a → b → c → d 顺序执行一个编号。
+  Confirmation/status: The user requested saving the previously supplied bilingual prompts. The three workspace ui/Session-*.png files were visually inspected and are explicitly demo-data concepts. This turn saves documentation only; every substep remains pending. Use one language version of the shared instructions plus the selected prompt, implementing one substep at a time in a → b → c → d order.
+- 范围与替代关系：8.4 扩展为 Session 最终视觉整合，允许调整 8.1—8.3 的 UI 展示。实施对应子步骤时，新规定覆盖此前“强度只在顶部”“HR zones/summary 在曲线之前”“曲线为滚动最后卡片”“Session 160 dp 竖向五柱”和主题蓝 HR 曲线等相关布局/绘制规则；旧章节保留为当时实施与验证记录。未替代的数据、功能、主题及行为规则继续有效。8.4 不实施 8.5；History 正式列表/详情不重排。
+  Supersession: Step 8.4 includes final Session visual integration and may adjust the 8.1–8.3 presentation. When the relevant substep is implemented, it supersedes header-only intensity, zones/summary before charts, charts last, Session's 160 dp vertical zone plot and theme-blue HR plot styling. Earlier sections remain historical implementation/validation records. All unaffected data, functional, theme and behavior rules remain. History's formal list/detail redesign stays in 8.5.
+- 共用基线：Kotlin/Compose/Material 3、固定系统深浅主题、默认字体；字号 24/18/16/14 sp，当前 HR 56 sp、当前步频/速度 28 sp；padding/卡片间距/圆角 16 dp、内部 8/12 dp、图标 24 dp、触控至少 48 dp。英文 UI/注释，未知 --、真实零与负 ECG 不变。尊重系统字体和安全区域，横屏同序、纵向滚动、增高/换行，不裁剪数字/单位/按钮、不强压参考长图为一屏、不使用图中演示值。
+  Shared baseline: Reuse Kotlin/Compose/Material 3, fixed system light/dark mode and default fonts; 24/18/16/14 sp base sizes, 56 sp current HR and 28 sp cadence/speed; 16 dp padding/card spacing/corners, 8/12 dp internal spacing, 24 dp icons and at least 48 dp touch targets. Keep English UI/comments, --, genuine zeros and signed ECG. Respect system fonts/insets with same-order landscape scrolling and growing/wrapping layouts. Do not compress the reference long image into one viewport or use its demo values.
+
+#### 5.32.1 8.4a：页面框架、连接状态、控制与导航 / Page structure, connection status, controls and navigation
+
+- Scaffold 顶部固定等宽 Session/History 页签，蓝色选中项和下划线，删除重复 Session 页面标题；中间滚动、Session 底部 Start/Stop；a 暂保留现有指标/强度，重排和绘图留 b/c。连接/Data streams 合为顶卡：左侧蓝牙、状态、电量及 Devices 齿轮，连接区/齿轮均开原弹窗；右侧 HR/ACC/ECG 指示点及可见状态文本，Receiving 绿、Starting/Stopping 橙、Failed 红、Idle/Stopped 灰，READY 不等于 Receiving；窄屏/大字体纵排。
+  Use fixed equal Session/History tabs with blue selection/underline, no duplicate Session title, scrolling content and bottom Session Start/Stop controls. Keep existing metrics/intensity until b/c. Combine connection/Bluetooth/battery/Devices gear and actual HR/ACC/ECG states in one header; both device entry points open the existing dialog. Receiving is green, Starting/Stopping orange, Failed red and Idle/Stopped gray, with visible text. READY is not Receiving; stack when necessary.
+- 两个图标＋英文标签控件，推荐圆形 64 dp，不新增 Pause/Resume，原启用条件/回调不变，Starting 可 Stop，Stopping/保存阻塞不重复 Start；简洁状态、必要禁用原因、可读英文结束原因。保存信息靠近会话状态，长错误可滚动；两页均可达 Saving/Failed/Retry save/Discard，不常驻 UUID/No session to save，不将上一场 Saved 归给新场，Discard 确认后调用原方法，不改控制器。
+  Use two icon-and-label controls, preferably 64 dp circles, preserving Start/Stop callbacks/guards and Stop during Starting without Pause/Resume. Show concise state, required disabled reasons and readable end reasons. Keep save status and recovery accessible on both pages, with long errors scrollable. Avoid persistent UUID/no-session notices and attributing the previous save to a new session. Confirm Discard before the existing call; leave the controller unchanged.
+- 同一 SensorActivity 切换两页，不结束、断开、清零、重订阅或重置曲线选择；保留 Session 滚动位置、History 返回层级/查询刷新/分页/重试/删除确认、原后台/锁屏/返回欢迎/旋转规则；无导航依赖/退出拦截。检查页签、弹窗、控制、保存恢复、深浅/大字号/横屏，底控不遮内容。
+  Keep both pages in the same SensorActivity without stopping/disconnecting/resetting/resubscribing. Preserve Session scroll position, chart selection, existing History back/query/refresh/pagination/retry/delete and lifecycle rules. Add no navigation dependency or exit interception. Check tabs, Devices, controls, save recovery, themes, enlarged fonts and landscape without bottom-control occlusion.
+
+#### 5.32.2 8.4b：指标卡片、运动汇总与横向区间 / Metric cards, summary and horizontal zones
+
+- 滚动顺序：连接/Data streams → Heart rate → Motion → Live charts → Activity summary → HR zones → 必要会话/保存恢复信息。仅移动现有曲线，绘制留 c。强度移入 HR 卡且只显示一处；左当前 HR/bpm、右整场 Min/Max/Mean、底真实 Last received (phone)；保留无效/接触/停止/失败/Retry，不以无效或停止状态显示有效强度。
+  Order scrolling content as connection/data streams, HR, Motion, charts, summary, zones and necessary session/save recovery. Move the existing plot without c's redesign. Show intensity once inside HR, with current HR/bpm, whole-session Min/Max/Mean and actual phone reception time, preserving invalid/contact/stopped/failed/retry behavior.
+- Motion 保留当前步频及 Mean/Min/Max；同卡独立区域保留 Estimated speed/Mean/Max、单位、缺失说明及 Retry ACC。Summary 为 Running duration/Total steps/Estimated distance 三区域，不足宽度纵排/换行，沿用真实值、mm:ss/m/估计意义。
+  Motion retains current and Mean/Min/Max cadence, a separate Estimated speed/Mean/Max area, units, missing-data explanations and Retry ACC. Summary has duration/steps/estimated distance areas that wrap/stack, retaining actual values and units/estimate wording.
+- 仅 Session 改五行横条，每行 Zone/原英文强度/bpm/条形/mm:ss；共用既有绿蓝黄橙红，最大累计区间时长为满宽，同尺不标 Running 百分比；全零空条/00:00、未观测沿旧占位，保留 Unclassified/不完整。文字用主题前景。自适应卡高替代 Session 160 dp 竖图，不改 History 共用五柱布局。检查统计完整性、未知/零/停止及字体/方向/主题。
+  Only Session switches to five horizontal zone rows with zone/intensity/bpm/bar/duration, the shared palette and a common scale relative to the longest duration rather than Running percentages. Preserve zero versus missing, Unclassified and integrity information with readable foreground text. Let card height grow instead of using the Session 160 dp vertical plot; retain History's plot. Check statistics, states, fonts, orientation and themes.
+
+#### 5.32.3 8.4c：三类实时曲线 / Three live chart views
+
+- HR/Motion/ECG 胶囊选择（蓝选中/中性未选中/语义明确），保留 Cadence/Speed 子切换、不同单位独立轴及原选择持有者。220 dp 绘图区、60 秒 HR/运动和 5 秒 ECG；不照搬五分钟窗口。刷新/缓冲/时间锚点/断段/冻结/Retry 不变。
+  Use pill selectors with blue selection and explicit semantics, retaining Cadence/Speed subchoices, unit-specific axes and existing ownership. Keep the 220 dp plot, 60-second HR/motion and five-second ECG, plus existing refresh/buffers/anchors/gaps/freeze/retry; do not copy a five-minute window.
+- HR 红线浅红填充，Motion 蓝线浅蓝填充，ECG 蓝细线；每个有效连续段单独绘线/填充，不跨 null/breakBefore，不补数据。保留负 ECG/全部可见样本，不平滑抽样。增加网格/纵刻度，沿 8.3 范围/留白/精度；轴界不当极值，横轴真实 Running mm:ss，按宽度/字号增减，ECG 宽屏可加秒刻度，不重叠缩字。
+  Use a red HR line/subtle fill, blue Motion line/subtle fill and thin blue ECG. Draw each continuous segment independently, with no interpolation across null/breakBefore. Preserve negative/all visible ECG samples without smoothing/decimation. Add grids/ticks with 8.3 bounds/margins/precision, using real Running mm:ss and adaptive non-overlapping labels rather than statistical-extrema axis labels.
+- 上方复用整场 Session mean/max，均值虚线同值，仅有效且在比例尺内绘制，不重算/强扩轴。ECG 实际选中率/实际窗口样本数，未知 --、不硬编码 130/650。保留等待/空/失败/冻结/配置错误，非 ECG 选中时 ECG 失败仍可 Retry；无缩放/拖动/动画/图表依赖。检查四视图、零/负/断段/空/长标签/主题/大字号/横屏；静态图不作为实时性能证据。
+  Reuse whole-session mean/max; draw the same mean as a dashed line only when valid and in range, without recalculation or forced expansion. Show actual selected ECG rate/window count, never fixed 130/650. Retain all necessary states/configuration/recovery, including ECG retry from other selections after failure. No zoom/drag/animation/dependency. Check all four views and edge cases; static captures do not validate live performance.
+
+#### 5.32.4 8.4d：最终整合、清理与验收 / Final integration, cleanup and validation
+
+- 先确认 a—c 已落实，缺失说明，不虚称完成。对照三图仅修本阶段遗留布局/对齐/选中/控件，保留 Start/Stop、速度、真实窗口和恢复要求。删除被替代的开发标题/UUID/缓存计数/重复统计/常驻调试说明，但保留 c 要求的实际 ECG 率/窗口计数；纯 UI 文件确认无引用/他用才删，不删数据/业务/证据/历史材料。
+  Verify a–c prerequisites and report gaps. Fix remaining reference-related UI issues while retaining the specified functional differences. Remove replaced debugging UI, retaining c's actual ECG rate/count. Delete UI-only files only after checking references/other use; preserve business/data/evidence/history.
+- 验证系统深浅、字体 1.0/2.0、竖横屏/滚动/安全区域；覆盖无设备、权限/蓝牙、会话全状态、单流失败/Retry、保存失败/Retry/Discard、两页切换/旋转及 History 回归。运行相关单元/Compose/SQLite、debug/lint，实际保存查看可执行截图，区分源码、自动、实际视觉、Samsung/H10，未做 pending。检查整个 8.4 diff 数据/算法/存储/SDK 无改；若有差异说明，不覆盖用户改动。同步两对文档实际中英文结果/规则/未验项，列实际文件和英文提交建议，无自动 commit/push，不推进 8.5。
+  Validate system themes, 1.0/2.0 fonts, both orientations, scrolling/insets, unavailable states, all session/stream/save recovery and switching/rotation/History regressions. Run relevant unit/Compose/SQLite/debug/lint checks and inspect available screenshots. Separate source, automated, visual and hardware evidence, marking unperformed work pending. Audit the full 8.4 diff for unchanged data/algorithm/storage/SDK code, reporting differences without overwriting user work. Synchronize both bilingual documentation pairs, list changed files and suggest an English commit message without commit/push or 8.5.
+
+- 全阶段边界与交付：不得改 SDK、采集/缓存/算法/K=0.45/HR 阈值/统计/计时/生命周期/冻结/schema/保存事务/History 查询，不新增 RR/HRV/R 峰、依赖/通用框架/无关重构。每步先查源码、仅执行用户编号、同步规则和实际结果、相关检查/debug/lint；无实测不得写通过。本轮仅文档同步，App 实施/新构建/测试/运行视觉/真机均 pending。
+  Stage-wide limits/delivery: Preserve SDK, acquisition/buffers/algorithms/K=0.45/thresholds/statistics/timing/lifecycle/freezing/schema/save transactions/History queries. Add no RR/HRV/R-peak feature, dependency, generic framework or unrelated refactor. Inspect source, execute only the requested substep, synchronize rules/factual results and run appropriate checks/debug/lint. This documentation-only turn performs no implementation/build/test/runtime visuals/hardware validation.
+
 ## 6. 功能开发步骤
 
 按下表顺序推进；一次只处理一个编号。依赖未满足时先说明缺口。
@@ -1047,7 +1096,11 @@
 | 8.1 | 已整合区域 1、2：连接/电量入口、Devices 弹窗与心率强度，见 5.29.1 | 204 项单元测试、35 项 Compose/SQLite 检查、debug/测试 APK 构建与 lint（0 errors、15 warnings）通过；实际深浅/字体/横屏检查完成所述范围，H10 pending |
 | 8.2 | 四卡指标、160 dp 五柱/明细及运动汇总已实施；规则/结果见 5.30—5.30.1 | 204 单元测试、13 新 UI + 35 回归、debug/测试构建及 lint 通过；深浅/大字体/横屏视觉已检查，Samsung/H10 pending |
 | 8.3 | 整合区域 7：三类曲线切换 | 时间轴清楚，切换后数据连续 |
-| 8.4 | 整合区域 8、9：会话控制与导航 | 导航不意外重置会话 |
+| 8.4 | 参考图 Session 最终整合，拆为 a—d；规则见 5.32，完整双语提示词见 prompt.md | 仅规则/提示词已写入；全部子步骤待实施，数据与生命周期不变 |
+| 8.4a | 页面框架、连接/Data streams、Start/Stop、保存恢复与顶部导航 | pending；切换不重置会话，控件及错误可达 |
+| 8.4b | 指标分栏、强度移入 HR、三项汇总与 Session 横向区间 | pending；统计完整、未知/零正确，History 不重排 |
+| 8.4c | 三类实时曲线、网格/刻度/填充/整场均值参考线 | pending；真实窗口/断段/冻结/恢复不变 |
+| 8.4d | 最终清理、对照参考、字体/方向/状态/回归与数据层差异检查 | pending；实际视觉/自动检查/H10 分开记录 |
 | 8.5 | 完成 History 列表与详情布局 | 可查看已保存的多次运动 |
 | 9.1 | 验证拒绝权限、断线、页面重建和后台行为 | 行为符合设计，无重复采集 |
 | 9.2 | 真机完整演示并记录性能与算法局限 | 完成采集→处理→保存→重启查询 |
