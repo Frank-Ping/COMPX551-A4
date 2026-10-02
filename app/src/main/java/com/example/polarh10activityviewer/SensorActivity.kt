@@ -14,7 +14,7 @@ import com.example.polarh10activityviewer.ble.ScanStatus
 import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.chart.LiveChartPanel
-import com.example.polarh10activityviewer.heartrate.HeartRateZonePanel
+import com.example.polarh10activityviewer.heartrate.SessionHeartRateZonePanel
 import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
 import com.example.polarh10activityviewer.motion.StepState
 import com.example.polarh10activityviewer.session.SensorViewModel
@@ -27,7 +27,6 @@ import com.example.polarh10activityviewer.history.HistoryPanel
 import com.example.polarh10activityviewer.history.SavePanel
 import com.example.polarh10activityviewer.storage.SaveStatus
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.material3.TextButton
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -44,14 +43,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -67,8 +63,11 @@ import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import com.example.polarh10activityviewer.ui.theme.PagePadding
 import com.example.polarh10activityviewer.ble.DevicesDialog
 import com.example.polarh10activityviewer.session.SessionHeader
+import com.example.polarh10activityviewer.session.SessionControls
+import com.example.polarh10activityviewer.session.SessionScaffold
+import com.example.polarh10activityviewer.session.SessionStatusPanel
+import com.example.polarh10activityviewer.session.startDisabledReason
 import com.example.polarh10activityviewer.ui.theme.SectionSpacing
-import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import kotlinx.coroutines.delay
 
@@ -138,17 +137,22 @@ class SensorActivity : ComponentActivity() {
                 }
             }
             PolarH10ActivityViewerTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Column(Modifier.fillMaxSize().padding(innerPadding)) {
-                        Row {
-                            TextButton(onClick = { showHistory = false }) { Text("Session") }
-                            TextButton(onClick = { showHistory = true }) { Text("History") }
-                        }
-                        SavePanel(saveState, bleManager.storage.saves, showSessionId = showHistory)
-                        if (showHistory) HistoryPanel(bleManager.storage.database,
+                val disabledReason = startDisabledReason(availability, !systemRequestPending, connectionState,
+                    session, saveState.blocksStart, subscriptionStates.values.toList(), dataReadiness.values)
+                SessionScaffold(showHistory, { showHistory = it },
+                    controls = {
+                        SessionControls(disabledReason == null, session.ongoing,
+                            ::handleStartSession, { bleManager.stopSession() })
+                    },
+                    historyContent = {
+                        HistoryPanel(bleManager.storage.database,
                             saveState.sessionId.takeIf { saveState.status == SaveStatus.SAVED },
-                            onBack = { showHistory = false })
-                        else SessionScreen(
+                            onBack = { showHistory = false }, sessionStatus = {
+                                SessionStatusPanel(session, disabledReason)
+                                SavePanel(saveState, bleManager.storage.saves, session.record?.id)
+                            })
+                    },
+                    sessionContent = { SessionScreen(
                         availability = availability,
                         actionEnabled = !systemRequestPending,
                         errorMessage = errorMessage,
@@ -173,15 +177,12 @@ class SensorActivity : ComponentActivity() {
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
-                        savingBlocksStart = saveState.blocksStart,
-                        onStartSession = ::handleStartSession,
-                        onStopSession = { bleManager.stopSession() },
+                        disabledReason = disabledReason,
+                        saveStatus = { SavePanel(saveState, bleManager.storage.saves, session.record?.id) },
                         onRetryStream = ::handleRetryStream,
                         charts = { canRetry, retry -> LiveChartPanel(bleManager, subscriptionStates, dataReadiness, canRetry, retry) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    }
-                }
+                    ) }
+                )
             }
         }
     }
@@ -360,9 +361,8 @@ internal fun SessionScreen(
     accSubscription: SubscriptionState = SubscriptionState(),
     ecgSubscription: SubscriptionState = SubscriptionState(),
     session: SessionState = SessionState(),
-    savingBlocksStart: Boolean = false,
-    onStartSession: () -> Unit = {},
-    onStopSession: () -> Unit = {},
+    disabledReason: String? = null,
+    saveStatus: @Composable () -> Unit = {},
     onRetryStream: (PolarDeviceDataType) -> Unit = {},
     charts: @Composable (Boolean, () -> Unit) -> Unit = { _, _ -> }
 ) {
@@ -393,35 +393,19 @@ internal fun SessionScreen(
         modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePadding),
         verticalArrangement = Arrangement.spacedBy(SectionSpacing)
     ) {
-        Text("Session", style = MaterialTheme.typography.titleLarge)
         SessionHeader(
             availability = availability, connection = connectionState, batteryLevel = validBattery,
-            zones = heartRateZones,
-            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED,
-            hrSubscription = hrSubscription, hrMessage = heartRateMessage,
+            hrSubscription = hrSubscription,
+            accSubscription = accSubscription, ecgSubscription = ecgSubscription,
             onOpenDevices = { showDevices = true }
         )
         val connected = actionEnabled && availability == BluetoothAvailability.READY &&
             connectionState.status == ConnectionStatus.CONNECTED
-        val subscriptions = listOf(hrSubscription, accSubscription, ecgSubscription)
-        fun busy(subscription: SubscriptionState) = subscription.status in setOf(
-            SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING
-        )
-        Text("Session: ${session.status.label}", style = MaterialTheme.typography.titleMedium)
-        Text("Timing begins with the first valid HR or actual ACC/ECG sample.")
-        Text("Session limit: four hours. The session ends and eligible data is saved automatically.")
-        session.endReason?.let { Text(if (it == "TIME_LIMIT") "Session time limit reached." else it) }
-        Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-            Button(onClick = onStartSession, enabled = connected && !savingBlocksStart &&
-                session.status in setOf(SessionStatus.IDLE, SessionStatus.STOPPED) &&
-                subscriptions.none(::busy) && dataReadiness.values.any {
-                    it.status == DataReadinessStatus.READY && it.configurationComplete
-                }) { Text("Start") }
-            Button(onClick = onStopSession, enabled = session.ongoing) { Text("Stop") }
-        }
         HeartRateCard(
             reading = heartRate,
             statistics = heartRateStatistics,
+            zones = heartRateZones,
+            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED,
             message = heartRateMessage,
             subscription = hrSubscription,
             canRetry = connected && session.ongoing,
@@ -433,18 +417,20 @@ internal fun SessionScreen(
                 dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
             onRetry = { onRetryStream(PolarDeviceDataType.ACC) }
         )
-        HeartRateZonePanel(heartRateZones,
-            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED)
+        charts(connected && session.ongoing &&
+            dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
+            { onRetryStream(PolarDeviceDataType.ECG) })
         ActivitySummaryCard(session, steps)
+        SessionHeartRateZonePanel(heartRateZones,
+            stopped = session.status == SessionStatus.STOPPING || session.status == SessionStatus.STOPPED)
+        SessionStatusPanel(session, disabledReason)
+        saveStatus()
         session.record?.let { record ->
             if (record.incomplete) Text("Incomplete session data. Some streams have missing or failed observations.")
             if (session.status == SessionStatus.STOPPED && !record.eligibleForSaving) {
                 Text("No valid observations to save. Connect a device and Start a new session.")
             }
         }
-        charts(connected && session.ongoing &&
-            dataReadiness.values.none { it.status == DataReadinessStatus.CHECKING },
-            { onRetryStream(PolarDeviceDataType.ECG) })
     }
 }
 @Preview(showBackground = true)

@@ -1,6 +1,7 @@
 package com.example.polarh10activityviewer.session
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,10 +12,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,7 +30,6 @@ import com.example.polarh10activityviewer.ble.ConnectionState
 import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.ble.connectionStatusText
-import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
 import com.example.polarh10activityviewer.ui.theme.CardCornerRadius
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
@@ -42,77 +43,70 @@ internal fun SessionHeader(
     availability: BluetoothAvailability,
     connection: ConnectionState,
     batteryLevel: Int?,
-    zones: HeartRateZoneState,
-    stopped: Boolean,
     hrSubscription: SubscriptionState,
-    hrMessage: String?,
-    onOpenDevices: () -> Unit
+    onOpenDevices: () -> Unit,
+    accSubscription: SubscriptionState = SubscriptionState(),
+    ecgSubscription: SubscriptionState = SubscriptionState()
 ) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        // Keep labels readable at enlarged system font sizes.
-        if (maxWidth < 320.dp * LocalDensity.current.fontScale) {
-            Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-                ConnectionCard(availability, connection, batteryLevel, onOpenDevices, Modifier.fillMaxWidth())
-                IntensityCard(zones, stopped, hrSubscription, hrMessage, Modifier.fillMaxWidth())
-            }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-                ConnectionCard(availability, connection, batteryLevel, onOpenDevices, Modifier.weight(1f))
-                IntensityCard(zones, stopped, hrSubscription, hrMessage, Modifier.weight(1f))
+    Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
+        OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(CardCornerRadius)) {
+            BoxWithConstraints(Modifier.fillMaxWidth().padding(PagePadding)) {
+                if (maxWidth < 560.dp * LocalDensity.current.fontScale) {
+                    Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
+                        ConnectionDetails(availability, connection, batteryLevel, onOpenDevices)
+                        StreamStates(hrSubscription, accSubscription, ecgSubscription)
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
+                        Box(Modifier.weight(1f)) { ConnectionDetails(availability, connection, batteryLevel, onOpenDevices) }
+                        Box(Modifier.weight(1f)) { StreamStates(hrSubscription, accSubscription, ecgSubscription) }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ConnectionCard(
+private fun ConnectionDetails(
     availability: BluetoothAvailability,
     connection: ConnectionState,
     batteryLevel: Int?,
-    onOpenDevices: () -> Unit,
-    modifier: Modifier
+    onOpenDevices: () -> Unit
 ) {
-    OutlinedCard(
-        onClick = onOpenDevices,
-        modifier = modifier.heightIn(min = MinimumTouchTarget),
-        shape = RoundedCornerShape(CardCornerRadius)
-    ) {
-        Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).heightIn(min = MinimumTouchTarget).clickable(onClick = onOpenDevices),
+            horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.ic_bluetooth), contentDescription = "Devices",
-                    modifier = Modifier.size(IconSize))
-                Text(connectionStatusText(availability, connection), modifier = Modifier.weight(1f))
-            }
-            Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}", style = MaterialTheme.typography.bodySmall)
+                    modifier = Modifier.size(IconSize), tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+                    Text(connectionStatusText(availability, connection), style = MaterialTheme.typography.titleMedium)
+                    Text("Battery: ${batteryLevel?.let { "$it%" } ?: "--"}", style = MaterialTheme.typography.bodySmall)
+                }
+        }
+        IconButton(onClick = onOpenDevices, modifier = Modifier.size(MinimumTouchTarget)) {
+            Icon(painterResource(R.drawable.ic_devices), contentDescription = "Open Devices",
+                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(IconSize))
         }
     }
 }
 
 @Composable
-private fun IntensityCard(
-    zones: HeartRateZoneState,
-    stopped: Boolean,
-    subscription: SubscriptionState,
-    message: String?,
-    modifier: Modifier
-) {
-    val current = zones.current.takeUnless { stopped }
-    Surface(modifier = modifier, shape = RoundedCornerShape(CardCornerRadius)) {
-        Column(Modifier.padding(PagePadding), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            Text("Heart rate intensity", style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
-                current?.let { Box(Modifier.size(12.dp).background(HeartRateZoneColors[it.ordinal])) }
-                Text(current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--",
-                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: SubscriptionState) {
+    Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+        Text("Data streams", style = MaterialTheme.typography.titleMedium)
+        // Each state comes from its subscription, not data readiness.
+        listOf("HR" to hr, "ACC" to acc, "ECG" to ecg).forEach { (label, stream) ->
+            val color = when (stream.status) {
+                SubscriptionStatus.RECEIVING -> HeartRateZoneColors[0]
+                SubscriptionStatus.STARTING, SubscriptionStatus.STOPPING -> HeartRateZoneColors[3]
+                SubscriptionStatus.FAILED -> MaterialTheme.colorScheme.error
+                SubscriptionStatus.IDLE, SubscriptionStatus.STOPPED -> MaterialTheme.colorScheme.outline
             }
-            if (current == null) {
-                Text(when {
-                    stopped -> "Stopped"
-                    subscription.status == SubscriptionStatus.FAILED -> "HR unavailable"
-                    message != null -> message
-                    subscription.status == SubscriptionStatus.STARTING -> "Waiting for HR data"
-                    else -> "No valid HR data"
-                }, style = MaterialTheme.typography.bodySmall)
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+                Box(Modifier.size(12.dp).background(color, CircleShape))
+                Text("$label: ${stream.status.name.lowercase().replaceFirstChar { it.uppercase() }}")
             }
         }
     }

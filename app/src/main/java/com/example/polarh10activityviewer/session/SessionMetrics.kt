@@ -1,6 +1,8 @@
 package com.example.polarh10activityviewer.session
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -9,12 +11,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -25,12 +32,14 @@ import com.example.polarh10activityviewer.ble.HeartRateStatistics
 import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
+import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
 import com.example.polarh10activityviewer.motion.StepState
 import com.example.polarh10activityviewer.ui.theme.CardCornerRadius
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.example.polarh10activityviewer.ui.theme.MinimumTouchTarget
 import com.example.polarh10activityviewer.ui.theme.PagePadding
+import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import java.text.DateFormat
 import java.util.Date
@@ -76,19 +85,37 @@ private fun speed(value: Double?): String = decimal(value?.times(3.6))
 internal fun HeartRateCard(
     reading: HeartRateReading?,
     statistics: HeartRateStatistics,
+    zones: HeartRateZoneState,
+    stopped: Boolean,
     message: String?,
     subscription: SubscriptionState,
     canRetry: Boolean,
     onRetry: () -> Unit
 ) {
     MetricCard("Heart rate") {
-        MetricValue(reading?.bpm?.toString() ?: "--", "bpm", heartRate = true)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
-            verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-            SecondaryText("Min HR: ${statistics.min ?: "--"} bpm")
-            SecondaryText("Max HR: ${statistics.max ?: "--"} bpm")
-            SecondaryText("Mean HR: ${decimal(statistics.average)} bpm")
+        val current = zones.current.takeUnless { stopped || reading == null || subscription.status == SubscriptionStatus.FAILED }
+        Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+            SecondaryText("Heart rate intensity")
+            Row(horizontalArrangement = Arrangement.spacedBy(ContentSpacing), verticalAlignment = Alignment.CenterVertically) {
+                current?.let { Box(Modifier.size(12.dp).background(HeartRateZoneColors[it.ordinal])) }
+                Text(current?.let { "${it.label} · Zone ${it.ordinal + 1}" } ?: "--",
+                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            }
+            if (current == null) SecondaryText(when {
+                stopped -> "Stopped"
+                subscription.status == SubscriptionStatus.FAILED -> "HR unavailable"
+                subscription.status == SubscriptionStatus.STARTING -> "Waiting for HR data"
+                else -> "No valid HR data"
+            })
         }
+        MetricColumns(
+            current = { MetricValue(reading?.bpm?.toString() ?: "--", "bpm", heartRate = true) },
+            statistics = {
+                SecondaryText("Min HR: ${statistics.min ?: "--"} bpm")
+                SecondaryText("Max HR: ${statistics.max ?: "--"} bpm")
+                SecondaryText("Mean HR: ${decimal(statistics.average)} bpm")
+            }
+        )
         SecondaryText("Mean of valid HR samples")
         val receivedAt = reading?.let {
             DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.ENGLISH)
@@ -106,19 +133,24 @@ internal fun HeartRateCard(
 @Composable
 internal fun MotionCard(steps: StepState, subscription: SubscriptionState, canRetry: Boolean, onRetry: () -> Unit) {
     MetricCard("Motion") {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            if (maxWidth < 320.dp * LocalDensity.current.fontScale) {
-                Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-                    CadenceMetric(steps, Modifier.fillMaxWidth())
-                    SpeedMetric(steps, Modifier.fillMaxWidth())
-                }
-            } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing)) {
-                    CadenceMetric(steps, Modifier.weight(1f))
-                    SpeedMetric(steps, Modifier.weight(1f))
-                }
+        Text("Cadence")
+        MetricColumns(
+            current = { MetricValue(cadence(steps.cadence), "steps/min") },
+            statistics = {
+                SecondaryText("Mean cadence: ${cadence(steps.meanCadence)} steps/min")
+                SecondaryText("Min cadence: ${cadence(steps.minimumCadence)} steps/min")
+                SecondaryText("Max cadence: ${cadence(steps.maximumCadence)} steps/min")
             }
-        }
+        )
+        HorizontalDivider()
+        Text("Estimated speed")
+        MetricColumns(
+            current = { MetricValue(speed(steps.speed), "km/h") },
+            statistics = {
+                SecondaryText("Mean speed: ${speed(steps.averageSpeed)} km/h")
+                SecondaryText("Max speed: ${speed(steps.maximumSpeed)} km/h")
+            }
+        )
         SecondaryText("Averages include all Running time. Extrema use qualifying five-second ACC windows.")
         if (!steps.receivedAcc) SecondaryText("No ACC observations. Statistics are unavailable.")
         else {
@@ -135,42 +167,46 @@ internal fun MotionCard(steps: StepState, subscription: SubscriptionState, canRe
 }
 
 @Composable
-private fun CadenceMetric(steps: StepState, modifier: Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        Text("Cadence")
-        MetricValue(cadence(steps.cadence), "steps/min")
-        SecondaryText("Mean cadence: ${cadence(steps.meanCadence)} steps/min")
-        SecondaryText("Min cadence: ${cadence(steps.minimumCadence)} steps/min")
-        SecondaryText("Max cadence: ${cadence(steps.maximumCadence)} steps/min")
-    }
-}
-
-@Composable
-private fun SpeedMetric(steps: StepState, modifier: Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        Text("Estimated speed")
-        MetricValue(speed(steps.speed), "km/h")
-        SecondaryText("Mean speed: ${speed(steps.averageSpeed)} km/h")
-        SecondaryText("Max speed: ${speed(steps.maximumSpeed)} km/h")
+private fun MetricColumns(current: @Composable () -> Unit, statistics: @Composable ColumnScope.() -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < 320.dp * LocalDensity.current.fontScale) {
+            Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
+                current()
+                Column(verticalArrangement = Arrangement.spacedBy(ContentSpacing), content = statistics)
+            }
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(ControlSpacing), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { current() }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(ContentSpacing), content = statistics)
+            }
+        }
     }
 }
 
 @Composable
 internal fun ActivitySummaryCard(session: SessionState, steps: StepState) {
     MetricCard("Activity summary") {
-        SummaryRow("Running duration (mm:ss)", formatZoneDuration(session.elapsedMs))
-        SummaryRow("Total steps", steps.totalSteps?.toString() ?: "--")
-        SummaryRow("Estimated distance", decimal(steps.distance), "m")
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ControlSpacing),
+            verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
+            val minimumWidth = 140.dp * LocalDensity.current.fontScale
+            SummaryMetric("Running duration (mm:ss)", formatZoneDuration(session.elapsedMs),
+                Modifier.weight(1f).widthIn(min = minimumWidth))
+            SummaryMetric("Total steps", steps.totalSteps?.toString() ?: "--",
+                Modifier.weight(1f).widthIn(min = minimumWidth))
+            SummaryMetric("Estimated distance", decimal(steps.distance),
+                Modifier.weight(1f).widthIn(min = minimumWidth), "m")
+        }
         SecondaryText("Running time includes stationary/rest and missing-data periods. Distance and speed are estimates.")
     }
 }
 
 @Composable
-private fun SummaryRow(label: String, value: String, unit: String? = null) {
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-        verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        Text(label)
-        MetricValue(value, unit)
+private fun SummaryMetric(label: String, value: String, modifier: Modifier, unit: String? = null) {
+    OutlinedCard(modifier, shape = RoundedCornerShape(CardCornerRadius)) {
+        Column(Modifier.padding(ControlSpacing), verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
+            Text(label)
+            MetricValue(value, unit)
+        }
     }
 }
 

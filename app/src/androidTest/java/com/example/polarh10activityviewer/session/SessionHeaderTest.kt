@@ -37,6 +37,7 @@ import com.example.polarh10activityviewer.ble.ConnectionState
 import com.example.polarh10activityviewer.ble.ConnectionStatus
 import com.example.polarh10activityviewer.ble.DataReadiness
 import com.example.polarh10activityviewer.ble.DataReadinessStatus
+import com.example.polarh10activityviewer.ble.HeartRateReading
 import com.example.polarh10activityviewer.ble.SavedDevice
 import com.example.polarh10activityviewer.ble.SavedDevicesState
 import com.example.polarh10activityviewer.ble.ScanState
@@ -108,9 +109,11 @@ class SessionHeaderTest {
                             onDisconnect = { disconnects++ }, onRetryDisconnect = { retries++ },
                             dataReadiness = readiness.value, onRecheckData = { rechecks++ },
                             batteryLevel = battery.value, heartRateZones = zones.value,
+                            heartRate = zones.value.current?.let {
+                                HeartRateReading(listOf(100, 115, 130, 145, 160)[it.ordinal], 1_700_000_000_000)
+                            },
                             heartRateMessage = message.value, hrSubscription = hr.value,
-                            accSubscription = acc.value, session = session.value,
-                            onStartSession = { starts++ }, onStopSession = { stops++ }
+                            accSubscription = acc.value, session = session.value
                         )
                     }
                 }
@@ -122,7 +125,7 @@ class SessionHeaderTest {
         if (restoration == null) compose.setContent { Fixture() }
         else restoration.setContent { Fixture() }
     }
-    private fun open() = compose.onNodeWithContentDescription("Devices").performClick()
+    private fun open() = compose.onNodeWithContentDescription("Devices").performScrollTo().performClick()
     private fun click(text: String) = compose.onNodeWithText(text).performScrollTo().performClick()
     private fun screenshot(name: String, dialog: Boolean = false) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -137,7 +140,7 @@ class SessionHeaderTest {
         mount(); open()
         compose.onNodeWithText("Current device").assertIsDisplayed()
         compose.onNodeWithText("Close").performClick()
-        compose.onNodeWithText("Session: Running").assertIsDisplayed()
+        compose.onNodeWithText("Session: Running").performScrollTo().assertIsDisplayed()
         assertEquals(0, scansStarted); assertEquals(0, scansStopped)
         assertEquals(0, bluetoothActions); assertEquals(0, disconnects)
         assertEquals(0, starts); assertEquals(0, stops); assertEquals(null, connectedId)
@@ -248,20 +251,20 @@ class SessionHeaderTest {
         mount()
         HeartRateZone.entries.forEach { zone ->
             compose.runOnIdle { zones.value = zones.value.copy(current = zone) }
-            compose.onNodeWithText("${zone.label} · Zone ${zone.ordinal + 1}").assertIsDisplayed()
+            compose.onNodeWithText("${zone.label} · Zone ${zone.ordinal + 1}").performScrollTo().assertIsDisplayed()
         }
         compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(1)
         compose.runOnIdle { zones.value = zones.value.copy(current = null); message.value = "No skin contact." }
-        compose.onAllNodesWithText("No skin contact.")[0].assertIsDisplayed()
+        compose.onNodeWithText("No skin contact.").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { hr.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled HR failure") }
-        compose.onNodeWithText("HR unavailable").assertIsDisplayed()
+        compose.onNodeWithText("HR unavailable").performScrollTo().assertIsDisplayed()
         compose.runOnIdle {
             zones.value = zones.value.copy(current = HeartRateZone.MODERATE)
             hr.value = SubscriptionState(SubscriptionStatus.RECEIVING); message.value = null
         }
-        compose.onNodeWithText("Moderate · Zone 3").assertIsDisplayed()
+        compose.onNodeWithText("Moderate · Zone 3").performScrollTo().assertIsDisplayed()
         compose.runOnIdle { session.value = session.value.copy(status = SessionStatus.STOPPED) }
-        compose.onNodeWithText("Stopped").assertIsDisplayed()
+        compose.onNodeWithText("Stopped").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
         assertEquals(List(5) { 2_000L }, zones.value.durationsMs)
     }
@@ -276,7 +279,7 @@ class SessionHeaderTest {
         listOf(false, true).forEach { night ->
             compose.runOnIdle { dark.value = night }
             val prefix = if (night) "controlled-dark-font2" else "controlled-light-font2"
-            compose.onNodeWithText("Moderate · Zone 3").assertIsDisplayed()
+            compose.onNodeWithText("Moderate · Zone 3").performScrollTo().assertIsDisplayed()
             screenshot("$prefix-header")
             open()
             compose.onNodeWithText("Close").assertIsDisplayed()

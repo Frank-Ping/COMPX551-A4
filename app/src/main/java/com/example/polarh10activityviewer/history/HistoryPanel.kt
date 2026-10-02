@@ -38,9 +38,6 @@ import com.example.polarh10activityviewer.session.SessionRecord
 import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.session.SessionSummaryPanel
 import com.example.polarh10activityviewer.storage.SessionDatabase
-import com.example.polarh10activityviewer.storage.SessionSaveController
-import com.example.polarh10activityviewer.storage.SaveState
-import com.example.polarh10activityviewer.storage.SaveStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
@@ -51,21 +48,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 @Composable
-internal fun SavePanel(state: SaveState, controller: SessionSaveController, showSessionId: Boolean = true) {
-    Text("Save: ${state.status.label}")
-    if (showSessionId) state.sessionId?.let { Text("Save session ID: $it", style = MaterialTheme.typography.bodySmall) }
-    if (state.status == SaveStatus.FAILED) {
-        Text(state.error ?: "Unable to save session.")
-        Row {
-            Button(onClick = { controller.retry() }) { Text("Retry save") }
-            TextButton(onClick = { controller.discard() }) { Text("Discard session") }
-        }
-    }
-    if (state.blocksStart) Text("New Start is blocked until saving succeeds or the failed session is discarded.")
-}
-
-@Composable
-internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: () -> Unit) {
+internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: () -> Unit,
+    sessionStatus: @Composable () -> Unit = {}) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     var detail by remember { mutableStateOf<SessionSnapshot?>(null) }
@@ -95,6 +79,7 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(PagePadding),
         verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
         Text("History (development check)", style = MaterialTheme.typography.titleLarge)
+        sessionStatus()
         TextButton(onClick = { back() }, enabled = !confirmDelete) { Text("Back") }
         Text("Stored on this device only. Uninstalling or clearing app data deletes history.")
         Text("An unsaved session may be lost if the process ends before the database commit.")
