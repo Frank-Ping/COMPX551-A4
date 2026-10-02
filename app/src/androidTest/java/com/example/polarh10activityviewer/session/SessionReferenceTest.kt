@@ -221,7 +221,7 @@ class SessionReferenceTest {
         capture("after-stop"); singleScreen()
     }
 
-    @Test fun captureActualSystemFontAndOrientationLimits() {
+    @Test fun captureActualSystemFontLimits() {
         mount(systemFont = true)
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }

@@ -304,7 +304,7 @@ class SessionChromeTest {
         }
     }
 
-    @Test fun actualSystemFontsAndRotationKeepTabsControlsAndRecoveryReachable() {
+    @Test fun actualSystemFontsKeepTabsControlsAndRecoveryReachable() {
         scale.value = null
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val controller = SessionSaveController(scope) { throw IllegalStateException("Controlled long save error. ".repeat(16)) }
