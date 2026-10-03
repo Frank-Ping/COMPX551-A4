@@ -8,6 +8,8 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.espresso.Espresso
@@ -40,8 +42,9 @@ class HistoryDetailTest {
     @Before fun open() { db = SessionDatabase(context, name) }
     @After fun close() { TimeZone.setDefault(originalZone); db.close(); context.deleteDatabase(name) }
 
-    private fun rows() = compose.onAllNodesWithText("Estimated distance:", substring = true)
-        .fetchSemanticsNodes().map { it.config[SemanticsProperties.Text].joinToString { text -> text.text } }
+    private fun rows() = compose.onAllNodes(SemanticsMatcher("History card") {
+        it.config.getOrElse(SemanticsProperties.TestTag) { "" }.startsWith("history-row-")
+    }).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }
     private fun awaitText(text: String) {
         compose.waitUntil(10_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
     }
@@ -51,7 +54,7 @@ class HistoryDetailTest {
     }
     private fun click(text: String) { compose.onNodeWithText(text).performScrollTo().performClick() }
     private fun select(index: Int = 0) {
-        compose.onNodeWithText(rows()[index]).performScrollTo().performClick()
+        compose.onNodeWithTag(rows()[index]).performScrollTo().performClick()
     }
     private fun save(vararg snapshots: SessionSnapshot) = runBlocking { snapshots.forEach { db.save(it) } }
     private fun sql(statement: String) = runBlocking { withContext(Dispatchers.IO) { db.writableDatabase.execSQL(statement) } }
@@ -97,14 +100,15 @@ class HistoryDetailTest {
         assertEquals(one, runBlocking { db.detail("one") })
     }
 
-    @Test fun detailAndDeleteConfirmationUseListDateWithoutMillisecondsAndCancelWritesNothing() {
+    @Test fun listUsesShortDateWhileDetailAndConfirmationRetainPreciseTimeAndCancelWritesNothing() {
         TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Auckland"))
         val snapshot = databaseFixture("date", 1234)
         save(snapshot)
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
         awaitList(1)
-        val date = rows().single().substringBefore('\n')
-        assertEquals("1970-01-01 12:00:01 +12:00", date)
+        compose.onNodeWithText("01 Jan 1970").assertIsDisplayed()
+        compose.onNodeWithText("12:00").assertIsDisplayed()
+        val date = "1970-01-01 12:00:01 +12:00"
         select(); awaitText("Delete session")
         assertText("Running started: $date")
         assertText("Ended: 1970-01-01 12:00:03 +12:00")

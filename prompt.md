@@ -1,3 +1,12 @@
+> 当前进度（2026-10-03，8.5b）：History 详情标题、Overview/Heart rate/Cadence、四项未定义指标空卡片及 Session details 折叠区已写入。debug 构建和 lint 通过（0 errors、22 warnings）。按用户要求，本轮不新增/修改测试，留到最后统一补；未运行自动测试或模拟器视觉检查，真机仍 pending。详见 5.36；8.5c—8.5d 未实施，无 commit/push。下方旧阶段记录按当时事实保留。
+> Current progress (2026-10-03, 8.5b): History detail heading, Overview/Heart rate/Cadence, four placeholder cards and the Session details disclosure are implemented. Debug build and lint pass (zero errors, 22 warnings). At the user's request, tests are deferred to final integration and no test files change. No automated tests or emulator visuals run; hardware acceptance remains pending. See 5.36. Steps 8.5c–8.5d are unimplemented; no commit/push. Earlier records retain their historical context.
+
+> 8.5a 实施状态（2026-10-03）：列表卡片、10 条自动加载、右侧滚动条已实施；分轮 41 项不同 SQLite/Compose 检查及额外字号 2.0 视觉复测通过，debug/测试 APK、lint（0 errors、22 warnings）通过。实际视觉/真机边界见文末 5.35。8.5b—8.5d 与 Samsung/H10 验收 pending；本轮无 commit/push。后文提示词设计记录按当时事实保留。
+> Step 8.5a implementation (2026-10-03): List cards, automatic batches of 10 and a right-side scrollbar are implemented. Across recorded runs, 41 distinct SQLite/Compose checks plus an extra font-scale 2.0 visual repeat pass; debug/test-APK builds and lint pass (zero errors, 22 warnings). See the final 5.35 record for visual/hardware limits. Steps 8.5b–8.5d and Samsung/H10 acceptance remain pending; no commit/push this turn. Earlier prompt-design records retain their historical context.
+
+> 8.5 提示词更新（2026-10-03）：文末已新增按 History-list.png / History-detail.png 设计的 8.5a—8.5d 中英文分步提示词。每批 10 条、触底自动加载、右侧滚动条、适度字重及未定义指标空卡片为本次设计规则。本轮只同步两份 prompt.md，8.5 App 功能尚未实施；没有运行新的构建、测试或真机验收，也没有 commit/push。下方旧记录保留其当时语境。
+> Step 8.5 prompt update (2026-10-03): Bilingual prompts for 8.5a–8.5d have been added at the end, following History-list.png / History-detail.png. The design uses batches of 10, automatic loading near the end, a right-side scrollbar, moderate font weights and placeholder cards for undefined metrics. This turn synchronizes only the two prompt.md files; the 8.5 App features are not implemented. No new build, test, hardware acceptance, commit or push was performed. Earlier records below retain their original context.
+
 > 当前状态修订（2026-10-03）：8.4e 统一管理 Session 最终展示与实施记录；Welcome、Session、History 已请求固定竖屏，目标手机尺寸的模拟旋转检查通过（5.34.3.8）。横屏布局不再作为待完成项；**2.0 字号竖屏裁切与 Samsung/H10 真机验收仍 pending**。既有默认竖屏布局、Stop 重置及三图等高记录保留，不宣称全部 UI/真机验收完成。8.5 未实施，无 commit/push。
 > Current status correction (2026-10-03): Step 8.4e owns final Session presentation and its records. Welcome, Session and History request fixed portrait and pass phone-sized simulated rotation checks (5.34.3.8). Landscape layout is no longer an outstanding task; **portrait font 2.0 clipping and Samsung/H10 acceptance remain pending**. Prior default-portrait, Stop-reset and chart-height evidence remains, without claiming complete UI/hardware acceptance. No 8.5, commit or push.
 
@@ -2255,3 +2264,210 @@ Implement consolidated step 8.4e only: Session reference styling, single-screen 
   Debug/test-APK builds and lint pass (zero errors, 22 warnings: four additional orientation advisories, two LockedOrientationActivity and two DiscouragedApi, not suppressed). After disabling the dedicated emulator's forced-user-orientation override, the actual APK passes nine upright/left/right sensor checks across Welcome/Session/History on an API 37 phone emulator (1080×2340, 450 dpi). Each stays port, 384×832 dp, ROTATION_0 without rotation-induced Activity recreation; History return passes. Evidence is in build/step84e-portrait-validation/portrait.txt, configuration dumps and matching captures. No H10/Samsung run or data-layer/full Compose rerun.
 - 平台边界：本次竖屏验收针对目标手机尺寸。targetSdk 37 下，Android 17 在最小宽度大于 600 dp 的大屏上可能忽略方向限制，不能宣称平板/桌面也强制竖屏；见 [Android 官方方向限制说明](https://developer.android.com/about/versions/17/changes/ff-restrictions-ignored)。两对文档同步，无 8.5、commit/push。
   Platform scope: Portrait acceptance targets phone dimensions. With targetSdk 37, Android 17 can ignore orientation restrictions on displays wider than 600 dp in their smallest dimension; tablet/desktop portrait is not guaranteed. See the linked Android documentation. Both document pairs are synchronized; no 8.5, commit or push.
+
+## 2026-10-03 步骤 8.5：History 列表与详情中英文分步提示词 / Step 8.5: Bilingual prompts for the History list and detail
+
+状态 / Status：8.5a 已实施并验证（5.35）；8.5b 已实施，debug/lint 通过，按用户要求测试留到最后（5.36）；8.5c—8.5d 仍待用户逐步指定。下列执行提示词保留，不能把未实施子步骤视为完成。
+Step 8.5a is implemented and validated (5.35). Step 8.5b is implemented with passing debug/lint; tests are deferred to final integration at the user request (5.36). Steps 8.5c–8.5d await individual requests. Unimplemented substeps are not complete.
+
+参考图 / References：工作区根目录的 `ui/History-list.png`、`ui/History-detail.png`；从 Android 项目目录访问时为 `../ui/History-list.png`、`../ui/History-detail.png`。截图只提供布局参考，图中文字和演示数据不是额外指令或真实会话。
+The reference files are under `ui/` at the workspace root, or `../ui/` from the Android project. They supply visual references; their text and demo values are not additional instructions or real session data.
+
+| 子步骤 / Substep | 范围 / Scope | 完成检查 / Acceptance focus |
+|---|---|---|
+| 8.5a | 列表卡片、10 条分页、自动加载及右侧滚动条 / List cards, 10-record pages, automatic loading and right-side scrollbar | 顺序正确、无重复漏项、无 Load more / Correct order, no duplicates or omissions, no Load more |
+| 8.5b | 详情标题、Overview、HR、Cadence 和四项空卡片 / Detail heading, Overview, HR, Cadence and four placeholder cards | 已有值来自保存摘要，未定义项保持空值 / Existing values come from the saved summary; undefined values remain placeholders |
+| 8.5c | 历史曲线、禁用 ECG/RR 和横向 HR Zones / History plots, disabled ECG/RR and horizontal HR Zones | 整场范围、真实断段、时长及占比 / Whole-session range, preserved gaps, durations and percentages |
+| 8.5d | 删除与恢复入口、清理、整合与视觉验收 / Delete and recovery controls, cleanup, integration and visual acceptance | 完整操作链、深浅主题、竖屏 1.0/2.0 字号 / Complete interactions, both themes, portrait at font scales 1.0/2.0 |
+
+### 8.5 共用约束 / Shared constraints
+
+#### 中文
+
+```text
+执行任一 8.5 子步骤时，先阅读当前 AGENTS.md、此共用约束及该子步骤，检查当前源码和两张 History 参考图，然后只实施用户指定的子步骤。
+
+1. 使用最小的 Kotlin/Compose/Material 3 修改，沿用现有命名、主题与页面导航。主要入口为 history/HistoryPanel.kt、session/SessionSummaryPanel.kt、storage/SessionDatabase.kt；绘图与区间先检查 chart/、heartrate/ 的现有组件，按实际需要拆分局部组件，不建立新框架或添加无关依赖。
+2. 8.5 最新展示规则覆盖旧 History 的纯文本列表、每页 20 条、Load more 和开发详情布局。每页 10 条指每次数据库查询最多 10 条，向下滑动接近末尾自动加载下一批；不要求同屏容纳 10 张卡片，不加页码或翻页按钮。列表右侧显示与实际滚动位置对应的细滚动条。
+3. 按参考图组织页面，复用现有 Session / History 顶部导航。History 列表和详情允许纵向滚动，不套用 Session 的单屏无滚动限制。保留手机固定竖屏及系统安全区域。
+4. 配色、圆角、边框与当前 Session 协调，支持深浅主题。标题和关键数值使用 Medium/SemiBold（500–600），说明与单位使用 Regular（400），不照搬参考图的超粗字重。根据手机宽度确定字号，支持系统字号 1.0/2.0；大字号可换行或改变分栏，不关闭字体缩放、压缩整页或裁掉必要内容。
+5. 所有界面文字及代码注释使用英文。日期按当前手机时区显示，列表日期为 dd MMM yyyy、时间为 HH:mm；详情标题沿用同一日期/时间。保留查看精确秒数和时区的会话信息入口。时长复用已有有效运动时长及格式；距离从已保存的米值除以 1000，以两位小数 km 展示，不重新估算。
+6. Overview、Heart rate、Cadence、HR Zones 及图表只读已保存的摘要与历史。有效零值显示 0，缺失值显示 --。Intensity、Cardio Load、HR Recovery、Session Strain 仅显示标题和 --；不定义公式、不新增计算或数据库字段，不用当前 HR 强度替代整场 Intensity。ECG/RR 历史目前未存储，保留灰色禁用选择项，不伪造曲线或新增采集/存储。
+7. 除 8.5a 必需的页大小与加载触发变更外，保留现有保存资格、SQLite schema/事务、ID 查询、稳定倒序、取消旧查询、失败恢复及确认删除。保留必要的不完整提示、未归类时间和 History 保存重试。现有设备/结束原因/完整性、最小步频及速度统计可放入简洁的 Session details 折叠区，不挤占参考图的主摘要布局，不删除已保存字段。
+8. 不改变 SDK、采样、计步/距离公式、K、暂停计时、Stop 重置、Session 展示或数据库历史数据。参考图的 DEMO DATA 横幅和示例数值不进入生产；测试截图明确标注 UI TEST DATA · no H10。
+9. 每步只运行与改动相关的必要检查和 debug 构建；涉及 UI 时构建测试 APK 并做相关 Compose/视觉检查，运行 lint。实际完成结果同步到两对 AGENTS.md / prompt.md，历史结果保留；分别报告文件修改、构建、自动检查、模拟器视觉与 Samsung/H10 验收。未运行的项目写明未验证，不把规划写成已完成，不自动推进下一步或 commit/push。
+```
+
+#### English
+
+```text
+For any 8.5 substep, first read the current AGENTS.md, these shared constraints and the requested substep. Inspect the current source and both History references, then implement only the substep requested by the user.
+
+1. Make minimal Kotlin/Compose/Material 3 changes and reuse existing names, themes and navigation. Main entry points are history/HistoryPanel.kt, session/SessionSummaryPanel.kt and storage/SessionDatabase.kt. Inspect existing chart/ and heartrate/ components before changing plots or zones. Extract local components only when needed; add no new framework or unrelated dependency.
+2. These latest 8.5 presentation rules supersede the old plain-text History list, 20-record pages, Load more and development detail layout. A page of 10 means a database request returns at most 10 records; scrolling near the end loads the next batch automatically. Do not squeeze 10 cards onto one screen or add page numbers/navigation buttons. Show a thin right-side scrollbar that reflects the actual scroll position.
+3. Follow the references and reuse the existing Session / History navigation. Both History screens may scroll vertically; Session's single-screen, non-scrolling rule does not apply. Retain fixed phone portrait and system insets.
+4. Coordinate colors, corners and borders with the current Session and support both themes. Use Medium/SemiBold (500–600) for headings and key values, and Regular (400) for supporting text and units. Avoid the references' extra-heavy type. Choose sizes for phone widths and support system font scales 1.0/2.0 through wrapping or column changes; do not disable font scaling, shrink the entire page or clip necessary content.
+5. Use English UI text and code comments. Display dates in the phone's current timezone: dd MMM yyyy and HH:mm in the list, with the same date/time in the detail heading. Retain access to seconds and timezone in session information. Reuse the saved active duration and existing duration formatting. Display saved metres divided by 1000 as km with two decimals; do not re-estimate distance.
+6. Read Overview, Heart rate, Cadence, HR Zones and plots only from saved summaries/history. Show valid zero as 0 and missing values as --. Intensity, Cardio Load, HR Recovery and Session Strain contain only their titles and --. Define no formulas, computations or database fields, and do not substitute current-HR intensity for session Intensity. Historical ECG/RR is not stored: retain grey disabled choices without fabricated plots or new acquisition/storage.
+7. Apart from the page-size/loading-trigger changes required by 8.5a, preserve save eligibility, SQLite schema/transactions, ID-based lookup, stable descending order, cancellation of old queries, recovery and confirmed deletion. Retain necessary incomplete notices, unclassified time and History save retry. Existing device/end-reason/completeness information, minimum cadence and speed statistics may use a compact Session details disclosure without crowding the main reference layout or deleting saved fields.
+8. Do not change the SDK, sampling, step/distance formulas, K, pause timing, Stop reset, Session presentation or historical database records. Do not place reference DEMO DATA banners or example values in production. Label fixture captures UI TEST DATA · no H10.
+9. Run necessary checks relevant to each change and a debug build. For UI changes, build the test APK, run relevant Compose/visual checks and lint. Synchronize actual results in both AGENTS.md / prompt.md pairs while retaining historical records. Distinguish file changes, builds, automated checks, emulator visuals and Samsung/H10 acceptance. Mark unperformed checks unverified; do not present plans as completed work, advance automatically or commit/push.
+```
+
+### 8.5a：历史列表与每批 10 条自动加载 / History list and automatic loading in batches of 10
+
+#### 中文
+
+```text
+按本文件“8.5 共用约束”实施 8.5a，直接修改所需文件，只完成 History 列表：
+
+1. 查看 ui/History-list.png 及 HistoryPanel.kt、SessionDatabase.kt 和既有列表测试。保留顶部 Session / History 导航；列表内容为 Saved activities、Most recent first 和可点击卡片。
+2. 卡片左侧显示日期和时间，右侧显示 Duration、时长及进入详情箭头；整卡点击仍按真实 session ID 打开现有详情。主卡不再堆放步数/距离等旧列表文本，必要时保留简短 Incomplete 标记。使用适度字重、细边框、圆角与合理留白。
+3. 将数据库页大小及 UI 是否还有下一批的判断统一改为 10，沿用 startedAt DESC、id DESC 和现有游标。删除 Load more 按钮与旧点击加载路径。滑到接近末尾时自动加载下一批并追加；同一时刻只允许一次请求，重组不得重复加载，空批/不足 10 条后停止继续请求。恰好 10 条允许下一次空查询确认结束，不添加总数查询或新分页框架。
+4. 使用适合列表的单一纵向滚动容器，右侧添加细滚动条，位置和滑块随当前列表滚动更新；内容不足一屏时不显示误导性滑块。不用固定装饰线冒充滚动条，不要求额外拖拽跳转。大字号时卡片可重排，保持整卡可点击和至少 48 dp 触摸目标。
+5. 保留空列表、首次加载、追加加载、查询失败及 Retry query。追加失败时保留已加载卡片并暂停自动请求，用户重试同一游标；不无限自动重试。保留新保存、重新进入列表及删除成功后的既有刷新规则和旧查询取消行为。
+6. 调整现有 SQLite/HistoryList/HistoryPanel 检查，覆盖 0/1/10/11/超过 20 条、相同开始时间的稳定顺序、连续加载无重复漏项、触底并发保护、末页停止、失败后重试和卡片打开正确 ID。检查默认/大字号和深浅主题列表截图；测试数据只放测试环境。
+7. 运行相关检查、debug/测试 APK 构建和 lint，记录真实结果与证据。同步两对文档，只记录 8.5a 已实际完成部分；详情正式卡片、曲线及最终整合分别留给 8.5b—8.5d，不自动推进。
+```
+
+#### English
+
+```text
+Implement 8.5a under this file's shared 8.5 constraints. Modify the necessary files directly and complete only the History list:
+
+1. Inspect ui/History-list.png, HistoryPanel.kt, SessionDatabase.kt and existing list tests. Retain Session / History navigation and show Saved activities, Most recent first and clickable cards.
+2. Put date/time on the left and Duration, its value and a detail arrow on the right. Tapping the card must open the existing detail by the actual session ID. Remove the old steps/distance text from the main list card, retaining a concise Incomplete marker when needed. Use moderate weight, thin borders, rounded corners and suitable spacing.
+3. Change both database page size and the UI's next-page decision to 10 while retaining startedAt DESC, id DESC and the existing cursor. Remove Load more and its old click-loading path. Scrolling near the end loads and appends the next batch; allow one request at a time and no duplicate requests from recomposition. Stop after an empty or short batch. A full batch of exactly 10 may require a subsequent empty request to detect the end; add no count query or pagination framework.
+4. Use one vertical scrolling container appropriate for the list and add a thin right-side scrollbar whose thumb and position follow the current list. Do not show a misleading thumb for content shorter than the viewport. Do not use a static decorative line as a scrollbar or add drag-to-seek requirements. Cards may reflow at large font sizes; retain whole-card interaction and at least 48 dp touch targets.
+5. Preserve empty, initial-loading, append-loading, query-failure and Retry query states. On append failure, retain existing cards and suspend automatic requests until the user retries the same cursor; do not retry indefinitely. Preserve refresh after a new save, list re-entry or successful deletion, and cancellation of outdated queries.
+6. Adapt existing SQLite/HistoryList/HistoryPanel checks for 0/1/10/11/more than 20 records, stable ordering for identical start times, loading without duplicates/omissions, concurrent end-of-list triggers, end detection, failure/retry and opening the correct ID. Inspect both themes at normal/large font sizes. Keep fixtures in tests only.
+7. Run relevant checks, debug/test-APK builds and lint; record actual results/evidence. Synchronize both documentation pairs and report only completed 8.5a work. Leave formal detail cards, plots and final integration to 8.5b–8.5d; do not advance automatically.
+```
+
+### 8.5b：详情摘要与未定义指标空卡片 / Detail summary and placeholder cards for undefined metrics
+> 2026-10-03 用户最新覆盖：实施 8.5b，本轮不写/修改测试，最后统一补写。此要求覆盖本节第 6/7 项和共用约束中的本轮测试安排。本轮仅运行 debug 构建和 lint，未运行自动/视觉测试；最终整合时补写与调整测试并完成实际深浅主题/字号检查。
+> Latest user override (2026-10-03): Implement 8.5b without writing/modifying tests; write them together at final integration. This supersedes this section's items 6/7 and the shared per-step test schedule. This turn runs only debug build and lint, without automated/visual tests. Add/adapt tests and perform actual theme/font checks at final integration.
+
+#### 中文
+
+```text
+在 8.5a 基础上，按“8.5 共用约束”只实施 8.5b，直接修改 History 详情展示：
+
+1. 查看 ui/History-detail.png、HistoryPanel.kt、SessionSummaryPanel.kt、SessionRecord.kt。使用已有按 ID 读取的 SessionSnapshot，不从当前 Session 或曲线反算摘要。保留顶部导航；详情标题为返回箭头、Activity Summary 和会话日期时间，大字号允许日期换行。
+2. 从上到下实现 Overview、Heart rate、Cadence。Overview 为 Duration、Total Steps、Estimated Distance 三栏；HR 左侧为 Mean HR 与 bpm，右侧 Range 使用保存的 minimumHr—maximumHr；Cadence 左侧 Max、右侧 Mean，单位 steps/min。单位与数字清楚分层，字重按共用约束，不使用参考图示例值。
+3. 添加 Intensity、Cardio Load、HR Recovery 三张并排卡片，随后添加整宽 Session Strain。默认字号按图布局，大字号可换行。四项始终只显示标题和 --；不从心率区间、距离、平均 HR 或其他数据推算，也不增加字段、算法、后台任务或依赖。
+4. 有效 0 与缺失 -- 明确区分；某一 HR 范围端点缺失时该端点显示 --，不伪造范围。距离仅将已保存米数转换为两位小数 km。用当前时区统一列表和详情日期，保留精确时间/时区的详情信息。
+5. 替换旧 Session record (development check) 文本堆叠。将已有设备、结束原因、完整性说明，以及截图主卡未展示的最小步频和估计速度统计整理到简洁的 Session details 折叠区；不丢失必要的缺流/无有效窗口解释。加载/失败/找不到记录/返回和已有删除确认保持可用。曲线与区间仍保留现有实现，正式重排留 8.5c。
+6. 用已有/必要的 Compose 检查覆盖摘要取值、0/缺失、四项空卡片、长日期/数值、部分会话、返回和详情错误重试。查看深浅主题及实际系统字号 1.0/2.0 的竖屏截图，所有内容可滚动到达，卡片内部文字不裁切。
+7. 运行相关检查、debug/测试 APK 构建和 lint，同步两对文档中的实际结果，明确 8.5b 的完成与未验证范围。不执行 8.5c/8.5d，不定义四项新指标的计算规则。
+```
+
+#### English
+
+```text
+After 8.5a, implement only 8.5b under the shared 8.5 constraints. Modify the History detail presentation directly:
+
+1. Inspect ui/History-detail.png, HistoryPanel.kt, SessionSummaryPanel.kt and SessionRecord.kt. Use the SessionSnapshot loaded by ID; do not derive summaries from the current Session or plots. Retain navigation and show a back arrow, Activity Summary and session date/time; the date may wrap at large font sizes.
+2. Implement Overview, Heart rate and Cadence in that order. Overview has Duration, Total Steps and Estimated Distance. HR shows Mean HR with bpm on the left and Range from saved minimumHr—maximumHr on the right. Cadence shows Max on the left and Mean on the right, in steps/min. Separate units visually from values, use the shared font-weight rules and never copy example values.
+3. Add three side-by-side cards for Intensity, Cardio Load and HR Recovery, followed by a full-width Session Strain card. Follow the reference at normal font size and allow wrapping at large sizes. All four always contain only the title and --. Do not infer them from zones, distance, mean HR or other data, or add fields, algorithms, background work or dependencies.
+4. Distinguish valid 0 from missing --. If an HR range endpoint is missing, show -- for that endpoint without inventing a range. Convert saved metres to km with two decimals only. Use consistent current-timezone dates in list/detail and retain access to exact time/timezone information.
+5. Replace the old Session record (development check) text dump. Organize existing device/end-reason/completeness information, minimum cadence and estimated-speed statistics outside the main reference cards in a compact Session details disclosure. Retain necessary missing-stream/no-valid-window explanations. Keep loading, failure, missing-record, back and existing confirmed deletion functional. Retain current charts/zones until their formal arrangement in 8.5c.
+6. Use existing/necessary Compose checks for saved summary values, zero/missing data, four placeholder cards, long dates/values, partial sessions, back and detail-query retry. Inspect portrait screenshots in both themes and actual system font scales 1.0/2.0. All content must be reachable by scrolling without internal text clipping.
+7. Run relevant checks, debug/test-APK builds and lint. Synchronize actual results in both documentation pairs and state completed/unverified 8.5b scope. Do not execute 8.5c/8.5d or define computations for the four new metrics.
+```
+
+### 8.5c：整场曲线与横向心率区间 / Whole-session charts and horizontal heart-rate zones
+
+#### 中文
+
+```text
+在 8.5b 基础上，按“8.5 共用约束”只实施 8.5c，直接修改 History 的图表与区间：
+
+1. 按 ui/History-detail.png，在摘要卡片后放置 Activity charts，之后为 HR Zones。曲线选择使用 HR / Cadence / ECG / RR 胶囊；默认 HR，HR/Cadence 可切换。ECG/RR 灰色禁用，提供 Not recorded 的可访问性说明，不允许选出虚构或实时曲线。
+2. HR 读取已保存的 hrPoints，Cadence 读取 motionPoints.cadence，横轴从 0 到该记录的完整 durationMs，标为 Duration，刻度用 mm:ss；这不是 Session 的五分钟窗口。纵轴分别为 bpm、steps/min，使用能覆盖实际数据的合理刻度，不硬编码截图的范围或波形。
+3. 复用适合历史范围的现有绘图能力，实现细网格、曲线、浅色分段填充和已保存均值的虚线参考。缺失值和 breakBefore 必须断开线与填充，不跨缺口连接；均值使用保存摘要，不从降采样曲线重新计算。无有效数据时显示明确空状态，不绘制假零值曲线；单点、平值和零时长不得产生无效坐标。
+4. HR Zones 使用五行横向条形，顺序和绿/蓝/黄/橙/红配色与 Session 一致。每行显示 Z1—Z5、<110 / 110–124 / 125–139 / 140–154 / ≥155 bpm、保存时长和占有效运动时长的百分比。条长使用同一比例尺度，按该区间时长 / record.durationMs 展示；沿用内部毫秒和既有截断秒显示，不改变区间累计算法。
+5. 单独显示 Unclassified 时长及同分母占比，不强行让五区间达到 100%。durationMs 为 0 时占比显示 --；无有效 HR 时用空状态/--，不暗示已测得全零分布。以现有摘要语义区分“该区间确实为 0”和“没有心率数据”。
+6. 测试完整/缺失/断段 HR 与步频历史、均值来源、切换、禁用 ECG/RR、单点/平值/零时长，以及区间边界标签、比例和未归类时间。检查完整会话横轴、深浅主题、大字号时标签/单位/选择项可见，并确认共享绘图修改没有改变 Session 的三图等高和五分钟/五秒行为。
+7. 运行必要绘图/Compose 回归、debug/测试 APK 构建和 lint，保存明确标注测试数据的截图和实际结果，同步两对文档。不新增 ECG/RR 存储，不执行 8.5d，不改变已有摘要统计公式。
+```
+
+#### English
+
+```text
+After 8.5b, implement only 8.5c under the shared 8.5 constraints. Modify History plots and zones directly:
+
+1. Following ui/History-detail.png, place Activity charts after summary cards and HR Zones after the chart. Use HR / Cadence / ECG / RR pills, with HR selected initially and HR/Cadence switchable. Keep ECG/RR grey and disabled with accessible Not recorded information; never show invented or live curves for them.
+2. Read HR from saved hrPoints and cadence from motionPoints.cadence. The x-axis spans 0 to the record's full durationMs, labeled Duration with mm:ss ticks; it is not Session's five-minute window. Use bpm and steps/min y-axes with suitable scales covering actual data, without hardcoding reference ranges or waveforms.
+3. Reuse existing plotting capabilities suitable for historical ranges. Show fine grids, curves, light segmented fills and a dashed reference from the saved mean. Null values and breakBefore must break both line and fill; never bridge gaps. Use saved summary means rather than recomputing them from downsampled history. Show an explicit empty state when no valid data exists, without a false zero curve. Single-point, constant and zero-duration cases must not produce invalid coordinates.
+4. HR Zones contains five horizontal rows with Session's green/blue/yellow/orange/red order. Each row shows Z1–Z5, <110 / 110–124 / 125–139 / 140–154 / ≥155 bpm, saved duration and percentage of active duration. Use one shared bar scale based on zone duration / record.durationMs. Retain internal milliseconds and existing truncated-second display without changing accumulation rules.
+5. Show Unclassified duration and percentage using the same denominator separately; do not force the five zones to total 100%. Show -- percentages for zero duration. With no valid HR, use an empty state/-- rather than implying a measured all-zero distribution. Preserve the distinction between a genuinely zero-duration zone and absent HR data.
+6. Check complete/missing/segmented HR and cadence histories, saved mean sources, selection, disabled ECG/RR, single-point/constant/zero-duration data, zone labels, proportions and unclassified time. Inspect the full-session axis, both themes and large-font labels/units/choices. Ensure shared plotting changes do not alter Session's equal chart heights or five-minute/five-second behavior.
+7. Run necessary plotting/Compose regression checks, debug/test-APK builds and lint. Save labeled fixture captures and actual results, and synchronize both documentation pairs. Do not add ECG/RR storage, implement 8.5d or change existing summary formulas.
+```
+
+### 8.5d：删除、恢复、清理与完整验收 / Deletion, recovery, cleanup and complete acceptance
+
+#### 中文
+
+```text
+在 8.5a—8.5c 基础上，按“8.5 共用约束”只实施 8.5d，完成 History 整合与验收：
+
+1. 核对两张参考图和当前实现，保留列表与详情既定顺序、10 条自动分页、滚动条、适度字重、四项空卡片及 ECG/RR 禁用状态。详情主顺序为标题、Overview、Heart rate、Cadence、三张空卡片、Session Strain、Activity charts、HR Zones、必要 Session details、Delete session。
+2. 将底部 Delete session 做成红色文字/描边按钮，沿用现有确认弹窗和真实事务删除。确认显示所选会话的日期时间；Cancel 不写入；删除中禁止重复提交和冲突返回；失败保留详情并可重试，成功返回刷新列表。不得删除其他记录或绕过确认。
+3. 保留 History 的保存状态、Retry save 和确认后 Discard，以及保存中/失败时阻止新 Start 的现有逻辑；它们按真实状态出现，不为匹配截图而移除。保留空列表、加载/追加失败、找不到记录、不完整会话和必要隐私说明；用简洁正式文案替换 development check、原始字段堆叠和已失效入口。
+4. 清理此次被替代的 UI 代码、参数和旧测试断言，保留仍被调用的共享组件。不添加新的指标算法、数据库迁移、导出或筛选功能；不借此重构 BLE、Session 或存储控制器。
+5. 运行现有且相关的 SQLite、History 列表/详情、保存恢复、删除和导航检查，必要时更新针对实际行为的测试。覆盖连续多批加载、失败重试、新保存刷新、选中 ID、删除取消/成功/失败、Session 与 History 往返，以及所有未定义值保持 --。
+6. 使用独立的目标手机尺寸模拟器检查深浅主题和真实系统字号 1.0/2.0 的竖屏布局。列表检查滚动条/首批与后续批次；详情从顶部滚到底部检查每张卡片、曲线、区间和删除按钮。确认长日期/数值/错误不裁切，空/缺失/不完整状态可理解；检查实际无 H10 App 导航与空状态。有数据的测试截图必须标注 UI TEST DATA · no H10，保留截图与日志，不操作用户真机或既有模拟器设置来制造通过结果。
+7. 完成 debug/测试 APK 构建、lint 和与实际变更相符的回归；准确记录测试数量和各轮结果，不将分轮通过合并描述为一次全量通过。核对两份 AGENTS.md、两份 prompt.md 的状态与证据并同步。
+8. 最终分别说明：已实现的 8.5 功能、构建/自动检查结果、实际视觉覆盖和未验证项。只在所需检查确实通过后标记相应范围完成；8.4 的 2.0 字号缺口和 Samsung/H10 验收不得因 8.5 模拟器结果被关闭。四项新指标的规则与 ECG/RR 历史继续待定义，不自动开始新功能、不 commit/push。
+```
+
+#### English
+
+```text
+After 8.5a–8.5c, implement only 8.5d under the shared 8.5 constraints to finish History integration and acceptance:
+
+1. Compare both references with the implementation. Retain the agreed list/detail order, automatic 10-record pages, scrollbar, moderate type, four placeholder cards and disabled ECG/RR. Detail order is heading, Overview, Heart rate, Cadence, three placeholder cards, Session Strain, Activity charts, HR Zones, necessary Session details and Delete session.
+2. Style Delete session with red text/border while retaining the existing confirmation dialog and actual transactional deletion. Identify the selected session by date/time. Cancel must not write; block duplicate submission and conflicting back actions while deleting. Failure retains detail and retry; success returns to a refreshed list. Never delete other records or bypass confirmation.
+3. Preserve History save state, Retry save and confirmed Discard, plus existing Start blocking during saving/failure. Show these when relevant rather than removing them to match a screenshot. Retain empty, initial/append-error, missing-record and incomplete-session states and necessary privacy information. Replace development check labels, raw field dumps and obsolete controls with concise production text.
+4. Remove UI code, parameters and obsolete test assertions replaced by this work, while retaining shared components that are still used. Add no metric algorithms, database migrations, export or filters, and do not refactor BLE, Session or storage controllers as part of this step.
+5. Run existing relevant SQLite, History list/detail, save-recovery, deletion and navigation checks, updating behavioral tests where necessary. Cover multiple automatic batches, failure/retry, refresh after saving, selected IDs, deletion cancellation/success/failure, Session/History navigation and undefined metrics remaining --.
+6. Use an independent emulator at target phone dimensions to inspect portrait in both themes with actual system font scales 1.0/2.0. Check the list scrollbar and initial/later batches; scroll detail from top to bottom to inspect every card, plot, zone and deletion control. Verify long dates/values/errors fit and empty/missing/incomplete states are understandable. Check actual no-H10 App navigation and empty states. Label data fixtures UI TEST DATA · no H10 and retain captures/logs. Do not manipulate the user's phone or existing emulator settings to manufacture passing results.
+7. Complete debug/test-APK builds, lint and regression checks appropriate to the actual changes. Report counts and separate runs accurately; do not describe combined passing reruns as one full successful run. Verify and synchronize status/evidence in both AGENTS.md and both prompt.md files.
+8. Report implemented 8.5 behavior, builds/automated results, actual visual coverage and remaining unverified items separately. Mark only genuinely validated scope complete. Do not close 8.4's font-scale 2.0 gap or Samsung/H10 acceptance based on 8.5 emulator results. The four new metric rules and historical ECG/RR remain undefined; do not start further features or commit/push automatically.
+```
+
+## 2026-10-03 步骤 8.5a 实施结果 / Step 8.5a implementation results
+
+### 5.35 步骤 8.5a：History 列表实施与验证（2026-10-03） / History list implementation and validation
+
+- 实施范围：新增 history/HistoryList.kt，HistoryPanel.kt 将列表交给独立 LazyColumn，详情仍使用原有展示；SessionDatabase.kt 只将分页 LIMIT 与 UI 共用的 HISTORY_PAGE_SIZE 改为 10，schema/事务/保存资格不变。仅 3 个生产文件及 6 个既有仪器测试文件改变，清单见 build/step85a-validation/source-audit.txt；其余 Session、BLE、算法、原始缓存和历史数据不变。
+  Scope: Add history/HistoryList.kt and route the list from HistoryPanel.kt into one LazyColumn, retaining existing detail presentation. SessionDatabase.kt changes only the page limit to the shared HISTORY_PAGE_SIZE of 10; schema, transactions and save eligibility are unchanged. Three production files and six existing instrumentation files change; see build/step85a-validation/source-audit.txt. Session, BLE, algorithms, raw buffers and stored history remain unchanged.
+- 展示：按 ui/History-list.png 显示 Saved activities、Most recent first、日期/时间、Duration 与箭头的整张可点击卡片；按实际完整性显示 Incomplete。标题与关键数值用 600 字重，说明/单位沿用正常字重；使用与 Session 协调的深浅颜色。默认字号左右分栏，系统字号 2.0 改为上下排。保留共用顶部导航，移除旧列表开发标题、步数/距离文本和 Load more；列表页的返回由系统返回与顶部 Session 导航完成。
+  Presentation: Follow ui/History-list.png with Saved activities, Most recent first and whole-card links containing date/time, Duration and an arrow; show Incomplete when appropriate. Headings/key values use weight 600; supporting text/units retain regular weights. Colors coordinate with Session in both themes. Normal font uses columns; system font scale 2.0 stacks content. Retain shared navigation and remove the old list development heading, steps/distance text and Load more. System back and the Session tab provide list navigation.
+- 分页与滚动：沿用 startedAt DESC、id DESC 游标，每次最多 10 条；接近末两条时自动请求，先锁定 loading 再更新游标，重组/连续滑动不重复提交。空批或不足 10 条结束；恰好 10 条允许下一次空查询确认。失败保留已加载行、暂停自动请求，Retry query 重试同一游标；新保存、详情返回、重新进入及状态恢复重新加载首批并回到顶部。右侧细滚动条使用 Compose scrollIndicatorState 的位置/视口/内容估计随当前已加载列表更新，短列表不显示，不提供拖拽跳转；不是完整数据库总数的进度条。API 核对：[Android ScrollIndicatorState](https://developer.android.com/reference/kotlin/androidx/compose/foundation/ScrollIndicatorState)，复用当前依赖。
+  Paging/scrolling: Preserve startedAt DESC, id DESC keyset pagination with at most 10 rows per query. Near the last two rows, set loading before updating the cursor to prevent duplicate requests from recomposition/flings. Empty/short pages end loading; exactly 10 may require an empty request. Failure retains rows and suspends automatic requests; Retry query retries the same cursor. Saves, detail returns, re-entry and state restoration reload the first batch at the top. The thin right scrollbar follows Compose scrollIndicatorState estimates for the currently loaded list, is hidden for short content, and does not support dragging or represent total database progress. Reuse the current dependency and the linked official API.
+- 原行为保留：按真实 ID 打开详情；详情字段、图表、精确秒数/时区及删除确认未改版。列表末尾保留现有 sessionStatus/SavePanel 与隐私说明，真实保存失败可取消 Discard 后 Retry save，成功提交会刷新列表，新 Start 阻塞规则保留。四项新摘要卡片、ECG/RR、详情新曲线/区间及最终清理未实施。
+  Retained behavior: Open detail by the actual ID; existing fields/plots, precise seconds/timezone and confirmed deletion remain. The list footer retains sessionStatus/SavePanel and privacy text. A real failed save can cancel Discard then Retry save; successful commit refreshes cards and existing Start blocking is preserved. New summary placeholders, ECG/RR, redesigned detail charts/zones and final cleanup are not implemented.
+- 自动检查：最终 debug/测试 APK 与 lint 通过，0 errors、22 warnings。SQLite/History 首轮 27 项通过（HistoryList 10、HistoryDetail 9、HistoryPanel 2、SessionDatabase 6）；导航/共享回归另 13 项通过；新增真实列表保存失败恢复 1 项通过，合计 41 个不同测试分轮有通过结果。真实系统字号 2.0 重复执行同一视觉用例 1 项通过，不重复计入 41。覆盖 0/1/10/11/25/45 条、同时间排序、追加/重试、阻塞期间退出/恢复、末页停止、新保存刷新、正确 ID、日期和删除。测试编译曾有一处多余 import，移除后最终构建通过。本轮未重跑未改算法/数据处理的 JVM 单元测试，旧 228 项不能记作本轮结果。
+  Automated checks: Final debug/test-APK builds and lint pass with zero errors and 22 warnings. The initial SQLite/History run passes 27 checks (10 HistoryList, nine HistoryDetail, two HistoryPanel and six SessionDatabase). Navigation/shared regression passes another 13; the added real-list failed-save recovery check passes one. These are 41 distinct passing checks across runs. One repeat of the visual case at actual system font scale 2.0 also passes and is not counted again. Coverage includes 0/1/10/11/25/45 rows, tied times, append/retry, blocked-query exit/restoration, exhaustion, save refresh, correct IDs, dates and deletion. An unnecessary test import initially prevented test compilation; removal restores the final passing build. Unchanged JVM algorithm/processing tests were not rerun; the earlier 228 are not this turn's results.
+- 视觉证据：独立 API 37 手机模拟器 emulator-5590，1080×2340、450 dpi；font1-captures/ 与 font2-captures/ 各保存深浅主题的顶部/跨批/末尾 6 张生产组件截图，全部标注 UI TEST DATA · no H10，文字溢出检查通过。人工查看代表性默认字号浅色顶部/深色跨批、大字号浅色顶部/深色末尾，布局、换行和滚动条位置正常。实际无 H10、未授权蓝牙的 App 在深浅模式×1.0/2.0 字号四组合中，欢迎入口、History 空状态、无 Load more 和 Session 往返通过；actual-*.png/XML 保存真实 App 结果，已查看浅色 1.0 和深色 2.0 代表图。测试数据使用独立测试数据库，不写入正式 sessions.db。
+  Visual evidence: Use independent API 37 phone emulator emulator-5590 at 1080×2340/450 dpi. font1-captures/ and font2-captures/ each contain six production-component screenshots covering both themes at top, later pages and end, labeled UI TEST DATA · no H10; text-overflow checks pass. Representative normal-light top/normal-dark later-page and large-light top/large-dark end captures were inspected for layout, wrapping and scrollbar position. The actual App without H10/Bluetooth permission passes Welcome entry, empty History, absent Load more and Session return in all four theme/font combinations. actual-*.png/XML records actual results; light 1.0 and dark 2.0 were visually inspected. Fixtures use separate test databases, never production sessions.db.
+- 证据与交付：所有本轮日志/截图在 build/step85a-validation/，重点为 build-final.txt、instrumentation-first.txt、navigation-regression.txt、save-recovery.txt、font2-visual.txt、font2-setting.txt、actual.txt 和 source-audit.txt。两对文档同步；模拟器设置恢复后关闭本轮独立实例。未安装/操作 Samsung 或采集 H10，真机验收仍 pending。只完成 8.5a，8.5b—8.5d 尚未实施；8.4 Session 的 2.0 字号问题不因此关闭。无 commit/push。
+  Evidence/delivery: Logs/captures are under build/step85a-validation/, particularly build-final.txt, instrumentation-first.txt, navigation-regression.txt, save-recovery.txt, font2-visual.txt, font2-setting.txt, actual.txt and source-audit.txt. Both documentation pairs are synchronized; restore settings and close this independent emulator. No Samsung installation/interaction or H10 acquisition; hardware acceptance remains pending. Only 8.5a is implemented; 8.5b–8.5d and the separate 8.4 Session font-scale 2.0 issue remain open. No commit/push.
+
+### 5.36 步骤 8.5b：History 详情摘要实施（2026-10-03） / History detail summary implementation
+
+- 本轮范围：仅修改生产文件 history/HistoryPanel.kt、session/SessionSummaryPanel.kt。按所选 ID 的已保存 SessionSnapshot 展示，未改变查询/取消/重试/删除事务、保存、数据库结构、Session、SDK 或算法；保留既有图表和区间，8.5c—8.5d 未实施。
+  Scope: Change only history/HistoryPanel.kt and session/SessionSummaryPanel.kt in production. Display the saved SessionSnapshot selected by ID. Queries/cancellation/retries/deletion transactions, saving, schema, Session, SDK and algorithms remain unchanged. Retain existing plots/zones; 8.5c–8.5d are not implemented.
+- 标题与主卡：返回箭头、Activity Summary、当前时区的 dd MMM yyyy · HH:mm 和必要的 Incomplete；随后为 Overview（有效时长、总步数、估计距离）、Heart rate（Mean HR/Range）和 Cadence（Max/Mean）。距离仅将保存米值除以 1000，显示两位小数 km；HR/步频平均等小数沿用两位显示，范围端点各自处理缺失，真实零不替换成 --。未从曲线或当前 Session 重算摘要。
+  Header/cards: Back arrow, Activity Summary, current-timezone dd MMM yyyy · HH:mm and an Incomplete marker when needed. Follow with Overview (active duration, steps, estimated distance), Heart rate (Mean HR/Range) and Cadence (Max/Mean). Convert saved metres to km with two decimals; retain two-decimal presentation for decimal HR/cadence values. Handle each missing range endpoint independently and preserve genuine zero. No summaries are reconstructed from plots or the current Session.
+- 空卡与布局：Intensity、Cardio Load、HR Recovery 默认三列，Session Strain 整宽；四项仅标题和 --，没有计算或字段。复用深浅主题颜色，卡片边框/圆角与列表协调，标题/数值使用 500–600 字重。按可用宽度及字体缩放切换纵向卡片/指标，允许标题日期和内容换行，详情仍可纵向滚动；这些为源码实现，尚无本轮实际字号截图验收。
+  Placeholders/layout: Intensity, Cardio Load and HR Recovery use three columns at normal font size, followed by full-width Session Strain. Each contains only its title and --, without computations or fields. Reuse light/dark colors and list-style card borders/corners with weights 500–600. Available width and font scale select stacked cards/metrics; text may wrap and the detail scrolls. These are source-level changes; actual system-font screenshots have not been verified this turn.
+- 附加信息：删除旧开发标题和摘要文本堆叠，将设备、精确开始/结束时间及 UTC 偏移、结束原因、完整性/缺流说明、最小步频与平均/最大估计速度放入默认折叠的 Session details。保留无有效 HR、无 ACC、零时长、无合格五秒窗口、ACC 缺失解释；保存状态、隐私说明、查询错误和删除确认仍有入口。
+  Additional information: Replace the development headings/text dump with a collapsed Session details disclosure for device, precise start/end times and UTC offset, end reason, completeness/missing streams, minimum cadence and mean/maximum estimated speed. Retain explanations for no valid HR, no ACC, zero duration, no qualifying five-second window and incomplete ACC. Saving status, privacy text, query errors and deletion confirmation remain accessible.
+- 用户覆盖与验证：按本轮“无需写测试，最后一起写”的要求，没有新增或修改 app/src/test、app/src/androidTest，也未运行单元/Compose/SQLite 测试或构建测试 APK。最后统一补写/调整摘要取值、0/缺失、四空卡、折叠区、旧文本选择器、日期、返回、错误恢复和删除回归测试。实际深浅主题/字号 1.0/2.0 视觉检查及 Samsung/H10 验收仍 pending，不沿用 8.5a 的通过数作为本轮结果。
+  User override/validation: Per the request to write tests together at the end, neither app/src/test nor app/src/androidTest is added to or modified. No unit/Compose/SQLite tests or test-APK build run this turn. Add/adapt saved-value, zero/missing, placeholder, disclosure, old-text-selector, date, back, recovery and deletion regression checks during final integration. Actual light/dark/font 1.0/2.0 visuals and Samsung/H10 acceptance remain pending; do not reuse 8.5a passing counts as current results.
+- 构建与证据：最终离线 :app:assembleDebug 与 :app:lintDebug 通过，lint 0 errors、22 warnings；首次 lint 新增的 ModifierParameter 提示已修正后重跑。git diff --check 通过。日志为 build/step85b-validation/build-final.txt，文件范围核对为 source-audit.txt；本轮仅两个生产文件变化，测试文件保持本轮开始时的内容。两对中英文 AGENTS.md/prompt.md 同步；未安装 APK、未操作模拟器/Samsung、无 commit/push。
+  Build/evidence: Final offline :app:assembleDebug and :app:lintDebug pass with zero errors and 22 warnings after fixing the initially introduced ModifierParameter warning. git diff --check passes. See build/step85b-validation/build-final.txt and source-audit.txt. Only two production files change this turn; test files retain their starting contents. Both bilingual AGENTS.md/prompt.md pairs are synchronized. No APK installation, emulator/Samsung interaction, commit or push.

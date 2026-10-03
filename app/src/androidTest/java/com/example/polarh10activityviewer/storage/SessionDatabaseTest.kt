@@ -88,18 +88,20 @@ class SessionDatabaseTest {
         assertNull(db.detail("empty"))
     }
 
-    @Test fun pagingUsesTwentyRowsDescendingWithTieBreakerAndNoDuplicatesAfterNewInsert() = runBlocking {
+    @Test fun pagingUsesTenRowsDescendingWithTieBreakerAndNoDuplicatesAfterNewInsert() = runBlocking {
         val all = (0..44).map { databaseFixture("session-${it.toString().padStart(2, '0')}", (it / 3).toLong()) }
         all.forEach { db.save(it) }
         val first = db.page()
-        assertEquals(20, first.size)
+        assertEquals(10, first.size)
         db.save(databaseFixture("new", 9999))
         val second = db.page(first.last())
         val third = db.page(second.last())
-        assertEquals(20, second.size); assertEquals(5, third.size)
-        assertTrue(db.page(third.last()).isEmpty())
+        val fourth = db.page(third.last())
+        val fifth = db.page(fourth.last())
+        assertEquals(listOf(10, 10, 10, 10, 5), listOf(first, second, third, fourth, fifth).map { it.size })
+        assertTrue(db.page(fifth.last()).isEmpty())
         assertEquals(all.map { it.record }.sortedWith(compareByDescending<SessionRecord> { it.startedAt }.thenByDescending { it.id }),
-            first + second + third)
+            first + second + third + fourth + fifth)
         assertEquals("new", db.page().first().id)
         assertNull(db.detail("absent"))
     }

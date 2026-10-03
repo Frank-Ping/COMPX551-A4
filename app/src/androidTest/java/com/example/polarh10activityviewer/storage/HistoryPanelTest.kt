@@ -31,8 +31,8 @@ class HistoryPanelTest {
         val snapshot = databaseFixture()
         runBlocking { db.save(snapshot) }
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Estimated distance:", substring = true).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Estimated distance:", substring = true).performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Duration").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Duration").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Delete session").performScrollTo().performClick()
         compose.onNodeWithText("Cancel").performClick()

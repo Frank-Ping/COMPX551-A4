@@ -337,9 +337,9 @@ class SessionMetricsTest {
                     }
                 }
             }
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Estimated distance:", substring = true)
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Duration", substring = false)
                 .fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("Estimated distance:", substring = true).reveal().performClick()
+            compose.onNodeWithText("Duration", substring = false).reveal().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
             visible("Session ID: controlled-history")
             visible("HR min / max / mean: 80 / 140 / 110.12 bpm")

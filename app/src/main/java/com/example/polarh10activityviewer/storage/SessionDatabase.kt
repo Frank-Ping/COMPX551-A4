@@ -16,6 +16,8 @@ import com.example.polarh10activityviewer.session.StreamObservation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+internal const val HISTORY_PAGE_SIZE = 10
+
 internal class SessionDatabase(context: Context, name: String = NAME) :
     SQLiteOpenHelper(context.applicationContext, name, null, 1) {
     override fun onConfigure(db: SQLiteDatabase) {
@@ -89,7 +91,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
     suspend fun page(before: SessionRecord? = null): List<SessionRecord> = withContext(Dispatchers.IO) {
         val where = if (before == null) "" else "WHERE startedAt < ? OR (startedAt = ? AND id < ?)"
         val args = before?.let { arrayOf(it.startedAt.toString(), it.startedAt.toString(), it.id) }
-        readableDatabase.rawQuery("SELECT * FROM sessions $where ORDER BY startedAt DESC, id DESC LIMIT 20", args).use { cursor ->
+        readableDatabase.rawQuery("SELECT * FROM sessions $where ORDER BY startedAt DESC, id DESC LIMIT $HISTORY_PAGE_SIZE", args).use { cursor ->
             buildList { while (cursor.moveToNext()) add(cursor.record()) }
         }
     }

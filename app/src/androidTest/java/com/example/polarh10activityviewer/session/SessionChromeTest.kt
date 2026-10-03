@@ -268,8 +268,8 @@ class SessionChromeTest {
             val restoration = StateRestorationTester(compose)
             restoration.setContent { Fixture(db = db) }
             compose.onNodeWithText("History").performClick()
-            compose.waitUntil(10_000) { compose.onAllNodesWithText("Estimated distance:", substring = true).fetchSemanticsNodes().size == 1 }
-            compose.onNodeWithText("Estimated distance:", substring = true).reveal().performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithText("Duration", substring = false).fetchSemanticsNodes().size == 1 }
+            compose.onNodeWithText("Duration", substring = false).reveal().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Session").performClick()
             compose.onNodeWithText("History").performClick()

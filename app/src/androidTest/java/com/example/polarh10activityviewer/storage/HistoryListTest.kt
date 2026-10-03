@@ -1,20 +1,30 @@
 package com.example.polarh10activityviewer.storage
 
+import android.graphics.Bitmap
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.sp
+import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.polarh10activityviewer.history.HistoryPanel
+import com.example.polarh10activityviewer.history.SavePanel
+import com.example.polarh10activityviewer.session.SessionScaffold
+import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.junit.After
@@ -22,6 +32,8 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.io.File
+import java.time.Instant
 import java.util.TimeZone
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -38,16 +50,23 @@ class HistoryListTest {
     @After fun close() { TimeZone.setDefault(originalZone); db.close(); context.deleteDatabase(name) }
 
     private fun seed(count: Int) = runBlocking {
-        repeat(count) { index ->
-            val snapshot = databaseFixture("session-${index.toString().padStart(2, '0')}", (index / 3).toLong())
-            db.save(snapshot.copy(record = snapshot.record.copy(summary = snapshot.record.summary.copy(totalSteps = index.toLong()))))
-        }
+        repeat(count) { index -> db.save(databaseFixture(id(index), (index / 3).toLong())) }
     }
-    private fun rows() = compose.onAllNodesWithText("Estimated distance:", substring = true)
-        .fetchSemanticsNodes().map { node -> node.config[SemanticsProperties.Text].joinToString { it.text } }
-    private fun awaitRows(count: Int) {
-        compose.waitUntil(10_000) { rows().size == count &&
-            compose.onAllNodesWithText("Loading…").fetchSemanticsNodes().isEmpty() }
+    private fun id(index: Int) = "session-${index.toString().padStart(2, '0')}"
+    private fun tag(index: Int) = "history-row-${id(index)}"
+    private fun list() = compose.onNodeWithTag("history-list")
+    private fun awaitText(text: String) {
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
+    }
+    private fun awaitRow(recordId: String) {
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("history-row-$recordId").fetchSemanticsNodes().isNotEmpty() }
+    }
+    private fun reveal(recordId: String) {
+        // A scroll may reach the old end before the asynchronous next page arrives.
+        compose.waitUntil(10_000) {
+            runCatching { list().performScrollToNode(hasTestTag("history-row-$recordId")) }.isSuccess
+        }
+        compose.onNodeWithTag("history-row-$recordId").assertIsDisplayed()
     }
     private fun click(text: String) { compose.onNodeWithText(text).performScrollTo().performClick() }
     private fun rename(unavailable: Boolean) = runBlocking {
@@ -56,141 +75,253 @@ class HistoryListTest {
                 else "ALTER TABLE unavailable_sessions RENAME TO sessions")
         }
     }
+    private fun end() {
+        list().performScrollToNode(hasText("Stored on this device only. Uninstalling or clearing app data deletes history."))
+    }
 
     @Test fun emptyDatabaseShowsEmptyStateWithoutLoadMore() {
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("No saved sessions").fetchSemanticsNodes().isNotEmpty() }
+        awaitText("No saved sessions")
         compose.onNodeWithText("No saved sessions").assertIsDisplayed()
         compose.onNodeWithText("Load more").assertDoesNotExist()
     }
 
-    @Test fun reopenedDatabaseLoadsFortyFiveTiedTimeRowsInStablePages() {
+    @Test fun oneRecordHasShortDateDurationAndOpensActualId() {
+        seed(1)
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
+        awaitRow(id(0))
+        compose.onNodeWithText("01 Jan 1970").assertIsDisplayed()
+        compose.onNodeWithText("00:00").assertIsDisplayed()
+        compose.onNodeWithText("00:02").assertIsDisplayed()
+        compose.onNodeWithText("Incomplete").assertIsDisplayed()
+        compose.onNodeWithText("Load more").assertDoesNotExist()
+        compose.onNodeWithTag(tag(0)).performClick()
+        awaitText("Delete session")
+        compose.onNodeWithText("Session ID: ${id(0)}").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun reopenedDatabaseLoadsFortyFiveTiedTimeRowsAutomaticallyInStableOrder() {
         seed(45)
         db.close(); db = SessionDatabase(context, name)
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
-        awaitRows(20)
-        assertEquals((44 downTo 25).toList(), rows().map { it.substringAfter("Steps: ").substringBefore(" ·").toInt() })
-        click("Load more"); awaitRows(40)
-        click("Load more"); awaitRows(45)
-        assertEquals((44 downTo 0).toList(), rows().map { it.substringAfter("Steps: ").substringBefore(" ·").toInt() })
-        compose.onNodeWithText("Load more").assertDoesNotExist()
-    }
-
-    @Test fun exactlyFortyRowsNeedsOneEmptyPageToHideLoadMore() {
-        seed(40)
-        compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
-        awaitRows(20); click("Load more"); awaitRows(40)
-        click("Load more"); awaitRows(40)
-        compose.onNodeWithText("Load more").assertDoesNotExist()
-        assertEquals(40, rows().distinct().size)
-    }
-
-    @Test fun paginationSqliteFailureRetainsRowsAndRetriesSameCursor() {
-        seed(45)
-        compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
-        awaitRows(20)
-        val first = rows()
-        rename(true)
-        click("Load more")
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Retry query").fetchSemanticsNodes().isNotEmpty() }
-        assertEquals(first, rows())
-        compose.onNodeWithText("Load more").assertDoesNotExist()
-        rename(false)
-        click("Retry query"); awaitRows(40)
-        assertEquals(first, rows().take(20))
-        assertEquals(40, rows().distinct().size)
-        click("Load more"); awaitRows(45)
-    }
-
-    @Test fun initialSqliteFailureRetryUsesCurrentTimezoneAndPreservesNullAndZero() {
-        val zero = databaseFixture("zero", 0)
-        val unknown = databaseFixture("unknown", 1000).let { snapshot ->
-            snapshot.copy(record = snapshot.record.copy(summary = snapshot.record.summary.copy(totalSteps = null, distanceMetres = null)))
+        awaitRow(id(44))
+        val visited = mutableListOf<String>()
+        for (index in 44 downTo 0) {
+            reveal(id(index))
+            visited += id(index)
+            val visible = compose.onAllNodes(SemanticsMatcher("History card") {
+                it.config.getOrElse(SemanticsProperties.TestTag) { "" }.startsWith("history-row-")
+            }).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }
+            assertEquals(visible.distinct(), visible)
+            assertEquals(visible.sortedDescending(), visible)
         }
-        runBlocking { db.save(zero); db.save(unknown) }
+        assertEquals(45, visited.distinct().size)
+        end()
+        compose.onNodeWithText("Load more").assertDoesNotExist()
+        compose.onNodeWithText("Loading…").assertDoesNotExist()
+    }
+
+    @Test fun exactlyTenRecordsStopsAfterEmptyPageAndEleventhAppearsAfterRefresh() {
+        seed(10)
+        val saved = mutableStateOf<String?>(null)
+        compose.setContent { MaterialTheme { HistoryPanel(db, saved.value, {}) } }
+        awaitRow(id(9)); reveal(id(0)); end(); compose.waitForIdle()
+        // Once exhaustion is known, further scrolling must not issue queries.
+        rename(true)
+        list().performScrollToIndex(0); end()
+        compose.onNodeWithText("Retry query").assertDoesNotExist()
+        rename(false)
+        runBlocking { db.save(databaseFixture(id(10), 1000)) }
+        compose.runOnIdle { saved.value = id(10) }
+        awaitRow(id(10)); reveal(id(0)); end()
+        compose.onNodeWithText("Load more").assertDoesNotExist()
+        compose.onNodeWithText("Loading…").assertDoesNotExist()
+    }
+
+    @Test fun paginationSqliteFailureRetainsCardsAndRetriesSameCursor() {
+        seed(25)
+        compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
+        awaitRow(id(24))
+        rename(true)
+        list().performScrollToNode(hasTestTag(tag(15)))
+        end(); awaitText("Retry query")
+        reveal(id(24))
+        compose.onNodeWithTag(tag(24)).assertIsDisplayed()
+        end()
+        rename(false)
+        click("Retry query")
+        for (index in 14 downTo 0) reveal(id(index))
+        end()
+        compose.onNodeWithText("Retry query").assertDoesNotExist()
+        compose.onNodeWithText("Load more").assertDoesNotExist()
+    }
+
+    @Test fun initialSqliteFailureRetryUsesCurrentTimezone() {
+        seed(1)
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         rename(true)
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Retry query").fetchSemanticsNodes().isNotEmpty() }
+        awaitText("Retry query")
         compose.onNodeWithText("No saved sessions").assertDoesNotExist()
-        assertTrue(rows().isEmpty())
         rename(false)
         TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Auckland"))
-        click("Retry query"); awaitRows(2)
-        assertTrue(rows().all { it.contains("+12:00") && it.contains("Incomplete") })
-        assertTrue(rows().any { it.contains("Steps: -- · Estimated distance: -- m") })
-        assertTrue(rows().any { it.contains("Steps: 0 · Estimated distance: 0.00 m") })
+        click("Retry query"); awaitRow(id(0))
+        compose.onNodeWithText("01 Jan 1970").assertIsDisplayed()
+        compose.onNodeWithText("12:00").assertIsDisplayed()
     }
 
     @Test fun committedSaveRefreshesFirstPageButDoesNotReloadVisibleDetail() {
-        seed(45)
+        seed(25)
         val savedId = mutableStateOf<String?>(null)
         compose.setContent { MaterialTheme { HistoryPanel(db, savedId.value, {}) } }
-        awaitRows(20); click("Load more"); awaitRows(40)
-        val newest = databaseFixture("newest", 9999)
-        runBlocking { db.save(newest) }
-        compose.runOnIdle { savedId.value = newest.record.id }
-        awaitRows(20)
-        assertTrue(rows().first().contains("Steps: 0 ·"))
-        compose.onNodeWithText(rows().first()).performScrollTo().performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
-        // If a save incorrectly restarts the detail query, the missing table exposes it.
-        val another = databaseFixture("another", 10000)
-        runBlocking { db.save(another) }
+        awaitRow(id(24)); reveal(id(12))
+        runBlocking { db.save(databaseFixture("newest", 9999)) }
+        compose.runOnIdle { savedId.value = "newest" }
+        awaitRow("newest")
+        compose.onNodeWithTag("history-row-newest").assertIsDisplayed().performClick()
+        awaitText("Delete session")
+        runBlocking { db.save(databaseFixture("another", 10000)) }
         rename(true)
-        compose.runOnIdle { savedId.value = another.record.id }
+        compose.runOnIdle { savedId.value = "another" }
         compose.waitForIdle()
         compose.onNodeWithText("Delete session").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Retry query").assertDoesNotExist()
         rename(false)
-        click("Back"); awaitRows(20)
+        click("Back"); awaitRow("another")
     }
 
-    @Test fun detailReturnReentryAndStateRestorationReloadOnlyFirstPage() {
-        seed(45)
+    @Test fun pendingSaveRemainsRetryableFromRealListAndCommitRefreshesCards() {
+        seed(25)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val controller = SessionSaveController(scope, db::save)
+        val snapshot = databaseFixture("pending", 9999)
+        try {
+            runBlocking { withContext(Dispatchers.IO) {
+                db.writableDatabase.execSQL("CREATE TRIGGER fail_save BEFORE INSERT ON motion_points BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+            } }
+            compose.setContent { MaterialTheme {
+                val save by controller.state.collectAsState()
+                HistoryPanel(db, save.sessionId.takeIf { save.status == SaveStatus.SAVED }, {},
+                    sessionStatus = { SavePanel(save, controller, snapshot.record.id) })
+            } }
+            compose.runOnIdle { controller.submit(snapshot) }
+            compose.waitUntil(10_000) { controller.state.value.status == SaveStatus.FAILED }
+            assertTrue(controller.state.value.blocksStart)
+            awaitRow(id(24)); reveal(id(0)); end()
+            compose.onNodeWithText("Retry save").assertIsDisplayed()
+            click("Discard session"); compose.onNodeWithText("Cancel").performClick()
+            assertEquals(SaveStatus.FAILED, controller.state.value.status)
+            runBlocking { withContext(Dispatchers.IO) { db.writableDatabase.execSQL("DROP TRIGGER fail_save") } }
+            click("Retry save")
+            awaitRow("pending")
+            assertFalse(controller.state.value.blocksStart)
+            assertEquals(snapshot, runBlocking { db.detail("pending") })
+            compose.onNodeWithTag("history-row-pending").assertIsDisplayed()
+        } finally { scope.cancel() }
+    }
+
+    @Test fun detailReturnReentryAndStateRestorationReloadFirstPageAtTop() {
+        seed(25)
         val visible = mutableStateOf(true)
         val restoration = StateRestorationTester(compose)
         restoration.setContent { MaterialTheme {
             if (visible.value) HistoryPanel(db, null, { visible.value = false })
             else Button(onClick = { visible.value = true }) { Text("Open History") }
         } }
-        awaitRows(20); click("Load more"); awaitRows(40)
-        compose.onNodeWithText(rows().first()).performScrollTo().performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
-        click("Back"); awaitRows(20)
-        click("Load more"); awaitRows(40)
-        restoration.emulateSavedInstanceStateRestore(); awaitRows(20)
-        click("Load more"); awaitRows(40)
-        click("Back"); compose.onNodeWithText("Open History").performClick(); awaitRows(20)
+        awaitRow(id(24)); reveal(id(12))
+        compose.onNodeWithTag(tag(12)).performClick(); awaitText("Delete session")
+        click("Back"); awaitRow(id(24))
+        compose.onNodeWithText("Saved activities").assertIsDisplayed()
+        reveal(id(12)); restoration.emulateSavedInstanceStateRestore()
+        awaitRow(id(24))
+        compose.onNodeWithText("Saved activities").assertIsDisplayed()
+        reveal(id(12)); Espresso.pressBack()
+        compose.onNodeWithText("Open History").performClick(); awaitRow(id(24))
+        compose.onNodeWithText("Saved activities").assertIsDisplayed()
     }
 
     @Test fun leavingDuringBlockedPageQueryRejectsLateRowsAndDuplicateLoads() {
-        seed(45)
+        seed(25)
         val visible = mutableStateOf(true)
         compose.setContent { MaterialTheme {
             if (visible.value) HistoryPanel(db, null, { visible.value = false })
             else Button(onClick = { visible.value = true }) { Text("Open History") }
         } }
-        awaitRows(20)
+        awaitRow(id(24))
         val acquired = CountDownLatch(1)
         val release = CountDownLatch(1)
         val executor = Executors.newSingleThreadExecutor()
         val blocker = executor.submit {
             db.writableDatabase.beginTransaction()
-            try { acquired.countDown(); check(release.await(15, TimeUnit.SECONDS)) }
+            try { acquired.countDown(); check(release.await(30, TimeUnit.SECONDS)) }
             finally { db.writableDatabase.endTransaction() }
         }
         try {
             assertTrue(acquired.await(5, TimeUnit.SECONDS))
-            click("Load more")
-            compose.waitUntil(5000) { compose.onAllNodesWithText("Loading…").fetchSemanticsNodes().isNotEmpty() }
-            click("Load more") // Disabled: must not enqueue another page.
-            click("Back"); compose.onNodeWithText("Open History").performClick()
+            list().performScrollToNode(hasTestTag(tag(15))); end(); awaitText("Loading…")
+            repeat(3) { list().performTouchInput { swipeUp() } }
+            Espresso.pressBack(); compose.onNodeWithText("Open History").performClick()
             release.countDown(); blocker.get(5, TimeUnit.SECONDS)
-            awaitRows(20)
-            assertEquals(20, rows().distinct().size)
-            click("Load more"); awaitRows(40)
-            assertEquals(40, rows().distinct().size)
+            awaitRow(id(24))
+            compose.onNodeWithText("Saved activities").assertIsDisplayed()
+            for (index in 24 downTo 0) reveal(id(index))
+            end(); compose.onNodeWithText("Retry query").assertDoesNotExist()
         } finally { release.countDown(); blocker.get(5, TimeUnit.SECONDS); executor.shutdownNow() }
+    }
+
+    @Test fun referenceCardsAndScrollbarFitBothThemesAtActualSystemFont() {
+        val dark = mutableStateOf(false)
+        val savedId = mutableStateOf<String?>(null)
+        val started = Instant.parse("2026-10-02T21:10:00Z").toEpochMilli()
+        runBlocking { repeat(25) { index ->
+            val fixture = databaseFixture("visual-$index", started - index * 3600000L)
+            db.save(fixture.copy(record = fixture.record.copy(durationMs = if(index == 1) 14_400_000 else 1_200_000,
+                interrupted = index == 2,
+                streams = fixture.record.streams.mapValues { it.value.copy(missing = false) })))
+        } }
+        compose.setContent { PolarH10ActivityViewerTheme(darkTheme = dark.value) {
+            SessionScaffold(true, {}, {}, {}, {
+                Column {
+                    Text("UI TEST DATA · no H10", fontSize = 10.sp, lineHeight = 12.sp)
+                    Box(Modifier.weight(1f)) { HistoryPanel(db, savedId.value, {}) }
+                }
+            })
+        } }
+        for (night in listOf(false, true)) {
+            compose.runOnIdle { dark.value = night; savedId.value = night.toString() }
+            awaitRow("visual-0")
+            compose.onNodeWithText("Saved activities").assertIsDisplayed()
+            noTextOverflow()
+            capture("${if(night) "dark" else "light"}-top")
+            reveal("visual-1"); noTextOverflow()
+            reveal("visual-11"); noTextOverflow()
+            capture("${if(night) "dark" else "light"}-next-page")
+            reveal("visual-24"); end(); noTextOverflow()
+            capture("${if(night) "dark" else "light"}-end")
+        }
+    }
+
+    private fun noTextOverflow() {
+        val nodes = compose.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
+        repeat(nodes.fetchSemanticsNodes().size) { index ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            nodes[index].performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            layouts.forEach { layout ->
+                assertFalse("Truncated: ${layout.layoutInput.text}", layout.multiParagraph.didExceedMaxLines)
+                assertTrue("Vertical overflow: ${layout.layoutInput.text}", layout.size.height >= layout.multiParagraph.height - 1)
+                repeat(layout.lineCount) { line ->
+                    assertTrue("Right overflow: ${layout.layoutInput.text}", layout.getLineRight(line) <= layout.size.width + 1)
+                    assertTrue("Left overflow: ${layout.layoutInput.text}", layout.getLineLeft(line) >= -1)
+                }
+            }
+        }
+    }
+    private fun capture(name: String) {
+        compose.waitForIdle()
+        val dir = File(context.getExternalFilesDir(null), "step85a-captures").apply { mkdirs() }
+        File(dir, "$name.png").outputStream().use {
+            compose.onRoot().captureToImage().asAndroidBitmap().compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
     }
 }
