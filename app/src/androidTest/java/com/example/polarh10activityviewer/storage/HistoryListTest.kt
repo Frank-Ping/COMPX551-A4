@@ -94,7 +94,7 @@ class HistoryListTest {
         compose.onNodeWithText("01 Jan 1970").assertIsDisplayed()
         compose.onNodeWithText("00:00").assertIsDisplayed()
         compose.onNodeWithText("00:02").assertIsDisplayed()
-        compose.onNodeWithText("Incomplete").assertIsDisplayed()
+        compose.onNodeWithText("Incomplete").assertDoesNotExist()
         compose.onNodeWithText("Load more").assertDoesNotExist()
         compose.onNodeWithTag(tag(0)).performClick()
         awaitText("Delete session")

@@ -75,7 +75,6 @@ internal fun HistoryDetailLayout(snapshot: SessionSnapshot?, loading: Boolean, e
                                 Text(record.startedAt?.let { time.format(Instant.ofEpochMilli(it)) } ?: "--",
                                     textAlign = TextAlign.End, fontSize = 14.sp, lineHeight = 18.sp,
                                     fontWeight = FontWeight.Medium, color = accent)
-                                if (record.incomplete) Text("Incomplete", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

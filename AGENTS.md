@@ -1870,3 +1870,10 @@
   User prompt: Remove Incomplete from the History list; the list does not need to check incomplete-data status. Remove the record.incomplete condition and label from list cards. Preserve stored records and detail-page behavior. This supersedes the list-marker requirement in 4.3/5.35.
 - 更新既有 HistoryListTest 断言为标记不存在；debug 与测试 APK 构建通过（build/step86-compact/build-history-label.txt）。未运行测试套件、lint 或真机验收；两对文档同步，无 commit/push。
   Update the existing HistoryListTest assertion to expect no marker. Debug and test APK builds pass (build/step86-compact/build-history-label.txt). Test suites, lint and hardware checks were not run; both documentation pairs synchronized, no commit/push.
+
+### 5.44.1 Activity Summary without Incomplete / 移除详情完整性提示（2026-10-04）
+
+- 用户提示词：Activity Summary 中的 Incomplete 提示也删除。HistoryDetailLayout.kt 已移除日期/时间下方的 Incomplete 文本及 record.incomplete 显示判断，沿用日期时间与其余布局，保留存储字段。此规则覆盖早期详情标记要求。
+  User prompt: Also remove Incomplete from Activity Summary. Remove the label below the date/time and its record.incomplete display condition in HistoryDetailLayout.kt. Retain date/time, other layout and stored fields. This supersedes the earlier detail-marker requirement.
+- Debug 构建通过（build/step86-compact/build-summary-label.txt）；本轮未新增或运行测试、lint、视觉或真机验收。两对文档同步，无 commit/push。
+  Debug build passed (build/step86-compact/build-summary-label.txt); no tests, lint, visual or hardware checks were added/run this turn. Both documentation pairs synchronized; no commit/push.
