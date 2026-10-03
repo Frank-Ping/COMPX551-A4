@@ -3,6 +3,7 @@ package com.example.polarh10activityviewer.session
 import com.example.polarh10activityviewer.ble.checkedDataTypes
 import com.example.polarh10activityviewer.ble.confirmReadiness
 import com.example.polarh10activityviewer.ble.DataSubscriptions
+import com.example.polarh10activityviewer.ble.ConnectionDevice
 import com.example.polarh10activityviewer.ble.HeartRateStatistics
 import com.example.polarh10activityviewer.ble.LatestHeartRate
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
@@ -39,6 +40,7 @@ class SessionStateTest {
         val hr = LatestHeartRate()
         val acc = AccBuffer()
         val ecg = EcgBuffer()
+        val saved = mutableListOf<SessionRecord>()
         lateinit var session: SessionController
         val subscriptions = DataSubscriptions(scope) { type, status ->
             hr.onSubscriptionState(type, status)
@@ -50,7 +52,8 @@ class SessionStateTest {
             session = SessionController(subscriptions, { now },
                 { hr.reset(); acc.clear(); ecg.clear() }, hr::clear,
                 { SessionSummary(minimumHr = hr.statistics.value.min, maximumHr = hr.statistics.value.max,
-                    meanHr = hr.statistics.value.average, validHrCount = hr.statistics.value.count) })
+                    meanHr = hr.statistics.value.average, validHrCount = hr.statistics.value.count) },
+                onSummaryFrozen = { saved.add(it) })
         }
         val state get() = session.state.value
         fun receive(type: PolarDeviceDataType, value: Int) {
@@ -360,7 +363,7 @@ class SessionStateTest {
 
     @Test fun interruptionFreezesAndCleansAllStreamsWithoutAutomaticResume() = runTest {
         val f = Fixture(this)
-        for (reason in listOf("Disconnected", "Bluetooth unavailable", "Permissions lost", "Foreground left", "SDK released")) {
+        for (reason in listOf("Disconnected", "Bluetooth unavailable", "Permissions lost")) {
             f.connected = true
             f.start()
             runCurrent()
@@ -518,18 +521,16 @@ class SessionStateTest {
         assertEquals(2L, f.state.record!!.summary.validHrCount)
     }
 
-    @Test fun stoppingOrDisconnectingPausedSessionFreezesOnlyActiveTime() = runTest {
-        for (reason in listOf("Stopped by user.", "Connection ended.")) {
-            val f = Fixture(this)
-            f.start(listOf(HR)); runCurrent()
-            f.now = 1000; f.session.pause(); runCurrent()
-            f.now = 999_000
-            f.session.stop(reason, interrupted = reason != "Stopped by user.")
-            assertEquals(SessionStatus.STOPPED, f.state.status)
-            assertEquals(1000L, f.state.record!!.durationMs)
-            assertEquals(reason, f.state.record!!.endReason)
-            assertFalse(f.session.resume(true) { error("Session ended") })
-        }
+    @Test fun explicitStopOfPausedSessionFreezesOnlyActiveTime() = runTest {
+        val f = Fixture(this)
+        f.start(listOf(HR)); runCurrent()
+        f.now = 1000; f.session.pause(); runCurrent()
+        f.now = 999_000
+        f.session.stop("Stopped by user.", interrupted = false)
+        assertEquals(SessionStatus.STOPPED, f.state.status)
+        assertEquals(1000L, f.state.record!!.durationMs)
+        assertEquals("Stopped by user.", f.state.record!!.endReason)
+        assertFalse(f.session.resume(true) { error("Session ended") })
     }
 
     @Test fun resumeWaitsForRealDataAndAllFailedResumeAttemptsEndExistingSession() = runTest {
@@ -573,5 +574,116 @@ class SessionStateTest {
         assertEquals(0L, f.state.elapsedMs)
         assertEquals(HeartRateStatistics(), f.hr.statistics.value)
         assertNull(f.hr.message.value)
+    }
+
+    @Test fun leavingDuringInitialStartPausesWithoutSavingAndContinuesSameId() = runTest {
+        val f = Fixture(this)
+        f.session.start(true) { f.startStream(HR, MutableSharedFlow()) }
+        val id = f.state.record!!.id
+        assertTrue(f.session.pause())
+        runCurrent()
+        assertEquals(SessionStatus.PAUSED, f.state.status)
+        assertEquals(0L, f.state.elapsedMs)
+        assertNull(f.state.record!!.startedAt)
+        assertTrue(f.saved.isEmpty())
+        f.now = 100_000
+        assertTrue(f.session.resume(true) { f.startStream(HR, f.running(80)) })
+        runCurrent()
+        assertEquals(SessionStatus.RUNNING, f.state.status)
+        assertEquals(id, f.state.record!!.id)
+        assertEquals(0L, f.state.elapsedMs)
+        f.session.stop("Done"); runCurrent()
+    }
+
+    @Test fun leavingDuringContinueRetainsPreviousActiveTime() = runTest {
+        val f = Fixture(this)
+        f.start(); runCurrent()
+        f.now = 2000; f.session.pause(); runCurrent()
+        val record = f.state.record!!
+        f.now = 90_000
+        f.session.resume(true) { f.startStream(HR, MutableSharedFlow()) }
+        runCurrent()
+        assertTrue(f.session.pause()); runCurrent()
+        assertEquals(SessionStatus.PAUSED, f.state.status)
+        assertEquals(2000L, f.state.elapsedMs)
+        assertEquals(record.id, f.state.record!!.id)
+        assertEquals(record.startedAt, f.state.record!!.startedAt)
+        assertTrue(f.saved.isEmpty())
+        f.session.stop("Done"); runCurrent()
+    }
+
+    @Test fun connectionLossWhilePausingOrPausedKeepsSessionUntilOneExplicitSave() = runTest {
+        val f = Fixture(this)
+        f.start(); runCurrent()
+        f.now = 1500
+        f.session.pause()
+        f.session.connectionUnavailable("Disconnect during cleanup")
+        runCurrent()
+        val paused = f.state
+        assertEquals(SessionStatus.PAUSED, paused.status)
+        f.connected = false
+        f.now = 800_000
+        f.session.connectionUnavailable("Bluetooth off")
+        f.session.connectionUnavailable("Reconnect failed")
+        assertFalse(f.session.pause())
+        f.session.refresh(f.state.generation)
+        assertEquals(paused, f.state)
+        assertTrue(f.saved.isEmpty())
+        assertFalse(f.session.resume(false) { error("Cannot resume disconnected") })
+        f.connected = true
+        f.session.resume(true) { f.startStream(HR, f.running(80)) }; runCurrent()
+        f.now += 1000
+        f.session.stop("Stopped by user.", interrupted = false, reset = true)
+        f.session.stop("Stopped by user.", interrupted = false, reset = true)
+        runCurrent()
+        assertEquals(1, f.saved.size)
+        assertEquals(paused.record!!.id, f.saved.single().id)
+        assertEquals(2500L, f.saved.single().durationMs)
+        assertFalse(f.saved.single().interrupted)
+        assertEquals(SessionStatus.IDLE, f.state.status)
+    }
+
+    @Test fun lateStreamDataAfterPauseDoesNotChangeStatistics() = runTest {
+        val f = Fixture(this)
+        lateinit var collector: FlowCollector<Int>
+        f.session.start(true) { f.startStream(HR, flow {
+            collector = this
+            emit(80)
+            awaitCancellation()
+        }) }
+        runCurrent()
+        val generation = f.state.generation
+        f.now = 1000; f.session.pause()
+        runCatching { collector.emit(190) }
+        runCurrent()
+        f.now = 99_000; f.session.refresh(generation)
+        assertEquals(HeartRateStatistics(1, 80, 80, 80), f.hr.statistics.value)
+        assertEquals(1000L, f.state.elapsedMs)
+        assertEquals(SessionStatus.PAUSED, f.state.status)
+        assertTrue(f.saved.isEmpty())
+        f.session.stop("Done"); runCurrent()
+    }
+
+    @Test fun connectionLossDuringRunningStillEndsAndSaves() = runTest {
+        val f = Fixture(this)
+        f.start(); runCurrent()
+        f.now = 500
+        f.session.connectionUnavailable("Connection ended")
+        runCurrent()
+        assertEquals(SessionStatus.STOPPED, f.state.status)
+        assertEquals(500L, f.saved.single().durationMs)
+        assertTrue(f.saved.single().interrupted)
+    }
+
+    @Test fun openSessionOnlyAcceptsItsOriginalDevice() {
+        val record = SessionRecord("same-session", 0, ConnectionDevice("H10", "ORIGINAL"))
+        for (status in listOf(SessionStatus.STARTING, SessionStatus.RUNNING, SessionStatus.PAUSING, SessionStatus.PAUSED)) {
+            val state = SessionState(status = status, record = record)
+            assertTrue(state.acceptsDevice("ORIGINAL"))
+            assertFalse(state.acceptsDevice("OTHER"))
+            assertFalse(state.acceptsDevice(null))
+        }
+        assertTrue(SessionState().acceptsDevice("OTHER"))
+        assertTrue(SessionState(SessionStatus.STOPPED, record = record).acceptsDevice("OTHER"))
     }
 }

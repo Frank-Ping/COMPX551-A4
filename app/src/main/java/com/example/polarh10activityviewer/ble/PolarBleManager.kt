@@ -222,7 +222,8 @@ class PolarBleManager(context: Context) {
     fun pauseSession() = session.pause()
 
     @MainThread
-    fun resumeSession() = session.resume(connectedForData() && mutableDataReadiness.value.values.any {
+    fun resumeSession() = session.resume(connectedForData() &&
+        sessionState.value.acceptsDevice(mutableConnectionState.value.device?.deviceId) && mutableDataReadiness.value.values.any {
         it.status == DataReadinessStatus.READY && it.configurationComplete
     }, ::startSessionStreams)
 
@@ -487,7 +488,7 @@ class PolarBleManager(context: Context) {
                     mainHandler.post {
                         if (!matches(created, polarDeviceInfo)) return@post
                         val state = mutableConnectionState.value
-                        session.stop("Connection ended: ${info.reason.name.replace('_', ' ')}.")
+                        session.connectionUnavailable("Connection ended: ${info.reason.name.replace('_', ' ')}.")
                         clearDataReadiness()
                         cancelConnectionTimeout()
                         connectionConfirmed = false
@@ -528,7 +529,7 @@ class PolarBleManager(context: Context) {
             })
             true
         } catch (error: Exception) {
-            release()
+            releaseBluetooth()
             initializationError = "SDK initialization failed (${error.javaClass.simpleName}). Please retry."
             Log.e("PolarBleManager", "SDK initialization failed", error)
             false
@@ -596,6 +597,11 @@ class PolarBleManager(context: Context) {
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     fun connect(deviceId: String) {
         if (mutableConnectionState.value.status != ConnectionStatus.NOT_CONNECTED) return
+        if (!sessionState.value.acceptsDevice(deviceId)) {
+            mutableConnectionState.value = ConnectionState(
+                error = "Reconnect the original H10 to continue, or Stop this session before changing devices.")
+            return
+        }
         val device = mutableScanState.value.devices.firstOrNull { it.deviceId == deviceId }
             ?.let { ConnectionDevice(it.name, it.deviceId) }
             ?: savedDevicesState.value.devices.firstOrNull { it.deviceId == deviceId }
@@ -741,7 +747,6 @@ class PolarBleManager(context: Context) {
     }
 
     private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
-        session.stop("Connection or Bluetooth availability ended.")
         deviceBattery.clear()
         cleanupDataSubscriptions()
         readinessGeneration++
@@ -757,9 +762,12 @@ class PolarBleManager(context: Context) {
         interruptConnection("Bluetooth is unavailable. Enable Bluetooth and permissions, then retry.")
     }
 
-    fun leaveSession() {
+    fun pauseForNavigation() {
+        session.pause()
         stopScan()
-        interruptConnection(reason = null, message = "Session left the foreground. Reconnect manually when available.")
+        if (mutableConnectionState.value.status == ConnectionStatus.CONNECTING) {
+            interruptConnection(reason = null, message = "Connection attempt cancelled when leaving Session.")
+        }
     }
 
     fun disconnect() {
@@ -776,7 +784,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun interruptConnection(reason: String?, message: String? = null) {
-        session.stop(reason ?: message ?: "Connection ended.")
+        session.connectionUnavailable(reason ?: message ?: "Connection ended.")
         clearDataReadiness()
         val state = mutableConnectionState.value
         if (state.status == ConnectionStatus.NOT_CONNECTED || state.status == ConnectionStatus.DISCONNECTING) return
@@ -843,25 +851,15 @@ class PolarBleManager(context: Context) {
         }
     }
 
-    fun release() {
-        session.stop("Session released.")
-        val state = mutableConnectionState.value
+    fun releaseBluetooth() {
+        session.connectionUnavailable("Bluetooth access unavailable.")
         val disposed = disposeSdk()
         mainHandler.removeCallbacksAndMessages(null)
         if (disposed) {
             initializationError = null
-            if (state.status != ConnectionStatus.NOT_CONNECTED) {
-                // Shutdown ends local ownership; do not claim a callback-confirmed disconnection.
-                mutableConnectionState.value = if (connectionConfirmed) {
-                    state.copy(
-                        status = ConnectionStatus.DISCONNECTING,
-                        error = "SDK released. Disconnection was not confirmed; reopen Session before reconnecting.",
-                        disconnectError = null
-                    )
-                } else {
-                    ConnectionState(error = "Connection request cancelled when the SDK was released.")
-                }
-            }
+            connectionConfirmed = false
+            // Local SDK ownership ended; a new connection must be confirmed by a fresh SDK callback.
+            mutableConnectionState.value = ConnectionState(message = "Bluetooth access released. Reconnect when available.")
         }
     }
 }

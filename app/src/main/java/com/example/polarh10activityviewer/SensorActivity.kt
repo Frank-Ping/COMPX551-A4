@@ -17,7 +17,6 @@ import com.example.polarh10activityviewer.chart.LiveChartPanel
 import com.example.polarh10activityviewer.heartrate.SessionHeartRateZonePanel
 import com.example.polarh10activityviewer.heartrate.HeartRateZoneState
 import com.example.polarh10activityviewer.motion.StepState
-import com.example.polarh10activityviewer.session.SensorViewModel
 import com.example.polarh10activityviewer.session.SessionState
 import com.example.polarh10activityviewer.session.SessionStatus
 import com.example.polarh10activityviewer.session.HeartRateCard
@@ -56,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModelProvider
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import com.example.polarh10activityviewer.ui.theme.PagePadding
 import com.example.polarh10activityviewer.ble.DevicesDialog
@@ -107,7 +105,7 @@ class SensorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         systemRequestPending = savedInstanceState?.getBoolean("systemRequestPending") ?: false
-        bleManager = ViewModelProvider(this)[SensorViewModel::class.java].bleManager
+        bleManager = (application as ActivityViewerApplication).bleManager
         enableEdgeToEdge()
         setContent {
             val scanState by bleManager.scanState.collectAsState()
@@ -136,13 +134,17 @@ class SensorActivity : ComponentActivity() {
             PolarH10ActivityViewerTheme {
                 val disabledReason = startDisabledReason(availability, !systemRequestPending, connectionState,
                     session, saveState.blocksStart, subscriptionStates.values.toList(), dataReadiness.values)
-                SessionScaffold(showHistory, { showHistory = it },
+                SessionScaffold(showHistory, {
+                    if (it) bleManager.pauseForNavigation()
+                    showHistory = it
+                },
                     controls = {
                         SessionControls(disabledReason == null, session.open,
                             ::handleStartSession, { bleManager.stopSession() },
                             canPause = session.status == SessionStatus.RUNNING,
                             canResume = session.status == SessionStatus.PAUSED && !systemRequestPending &&
                                 availability == BluetoothAvailability.READY && connectionState.status == ConnectionStatus.CONNECTED &&
+                                session.acceptsDevice(connectionState.device?.deviceId) &&
                                 subscriptionStates.values.none { it.status == SubscriptionStatus.STOPPING } &&
                                 dataReadiness.values.any { it.status == DataReadinessStatus.READY && it.configurationComplete },
                             paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING),
@@ -212,8 +214,12 @@ class SensorActivity : ComponentActivity() {
 
     override fun onStop() {
         bleManager.onBluetoothStateChanged = null
-        if (!isChangingConfigurations) bleManager.leaveSession()
         super.onStop()
+    }
+
+    override fun onPause() {
+        bleManager.pauseForNavigation()
+        super.onPause()
     }
 
     private fun missingPermissions() = permissions.filter {
@@ -233,7 +239,7 @@ class SensorActivity : ComponentActivity() {
 
         val missing = missingPermissions()
         if (missing.isNotEmpty()) {
-            bleManager.release()
+            bleManager.releaseBluetooth()
             availability = when {
                 missing.any { permissionHistory.getBoolean(it, false) && !shouldShowRequestPermissionRationale(it) } ->
                     BluetoothAvailability.SETTINGS_REQUIRED
@@ -254,7 +260,7 @@ class SensorActivity : ComponentActivity() {
             availability = if (adapter.isEnabled) BluetoothAvailability.READY else BluetoothAvailability.BLUETOOTH_OFF
             if (availability != BluetoothAvailability.READY) bleManager.bluetoothUnavailable()
         } catch (_: SecurityException) {
-            bleManager.release()
+            bleManager.releaseBluetooth()
             availability = BluetoothAvailability.PERMISSIONS_NEEDED
         }
     }
@@ -398,6 +404,10 @@ internal fun SessionScreen(
             onClearSavedDevices = onClearSavedDevices,
             streamErrors = notices,
             alerts = {
+                if (session.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED) &&
+                    connectionState.status != ConnectionStatus.CONNECTED) {
+                    Text("Session paused. Reconnect ${session.record?.device?.name ?: "the original H10"} to continue.")
+                }
                 if (!session.open && connectionState.status == ConnectionStatus.CONNECTED && availability == BluetoothAvailability.READY)
                     disabledReason?.let { Text(it) }
                 if (session.endReason == "TIME_LIMIT") Text("Session time limit reached.")

@@ -25,6 +25,9 @@ internal data class SessionState(
 ) {
     val ongoing: Boolean get() = status == SessionStatus.STARTING || status == SessionStatus.RUNNING
     val open: Boolean get() = ongoing || status == SessionStatus.PAUSING || status == SessionStatus.PAUSED
+
+    fun acceptsDevice(deviceId: String?): Boolean = !open ||
+        (deviceId != null && record?.device?.deviceId == deviceId)
 }
 
 // Session timing and coordination reuse the existing subscription owner.
@@ -69,7 +72,7 @@ internal class SessionController(
     }
 
     fun pause(): Boolean {
-        if (state.value.status != SessionStatus.RUNNING || checkTimeLimit()) return false
+        if (!state.value.ongoing || checkTimeLimit()) return false
         accumulatedMs = elapsed()
         startedAt = null
         mutableState.value = state.value.copy(status = SessionStatus.PAUSING, elapsedMs = accumulatedMs)
@@ -161,6 +164,11 @@ internal class SessionController(
         resetAfterStop = reset
         if (checkTimeLimit()) return
         finish(reason, interrupted, elapsed(), wallNow())
+    }
+
+    // Losing Bluetooth must not finalize a session that the user can still continue.
+    fun connectionUnavailable(reason: String) {
+        if (state.value.ongoing) stop(reason)
     }
 
     private fun finish(reason: String, interrupted: Boolean, duration: Long, endedAt: Long) {
