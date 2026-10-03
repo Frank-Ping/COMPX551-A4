@@ -1,5 +1,6 @@
 package com.example.polarh10activityviewer.session
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +38,6 @@ import com.example.polarh10activityviewer.ble.SubscriptionState
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.ble.connectionStatusText
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
-import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
 import com.example.polarh10activityviewer.ui.theme.IconSize
 import com.example.polarh10activityviewer.ui.theme.MinimumTouchTarget
 
@@ -80,10 +80,8 @@ private fun ConnectionDetails(
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f).heightIn(min = MinimumTouchTarget).clickable(onClick = onOpenDevices),
             horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(32.dp).background(sessionBlue(), CircleShape), contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_bluetooth), contentDescription = "Devices",
-                    modifier = Modifier.size(24.dp), tint = androidx.compose.ui.graphics.Color.White)
-                }
+                Image(painterResource(R.drawable.polar_logo_icon), contentDescription = "Devices",
+                    modifier = Modifier.size(32.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(connectionStatusText(availability, connection), style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold)
@@ -93,8 +91,8 @@ private fun ConnectionDetails(
         IconButton(onClick = onOpenDevices, modifier = Modifier.size(MinimumTouchTarget)) {
             Box(Modifier.size(32.dp).background(sessionBlue().copy(alpha = 0.07f), CircleShape),
                 contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_devices), contentDescription = "Open Devices",
-                tint = sessionBlue(), modifier = Modifier.size(IconSize))
+                Icon(painterResource(R.drawable.ic_devices), contentDescription = "Open Devices",
+                    tint = sessionBlue(), modifier = Modifier.size(IconSize))
             }
         }
     }
@@ -107,18 +105,18 @@ private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: Sub
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
         // Each state comes from its subscription, not data readiness.
         listOf("HR" to hr, "ACC" to acc, "ECG" to ecg).forEach { (label, stream) ->
-            val color = when (stream.status) {
-                SubscriptionStatus.RECEIVING -> HeartRateZoneColors[0]
-                SubscriptionStatus.STARTING, SubscriptionStatus.STOPPING -> HeartRateZoneColors[3]
-                SubscriptionStatus.FAILED -> MaterialTheme.colorScheme.error
-                SubscriptionStatus.IDLE, SubscriptionStatus.STOPPED -> MaterialTheme.colorScheme.outline
+            val icon = when (stream.status) {
+                SubscriptionStatus.RECEIVING -> R.drawable.hr_status_green
+                SubscriptionStatus.STARTING, SubscriptionStatus.STOPPING -> R.drawable.hr_status_yellow
+                SubscriptionStatus.FAILED -> R.drawable.hr_status_red
+                SubscriptionStatus.IDLE, SubscriptionStatus.STOPPED -> R.drawable.hr_status_gray
             }
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) {
                 contentDescription = "$label: ${stream.status.name.lowercase().replaceFirstChar { it.uppercase() }}"
                 stateDescription = stream.status.name.lowercase()
             }, horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Box(Modifier.size(13.dp).background(color, CircleShape))
+                Image(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp))
                 Text(label, Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.bodySmall)
             }
         }

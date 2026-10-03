@@ -6,12 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -50,23 +51,18 @@ private fun MetricCard(title: String?, content: @Composable ColumnScope.() -> Un
 }
 
 @Composable
-private fun MetricValue(value: String, unit: String? = null, heartRate: Boolean = false) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(ContentSpacing),
-        verticalArrangement = Arrangement.spacedBy(ContentSpacing)) {
-        Text(value, modifier = Modifier.alignByBaseline(), style = MaterialTheme.typography.titleLarge.copy(
-            fontSize = if (heartRate) 38.sp else 24.sp,
-            lineHeight = if (heartRate) 42.sp else 28.sp,
+private fun MetricValue(value: String, unit: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(value, style = MaterialTheme.typography.titleLarge.copy(
+            fontSize = 38.sp,
+            lineHeight = 42.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = (-1).sp
         ))
-        unit?.let { Text(it, Modifier.alignByBaseline(), style = MaterialTheme.typography.bodySmall.copy(
-            fontSize = if (!heartRate) 11.sp else if (it == "bpm") 18.sp else 14.sp,
-            lineHeight = if (heartRate) 22.sp else 16.sp)) }
+        Text(unit, maxLines = 1, softWrap = false, style = MaterialTheme.typography.bodySmall.copy(
+            fontSize = if (unit == "bpm") 18.sp else 14.sp, lineHeight = 22.sp))
     }
 }
-
-private fun decimal(value: Double?): String =
-    value?.let { String.format(Locale.ENGLISH, "%.1f", it) } ?: "--"
 
 private fun cadence(value: Double?): String = value?.roundToInt()?.toString() ?: "--"
 
@@ -84,7 +80,8 @@ internal fun HeartRateCard(
             current = {
               Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 val color = current?.let { HeartRateZoneColors[it.ordinal] } ?: MaterialTheme.colorScheme.outline
-                Surface(shape = RoundedCornerShape(6.dp), border = BorderStroke(1.dp, color), color = color.copy(alpha = 0.10f)) {
+                Surface(modifier = Modifier.padding(top = 2.dp), shape = RoundedCornerShape(6.dp),
+                    border = BorderStroke(1.dp, color), color = color.copy(alpha = 0.10f)) {
                     Row(Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         current?.let { Box(Modifier.size(9.dp).background(color, CircleShape)) }
@@ -97,7 +94,7 @@ internal fun HeartRateCard(
                             style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                     }
                 }
-                MetricValue(reading?.bpm?.toString() ?: "--", "bpm", heartRate = true)
+                MetricValue(reading?.bpm?.toString() ?: "--", "bpm")
               }
             },
             statistics = {
@@ -122,7 +119,7 @@ internal fun MotionCard(steps: StepState, paused: Boolean = false) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Cadence", Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleMedium)
-                    MetricValue(if (paused) "--" else cadence(steps.cadence), "steps/min", heartRate = true)
+                    MetricValue(if (paused) "--" else cadence(steps.cadence), "steps/min")
                 }
             },
             statistics = {
@@ -153,32 +150,23 @@ private fun MetricColumns(current: @Composable () -> Unit, statistics: @Composab
 
 @Composable
 internal fun ActivitySummaryCard(session: SessionState, steps: StepState) {
-    MetricCard(null) {
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            if (maxWidth >= 280.dp * LocalDensity.current.fontScale) {
-                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SummaryMetric("Duration", formatZoneDuration(session.elapsedMs), Modifier.weight(1f).fillMaxHeight())
-                    SummaryMetric("Total Steps", steps.totalSteps?.toString() ?: "--", Modifier.weight(1f).fillMaxHeight())
-                    SummaryMetric("Estimated Distance", decimal(steps.distance), Modifier.weight(1f).fillMaxHeight(), "m")
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SummaryMetric("Duration", formatZoneDuration(session.elapsedMs), Modifier.fillMaxWidth())
-                    SummaryMetric("Total Steps", steps.totalSteps?.toString() ?: "--", Modifier.fillMaxWidth())
-                    SummaryMetric("Estimated Distance", decimal(steps.distance), Modifier.fillMaxWidth(), "m")
-                }
-            }
-        }
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        SummaryMetric("Duration", formatZoneDuration(session.elapsedMs), Modifier.weight(1f).fillMaxHeight())
+        SummaryMetric("Total Steps", steps.totalSteps?.toString() ?: "--", Modifier.weight(1f).fillMaxHeight())
     }
 }
 
 @Composable
-private fun SummaryMetric(label: String, value: String, modifier: Modifier, unit: String? = null) {
+private fun SummaryMetric(label: String, value: String, modifier: Modifier) {
     Surface(modifier, shape = RoundedCornerShape(SessionCorner), border = BorderStroke(1.dp, sessionBorder())) {
-        Column(Modifier.padding(horizontal = 4.dp, vertical = 5.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
-            MetricValue(value, unit)
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, Modifier.fillMaxWidth(), fontSize = 13.sp, lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+            BasicText(value, maxLines = 1, style = MaterialTheme.typography.titleLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface, fontSize = 30.sp, lineHeight = 34.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = (-1).sp),
+                autoSize = TextAutoSize.StepBased(minFontSize = 22.sp, maxFontSize = 30.sp))
         }
     }
 }

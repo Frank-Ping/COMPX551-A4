@@ -1,5 +1,9 @@
 # AGENTS.md
 
+> 最新 Session 调整（2026-10-04）：HR/Cadence 数值与单位使用 12 dp 间距并垂直居中；移除 Estimated Distance，Duration/Total Steps 放大并列、增加卡片间距。详见 5.41；独立的 Session 整页字号 2.0 与真机验收仍 pending。
+> Latest Session update (2026-10-04): HR/cadence values and units use a 12 dp gap and vertical centering. Remove Estimated Distance and enlarge Duration/Total Steps in one row with wider card spacing. See 5.41; separate full-page Session font-2.0 and hardware acceptance remain pending.
+
+
 > 最新展示（2026-10-04）：Activity Summary 仅保留 Duration / Total Steps 两列占满首行；Estimated Distance 展示及点击日期/时间打开详情信息的功能已删除。日期时间仍显示，详见 5.40.1；此条覆盖旧的三项主指标/信息弹窗要求。
 > Latest presentation (2026-10-04): Activity Summary now has a full row shared by Duration / Total Steps. Remove Estimated Distance and the date/time information dialog; retain the displayed date/time. Section 5.40.1 supersedes the older three-metric/info-dialog requirements.
 
@@ -1505,6 +1509,36 @@
 
 - 本轮验收：13 项相关 History 详情/展示检查全部通过，字号 2.0 另重复 4 项全部通过；核对深浅主题截图，Duration/Total Steps 保持同排各半，默认字号详情单屏，日期时间无点击入口。未运行本轮全量单元测试或 H10 真机验收。专用 emulator-5592 恢复字号 1.0/浅色后关闭；未操作 Samsung。
   Current validation: All 13 relevant History detail/presentation checks pass, plus four repeats at font scale 2.0. Inspect both themes: Duration/Total Steps share one row equally, normal-font detail fits one screen and date/time has no click entry. No full unit suite or H10 validation runs this turn. Restore font 1.0/light mode and close dedicated emulator-5592; no Samsung interaction.
+
+### 5.41 Session 单位对齐与双列汇总（2026-10-04） / Session unit alignment and two-column summary
+
+- 按用户要求，Session 当前心率/步频主数值和单位的间距从 8 dp 增至 12 dp，改为同一 Row 内垂直居中，单位保持单行；主数值继续使用 38 sp，bpm/steps/min 分别保留 18/14 sp。
+  Per the request, increase the gap between current HR/cadence values and units from 8 to 12 dp. Center them vertically in one row and keep units on one line. Retain 38 sp main values and 18/14 sp bpm/steps/min units.
+- Session 移除 Estimated Distance 展示，Duration 和 Total Steps 各占半宽并列一行，卡片间距从 6 增至 14 dp，内部横向/纵向留白改为 8/4 dp，标签数值间距为 4 dp。标签增至 13 sp、数值上限由 24 增至 30 sp；长数值使用 22–30 sp 单行自适应显示。清理仅服务距离展示的格式化函数和旧三列/上下排列路径。
+  Remove Estimated Distance from Session. Duration and Total Steps share one row equally, with a 14 dp card gap (previously 6), 8/4 dp horizontal/vertical padding and 4 dp label/value spacing. Increase labels to 13 sp and values from 24 to up to 30 sp; long values adapt within 22–30 sp on one line. Remove the unused distance formatter and old three-column/stacked summary branches.
+- 仅生产文件 SessionMetrics.kt 改变；同步两个现有 Session 仪器测试的距离/三列断言。距离计算、保存、算法、实时曲线与 History 不变。此要求覆盖此前 Session 三项运动汇总展示；独立的 Session 整页字号 2.0 问题继续保留，不能用本轮局部布局改动关闭。
+  Only SessionMetrics.kt changes in production; update obsolete distance/three-column assertions in two existing Session instrumentation files. Distance calculation/storage, algorithms, live plots and History remain unchanged. This supersedes the former three-metric Session summary. The separate full-page Session font-2.0 issue remains open.
+- debug/测试 APK 构建和 lint 通过（0 errors、19 warnings），本轮证据在 build/session-metric-polish/。两对中英文文档同步，不 commit/push；真机验收仍 pending。
+  Debug/test APK builds and lint pass (zero errors, 19 warnings). Current evidence is under build/session-metric-polish/. Synchronize both bilingual documentation pairs without commit/push; hardware acceptance remains pending.
+
+- 验证与修正：首轮 3 项检查中 2 项发现放大汇总后底部 Z5 被挤压；移除汇总重复外层卡片并将纵向内边距调整为 4 dp 后，最终 3/3 通过，包含默认三类图等高/整页、暂停/空/失败状态及 123456 步/长时长。已目视核对默认字号深浅主题，数值/单位居中，汇总两卡放大并列、Z5 完整。最终 debug/测试 APK/lint 通过；未运行全量单元测试或完成整页字号 2.0/H10 验收。证据为 tests.txt、tests-final.txt、build-final.txt 和 final-captures/。专用模拟器恢复字号 1.0/浅色并关闭，未操作 Samsung。
+  Validation/fix: Two of the initial three checks found Z5 clipped after enlarging the summary. Remove its duplicate outer card and use 4 dp vertical padding; all three final checks pass, covering equal-height charts/full page, paused/empty/failed states and 123456 steps/long duration. Inspect normal-font light/dark captures: centered units, enlarged side-by-side summary cards and complete Z5. Final builds/lint pass; no full unit suite, complete font-2.0 or H10 acceptance runs. Evidence: tests.txt, tests-final.txt, build-final.txt and final-captures/. Restore font 1.0/light mode and close the dedicated emulator; no Samsung interaction.
+
+### 5.42 Session 图标与强度间距（2026-10-04） / Session icons and intensity spacing
+
+- 按用户要求，将左侧蓝牙图标替换为 ui/icon/polar-logo-icon.png，右侧设置图标替换为 bluetooth-icon.png，均为 32 dp 并保留原色与 Devices 点击行为。六张原始 PNG 原样复制至 drawable-nodpi，以合法下划线资源名引用；删除无引用的旧 ic_bluetooth/ic_devices 矢量资源。
+  Replace the left Bluetooth symbol with ui/icon/polar-logo-icon.png and the right settings symbol with bluetooth-icon.png. Both use 32 dp, original colors and existing Devices actions. Copy all six original PNGs unchanged into drawable-nodpi with underscore resource names; remove the unused ic_bluetooth/ic_devices vectors.
+- HR/ACC/ECG 使用 20 dp 的 hr-status 图标：RECEIVING 为 green；STARTING/STOPPING 为 yellow；FAILED 为 red；IDLE/STOPPED 为 gray。保留标签、独立订阅状态映射和无障碍状态说明。心率强度标签外侧上边距增加 2 dp。
+  HR/ACC/ECG use 20 dp hr-status icons: green for RECEIVING, yellow for STARTING/STOPPING, red for FAILED and gray for IDLE/STOPPED. Retain labels, independent subscription mapping and accessibility state descriptions. Add 2 dp above the heart-rate intensity badge.
+- debug/测试 APK 构建与 lint 通过（0 errors、21 warnings，其中两项 IconXmlAndPng 指向既有 launcher 资源）。未新增/修改测试，本轮复用 3 项现有检查全部通过，覆盖默认字号三类图单屏/深浅主题、暂停/空/失败状态与左右 Devices 入口。已目视核对浅色 HR/深色 Motion，Z5 与底部按钮完整显示。证据：build/session-icon-polish/。未运行全量测试，未操作 Samsung/H10；独立 Session 字号 2.0 与真机验收仍 pending。同步两对中英文文档，无 commit/push。
+  Debug/test APK builds and lint pass (zero errors, 21 warnings, including two IconXmlAndPng warnings on existing launcher assets). No tests are added or edited this turn; three existing checks pass for normal-font single-screen charts/light and dark themes, paused/empty/failed states and both Devices entries. Visually inspect light HR/dark Motion: Z5 and bottom controls remain complete. Evidence: build/session-icon-polish/. No full suite or Samsung/H10 interaction; separate Session font-2.0 and hardware acceptance remain pending. Synchronize both bilingual documentation pairs without commit/push.
+
+### 5.42.1 恢复设置图标（2026-10-04） / Restore settings icon
+
+- 按用户最新要求，右侧 Devices 按钮恢复原 ic_devices 设置齿轮、主题蓝色及浅色圆形背景，点击行为不变。移除 App 内不再使用的 bluetooth_icon.png；ui/icon 原始素材保留。Polar Logo、HR/ACC/ECG 四种状态图标及强度上边距不变。此项覆盖 5.42 的右侧 Bluetooth 图标要求。
+  Restore the right Devices button to its original ic_devices settings gear, theme-blue tint and pale circular background, preserving its action. Remove the unused App bluetooth_icon.png while retaining the original ui/icon asset. Keep the Polar logo, four HR/ACC/ECG status icons and intensity top spacing. This supersedes the right Bluetooth icon requirement in 5.42.
+- debug 构建及 lint 通过；证据：build/session-icon-polish/restore-settings-build.txt。本轮未新增/运行测试或模拟器/真机检查；两对中英文文档同步，无 commit/push。
+  Debug build and lint pass; evidence: build/session-icon-polish/restore-settings-build.txt. No tests or emulator/hardware checks run this turn. Synchronize both bilingual documentation pairs; no commit/push.
 
 ## 6. 功能开发步骤
 

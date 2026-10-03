@@ -282,7 +282,7 @@ class SessionMetricsTest {
         mount()
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
-            noOverflow("240:00"); noOverflow("123456"); noOverflow("65432.1")
+            noOverflow("240:00"); noOverflow("123456"); compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
             compose.onNodeWithContentDescription("Open Devices").performClick()
             noOverflow("ACC: " + acc.value.error!!)
             compose.onNodeWithText("Close").performClick()

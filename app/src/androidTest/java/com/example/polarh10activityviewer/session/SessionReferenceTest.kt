@@ -146,7 +146,7 @@ class SessionReferenceTest {
         val bottom = compose.onNodeWithContentDescription("Pause").getUnclippedBoundsInRoot().top
         compose.onNodeWithText("Data Streams").assertDoesNotExist()
         compose.onNodeWithContentDescription("Open Devices").assertIsDisplayed()
-        for (label in listOf("Cadence", "Duration", "Total Steps", "Estimated Distance", "HR Zone", "Z5")) {
+        for (label in listOf("Cadence", "Duration", "Total Steps", "HR Zone", "Z5")) {
             val node = compose.onNodeWithText(label).assertIsDisplayed()
             val bounds = node.getUnclippedBoundsInRoot()
             assertTrue("$label below footer: $bounds", bounds.bottom <= bottom)
@@ -163,7 +163,7 @@ class SessionReferenceTest {
         compose.onNodeWithText("Motion").performClick()
         val cardBounds = compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot()
         val plotHeight = compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot().height
-        val lowerLabels = listOf("Duration", "Total Steps", "Estimated Distance", "HR Zone", "Z5")
+        val lowerLabels = listOf("Duration", "Total Steps", "HR Zone", "Z5")
         val lowerBounds = lowerLabels.map { compose.onNodeWithText(it).getUnclippedBoundsInRoot() }
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
@@ -176,10 +176,10 @@ class SessionReferenceTest {
                 assertEquals(plotHeight, compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot().height)
                 assertEquals(lowerBounds, lowerLabels.map { compose.onNodeWithText(it).getUnclippedBoundsInRoot() })
             }
-            val summary = listOf("Duration", "Total Steps", "Estimated Distance").map {
+            val summary = listOf("Duration", "Total Steps").map {
                 compose.onNodeWithText(it).fetchSemanticsNode().positionInRoot }
             assertEquals(summary[0].y, summary[1].y, 1f)
-            assertEquals(summary[1].y, summary[2].y, 1f)
+            compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         }
         compose.onNodeWithText("History").performClick().assertIsSelected()
         compose.onNodeWithText("Session").performClick().assertIsSelected()
