@@ -182,18 +182,18 @@ class SessionMetricsTest {
         visible("Mean: -- steps/min");
         visible("No valid HR")
         compose.onNodeWithContentDescription("Open Devices").performClick()
-        visible("No ACC observations. Statistics are unavailable.")
+        compose.onNodeWithText("No ACC observations. Statistics are unavailable.").assertDoesNotExist()
         compose.onNodeWithText("Close").performClick()
 
         compose.onAllNodesWithText("0").assertCountEquals(0)
         compose.onAllNodesWithText("0.0").assertCountEquals(0)
     }
 
-    @Test fun initialWarmupShowsGenuineCurrentZerosWithItsStatus() {
+    @Test fun initialWarmupShowsGenuineCurrentZerosWithoutDialogDetails() {
         motion.value = StepState(cadence = 0.0, speed = 0.0, message = "Warming up ACC.")
         mount(); visible("0"); visible("Mean: -- steps/min")
         compose.onNodeWithContentDescription("Open Devices").performClick()
-        visible("Warming up ACC.")
+        compose.onNodeWithText("Warming up ACC.").assertDoesNotExist()
     }
 
     @Test fun invalidHrKeepsStatisticsAndFullFailureDetailsWithoutRetry() {
@@ -202,17 +202,20 @@ class SessionMetricsTest {
         mount(); visible("Last Received: --"); visible("Mean HR: 120 bpm")
         compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         compose.onNodeWithContentDescription("Open Devices").performClick()
-        visible(message.value!!); visible("HR: Controlled HR failure.")
+        compose.onNodeWithText(message.value!!, substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("HR: Controlled HR failure.", substring = true).assertIsDisplayed()
     }
 
-    @Test fun gapAndAccFailureKeepTotalsAndFullDetailsWithoutRetry() {
+    @Test fun gapAndAccFailureKeepTotalsAndActionableErrorsWithoutDetails() {
         motion.value = motion.value.copy(cadence = null, incompleteAcc = true, message = "ACC gap. Warming up a new continuous segment.")
         acc.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled ACC failure.")
-        mount(); visible("121"); visible("100.0")
+        mount(); visible("121")
+        compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         compose.onNodeWithContentDescription("Open Devices").performClick()
-        visible(motion.value.message); visible("ACC: Controlled ACC failure.")
-        visible("Incomplete ACC data. Mean cadence may be lower.")
+        compose.onNodeWithText(motion.value.message).assertDoesNotExist()
+        visible("ACC: Controlled ACC failure.")
+        compose.onNodeWithText("Incomplete ACC data. Mean cadence may be lower.").assertDoesNotExist()
     }
 
     @Test fun checkingDisconnectionAndStoppedNeverRestoreCardRetry() {
@@ -275,7 +278,7 @@ class SessionMetricsTest {
         visible("Unclassified time: 00:01")
     }
 
-    @Test fun longValuesAndErrorsUseCompleteDetailsWithoutExpandingCards() {
+    @Test fun longValuesFitAndErrorsStayOnOneLineWithoutExpandingCards() {
         session.value = session.value.copy(elapsedMs = 14_400_000)
         motion.value = motion.value.copy(totalSteps = 123456, distance = 65432.14)
         acc.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled long failure explanation. ".repeat(20))
@@ -284,7 +287,11 @@ class SessionMetricsTest {
             compose.runOnIdle { dark.value = night }
             noOverflow("240:00"); noOverflow("123456"); compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
             compose.onNodeWithContentDescription("Open Devices").performClick()
-            noOverflow("ACC: " + acc.value.error!!)
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithTag("device-error").performScrollTo()
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertEquals(1, layouts.single().lineCount)
+            assertTrue(layouts.single().isLineEllipsized(0))
             compose.onNodeWithText("Close").performClick()
             visible("Z5")
         }

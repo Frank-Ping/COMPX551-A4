@@ -140,7 +140,7 @@ class SessionHeaderTest {
 
     @Test fun openingAndClosingDevicesDoesNotStartOperationsOrEndRunningSession() {
         mount(); open()
-        compose.onNodeWithText("Current device").assertIsDisplayed()
+        compose.onNodeWithText("Current device").assertDoesNotExist()
         compose.onNodeWithText("Close").performClick()
         assertEquals(SessionStatus.RUNNING, session.value.status)
         compose.onNodeWithText("Session: Running").assertDoesNotExist()
@@ -167,6 +167,17 @@ class SessionHeaderTest {
         compose.onNodeWithText("Devices").assertDoesNotExist()
         assertEquals(1, scansStopped); assertEquals(0, disconnects); assertEquals(0, stops)
         assertEquals(listOf(nearby), scan.value.devices)
+    }
+
+    @Test fun topCloseStopsScanningWithoutDisconnectingOrEndingSession() {
+        scan.value = ScanState(ScanStatus.SCANNING, listOf(nearby))
+        mount(); open()
+        compose.onNodeWithContentDescription("Close devices").performClick()
+        compose.onNodeWithText("Devices").assertDoesNotExist()
+        assertEquals(1, scansStopped)
+        assertEquals(listOf(nearby), scan.value.devices)
+        assertEquals(0, disconnects); assertEquals(0, stops)
+        assertEquals(SessionStatus.RUNNING, session.value.status)
     }
 
     @Test fun stateRestorationKeepsDialogAndDoesNotRepeatActiveScan() {
@@ -218,25 +229,26 @@ class SessionHeaderTest {
 
     @Test fun selectingSavedDeviceRoutesTheIdAndDisablesFurtherConnectionAndScan() {
         saved.value = SavedDevicesState(listOf(SavedDevice("Controlled saved fixture", "SAVED123", 1_000)), false)
-        mount(); open(); click("Controlled saved fixture")
+        mount(); open(); click("Connect")
         assertEquals("SAVED123", connectedId)
-        compose.onNodeWithText("Controlled saved fixture").assertIsNotEnabled()
-        compose.onNodeWithText("Start scan").reveal().assertIsNotEnabled()
+        compose.onNodeWithText("Connect").assertDoesNotExist()
+        compose.onNodeWithText("Scan").reveal().assertIsNotEnabled()
         compose.onNodeWithText("Close").performClick()
         compose.onNodeWithText("Connecting").assertIsDisplayed()
         assertEquals(0, stops); assertEquals(0, disconnects)
     }
 
-    @Test fun readinessShowsOnlyBlockedOptionsAndPreservesBusyRecheckGuard() {
+    @Test fun readinessShowsActionableProblemWithoutParametersAndPreservesBusyRecheckGuard() {
         connection.value = ConnectionState(ConnectionStatus.CONNECTED, ConnectionDevice("Controlled H10", "ABC"))
         readiness.value = readiness.value + (PolarDeviceDataType.ACC to DataReadiness(
             DataReadinessStatus.READY, available = mapOf(SettingType.SAMPLE_RATE to setOf(50)),
             error = "ACC disabled: 100 Hz is unavailable. No alternative rate selected."))
         mount(); open()
-        compose.onNodeWithText("Sample rate (Hz): 50").reveal().assertIsDisplayed()
-        click("Recheck data readiness"); assertEquals(1, rechecks)
+        compose.onNodeWithText("Sample rate (Hz): 50").assertDoesNotExist()
+        compose.onNodeWithText(readiness.value.getValue(PolarDeviceDataType.ACC).error!!).reveal().assertIsDisplayed()
+        click("Recheck"); assertEquals(1, rechecks)
         compose.runOnIdle { acc.value = SubscriptionState(SubscriptionStatus.STARTING) }
-        compose.onNodeWithText("Recheck data readiness").assertIsNotEnabled()
+        compose.onNodeWithText("Recheck").assertIsNotEnabled()
         compose.runOnIdle {
             acc.value = SubscriptionState()
             readiness.value = checkedDataTypes.associateWith {

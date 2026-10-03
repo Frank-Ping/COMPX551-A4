@@ -135,8 +135,6 @@ private fun HistoryListCard(record: SessionRecord, date: DateTimeFormatter, time
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(date.format(started), fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
                         Text(time.format(started), style = MaterialTheme.typography.bodyLarge)
-                        if (record.incomplete) Text("Incomplete", style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 val durationContent: @Composable () -> Unit = {

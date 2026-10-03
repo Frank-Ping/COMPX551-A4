@@ -206,7 +206,7 @@ class SessionReferenceTest {
         compose.runOnIdle { failed.value = true; empty.value = false; phase.value = SessionStatus.RUNNING }
         capture("error"); singleScreen()
         compose.onNodeWithContentDescription("Open Devices").performClick()
-        compose.onNodeWithText("HR: " + "Controlled stream failure with full recovery information. ".repeat(10)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("HR: " + "Controlled stream failure with full recovery information. ".repeat(10), substring = true).performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         capture("error-details")
         compose.onNodeWithText("Close").performClick()

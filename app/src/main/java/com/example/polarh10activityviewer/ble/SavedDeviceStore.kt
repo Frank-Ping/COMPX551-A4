@@ -21,7 +21,7 @@ data class SavedDevicesState(
     val error: String? = null
 )
 
-class SavedDeviceStore private constructor(context: Context) {
+class SavedDeviceStore internal constructor(context: Context) {
     private val appContext = context.applicationContext
     private val preferences by lazy { appContext.getSharedPreferences("saved_devices", Context.MODE_PRIVATE) }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -85,6 +85,24 @@ class SavedDeviceStore private constructor(context: Context) {
                     mutableState.value = mutableState.value.copy(
                         loading = false,
                         error = "Unable to save device (${error.javaClass.simpleName}). The connection is unaffected; reconnect to retry saving."
+                    )
+                }
+            }
+        }
+    }
+
+    @SuppressLint("ApplySharedPref", "UseKtx")
+    fun clear() {
+        scope.launch {
+            mutex.withLock {
+                try {
+                    check(preferences.edit().remove("devices").commit())
+                    loaded = true
+                    mutableState.value = SavedDevicesState(loading = false)
+                } catch (error: Exception) {
+                    mutableState.value = mutableState.value.copy(
+                        loading = false,
+                        error = "Unable to clear saved devices (${error.javaClass.simpleName}). Please try again."
                     )
                 }
             }

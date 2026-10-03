@@ -1,5 +1,12 @@
 # AGENTS.md
 
+> 最新调整（2026-10-04，8.6）：设备名称与连接按钮缩小，Saved devices 同行加入 Clear History；仅清除保存设备，不影响活动历史或当前连接。错误与 Recheck 单行，弹窗固定高度。231 单元、分轮 35 项不同仪器检查、最终字号 1.0/2.0 各 7 项 Devices 检查通过；构建/lint 通过（0 errors、16 warnings）。详见 5.43.3；真机仍 pending，无 commit/push。
+> Latest update (2026-10-04, 8.6): Compact names/buttons, inline Clear History for saved devices only, inline errors/Recheck and a fixed-height dialog are implemented. Activity History and the current connection are preserved. All 231 unit tests, 35 distinct instrumentation checks across runs and seven final Devices checks at each font scale 1.0/2.0 pass; builds/lint pass (zero errors, 16 warnings). See 5.43.3. Hardware remains pending; no commit/push.
+
+> 最新进度（2026-10-04，8.6）：Devices 弹窗第一版已按参考图实施，删除详细信息，保留必要问题处理；独立 Connect、跨列表去重、Scan/Stop scan、固定头尾与中间滚动已接入。231 单元、33 项不同 UI 检查及字号 2.0 的 5 项重复检查通过；构建/lint 通过（0 errors、16 warnings）。中英文提示词与记录见 5.43/5.43.1 和 prompt.md；真机仍 pending，无 commit/push。
+> Latest status (2026-10-04, 8.6): The first Devices redesign follows the reference, removes details and retains necessary recovery. Explicit Connect, cross-list deduplication, Scan/Stop scan and fixed header/footer with a scrolling body are implemented. All 231 unit tests, 33 distinct UI checks and five font-2.0 repeats pass; builds/lint pass (zero errors, 16 warnings). Bilingual prompts/results are in 5.43/5.43.1 and prompt.md. Hardware remains pending; no commit/push.
+
+
 > 最新 Session 调整（2026-10-04）：HR/Cadence 数值与单位使用 12 dp 间距并垂直居中；移除 Estimated Distance，Duration/Total Steps 放大并列、增加卡片间距。详见 5.41；独立的 Session 整页字号 2.0 与真机验收仍 pending。
 > Latest Session update (2026-10-04): HR/cadence values and units use a 12 dp gap and vertical centering. Remove Estimated Distance and enlarge Duration/Total Steps in one row with wider card spacing. See 5.41; separate full-page Session font-2.0 and hardware acceptance remain pending.
 
@@ -1540,6 +1547,72 @@
 - debug 构建及 lint 通过；证据：build/session-icon-polish/restore-settings-build.txt。本轮未新增/运行测试或模拟器/真机检查；两对中英文文档同步，无 commit/push。
   Debug build and lint pass; evidence: build/session-icon-polish/restore-settings-build.txt. No tests or emulator/hardware checks run this turn. Synchronize both bilingual documentation pairs; no commit/push.
 
+### 5.43 步骤 8.6：Devices 弹窗第一版（2026-10-04） / Step 8.6: Devices dialog first version
+
+- 用户已确认：按 ui/Devices-dialog.png 重做设备连接弹窗；删除详细信息，其余采用本轮建议，实施第一版并记录中英文提示词及结果。本节覆盖 5.29、5.34 中旧弹窗顺序、详细信息、整卡连接及双扫描按钮的相应要求；不修改 BLE、存储、算法或 Session 整页布局。
+  Confirmed request: Restyle the device connection dialog using ui/Devices-dialog.png, remove detailed information, adopt the remaining proposed rules, implement the first version and record bilingual prompts/results. This section supersedes the corresponding older dialog order, details, whole-card connection and two-scan-button requirements in 5.29/5.34. Do not alter BLE, storage, algorithms or the full Session layout.
+- 外观与内容：圆角描边弹窗、蓝牙圆形图标、Devices 标题与右上角关闭，状态胶囊；当前/目标设备按需出现，其后 Saved devices、Nearby devices。底部 Scan/Stop scan 和 Close 固定，中间区域限高滚动。适度字重、蓝色按钮、深浅主题；长名称换行，大字号/窄宽度时连接按钮移到下一行，不缩小系统字号。标题图标用与参考图对应的蓝牙矢量图；Session 入口保持现有设置齿轮。
+  Presentation: Rounded outlined dialog, circular Bluetooth icon, Devices heading/top-right close, and a status pill. Show the current/target device only when applicable, then Saved devices and Nearby devices. Fix Scan/Stop scan and Close at the bottom and scroll the bounded middle region. Use moderate weights, blue buttons and light/dark themes. Wrap long names; move device actions below their names at narrow widths/large fonts without reducing system font scale. Use a Bluetooth vector matching the reference; retain Session's settings gear.
+- 删除详细信息：不提供折叠详情、最近连接时间、RSSI、采样参数/正常就绪列表、常驻 Session 状态/统计说明或已保存终态。设备名未包含 ID 时补一行 ID。当前设备保留有效电量、Disconnect 和原 Retry disconnect。保留权限/蓝牙/连接问题、失败数据流、阻止启动/配置问题和保存中/失败的必要提示及原恢复入口，避免无解释地阻止操作；不新增单流 Retry 或 Session Retry save。
+  Remove details: No disclosure, last-connected time, RSSI, sampling parameters/healthy-readiness list, persistent Session status/statistical notes or terminal saved notice. Add an ID line only when the name does not already include it. Retain valid current-device battery, Disconnect and existing Retry disconnect. Preserve necessary permission/Bluetooth/connection, failed-stream, blocked-start/configuration and saving/failed-save notices with existing recovery actions. Add no stream Retry or Session Retry save.
+- 设备规则：独立 Connect 按钮连接，设备卡片本身不触发连接；连接成功后弹窗保持打开。按 deviceId 去重：当前设备不重复出现在列表，Nearby 只显示本轮发现且不在 Saved 的设备。Saved 仍按最近连接倒序且可直接连接，不据此声明在线；读入未完成及错误保留提示，不新增存储规则。
+  Device rules: Connect through explicit buttons; cards themselves do not connect. Keep the dialog open after success. Deduplicate by deviceId: exclude the current device from lists and saved devices from Nearby. Preserve recency order and direct connection for saved devices without claiming they are online. Preserve loading/error messages; no storage changes.
+- 交互状态：Scan 与 Stop scan 合并，保留 30 秒扫描、每轮清空、停止后保留结果、连接前停止扫描、10 秒连接超时和单设备限制。连接/断开中禁用重复操作，真实回调确认状态；不自动扫描/重连/切设备。右上角关闭、Close、返回和点击外部统一关闭，只停止扫描，不主动断开或结束 Session；真实后台/离开行为不变。
+  Interaction: Combine Scan and Stop scan while preserving the 30-second scan, new-scan reset, retained results, stop-before-connect, 10-second connection timeout and single-device limit. Disable duplicate actions while connecting/disconnecting and derive status from real callbacks. No automatic scans/reconnects/device switching. Top close, Close, Back and outside dismissal share the close path, stopping scans without disconnecting or ending Session. Actual background/leaving behavior is unchanged.
+- 验证范围：参考布局深浅主题，空/已保存/附近/重复设备，扫描与关闭，连接中/已连接/断开失败，权限/蓝牙/SDK/配置问题，长名称、多设备、系统字号 2.0、固定底部按钮与保存恢复。仅测试环境使用明确标注的模拟数据；运行相关 Compose 检查、debug/测试 APK 构建及 lint。真机结果独立记录。最终验证结果见 5.43.1；无 commit/push。
+  Validation scope: Reference light/dark layout, empty/saved/nearby/duplicate devices, scanning/dismissal, connecting/connected/disconnect failures, permission/Bluetooth/SDK/configuration issues, long names/many devices, system font 2.0, fixed footer and save recovery. Use labeled synthetic data only in tests; run relevant Compose checks, debug/test APK builds and lint. Record hardware results separately. Final validation is recorded in 5.43.1. No commit/push.
+
+### 5.43.1 8.6 第一版实施与验证 / First implementation and validation
+
+- 已修改 DevicesDialog.kt 和 SensorActivity.kt；新增蓝牙/搜索/关闭矢量资源。弹窗使用 94% 可用宽度、最大 560 dp 与 90% 可用高度上限；顶部标题/状态和底部 Scan/Close 固定，中间滚动。名称/ID、独立按钮、真实状态卡、跨列表去重、异常提示和关闭行为按 5.43 实施。未增加折叠详情；删除原参数/时间/RSSI/常驻 Session 说明，仅保留必要问题及保存恢复内容。
+  Implemented DevicesDialog.kt/SensorActivity.kt changes and Bluetooth/search/close vector resources. The dialog uses 94% of available width with a 560 dp cap and 90% height cap, fixed heading/status and Scan/Close footer, and a scrolling body. Names/IDs, explicit buttons, real-state current cards, cross-list deduplication, actionable notices and dismissal follow 5.43. No disclosure is introduced; remove former parameters/timestamps/RSSI/persistent Session notes, retaining necessary issues and save recovery.
+- 新增 DevicesDialogTest 的 5 项测试；更新 SessionHeaderTest、SessionChromeTest 和 SessionMetricsTest 中与新入口、信息移除相关的断言，并增加顶部关闭扫描检查。231 项单元测试全部通过（0 failures/errors）；默认字号分轮 28 + 5 = 33 项不同 UI 检查通过，另实际系统字号 2.0 重复 5 项 DevicesDialogTest 全部通过。覆盖独立 Connect/不自动关闭、Saved/Nearby 去重、Scan 切换与结果、忙碌禁用、断开失败重试、权限/蓝牙/配置问题、顶部关闭/Close/系统返回、保存恢复、长名称/12 个设备、深浅与滚动。外部点击共用 onDismissRequest，经源码检查，本轮没有单独注入外部点击事件。
+  Add five DevicesDialogTest cases; update SessionHeaderTest/SessionChromeTest/SessionMetricsTest assertions for the new actions and removed details, plus a top-close scan check. All 231 unit tests pass (zero failures/errors). Default-font runs pass 28 + 5 = 33 distinct UI checks; five DevicesDialogTest cases also pass at actual system font 2.0. Coverage includes explicit Connect/no auto-close, Saved/Nearby deduplication, scan toggling/results, busy guards, disconnect retry, permission/Bluetooth/configuration issues, top close/Close/Back, save recovery, long names/12 devices, themes and scrolling. Outside clicks share onDismissRequest by source inspection; no separate outside-click event was injected this turn.
+- debug/测试 APK 构建与最终 lint 通过，0 errors、16 warnings。已目视核对默认字号深浅参考场景、字号 2.0 深色列表及浅色长名滚动，按钮固定可见。全部截图为明确标注的测试状态，不是真实 H10。证据：build/step86-devices/ 下 build.txt、build-final.txt、tests.txt、tests-final.txt、font2.0.txt、font1.0/ 和 font2.0/。未运行全部仪器测试；独立 Session 整页字号 2.0 问题、真实连接/扫描/权限系统交互及 Samsung/H10 验收仍 pending。
+  Debug/test APK builds and final lint pass with zero errors and 16 warnings. Visually check default-font light/dark reference fixtures, font-2.0 dark lists and light long-name scrolling; footer buttons remain visible. Captures are labeled synthetic states, not real H10 evidence. Evidence under build/step86-devices/: build.txt, build-final.txt, tests.txt, tests-final.txt, font2.0.txt, font1.0/ and font2.0/. The complete instrumentation suite was not run. Separate full-page Session font-2.0 clipping and real connection/scanning/system-permission/Samsung-H10 acceptance remain pending.
+- 两对中英文文档同步。专用模拟器验证后恢复默认字号/浅色并关闭，未操作 Samsung；不 commit/push。
+  Synchronize both bilingual documentation pairs. Restore the dedicated emulator to default font/light mode and close it after validation; no Samsung interaction or commit/push.
+
+### 5.43.2 删除连接后的数据流状态文字（2026-10-04） / Remove connected stream status text
+
+- 按用户最新要求，Devices 弹窗不再逐项显示 HR/ACC/ECG 的 Waiting for readiness、Checking、Unsupported、Configuration unavailable 等状态文字。仅保留实际 error 文本与原 Recheck 操作及其启用条件；连接状态胶囊和 Session 顶部状态图标不变。此项覆盖 8.6 第一版对应的就绪状态展示。
+  Per the latest request, remove per-stream HR/ACC/ECG Waiting for readiness, Checking, Unsupported and Configuration unavailable text from Devices. Retain actual errors and the existing Recheck action/enablement. Keep the connection pill and Session header status icons. This supersedes the corresponding readiness-status display in the first 8.6 version.
+- 本轮仅修改 DevicesDialog.kt 的文字渲染，并同步两对文档；debug/lint 通过，证据为 build/step86-devices/remove-stream-status-build.txt。未新增/运行测试或模拟器/真机验证，无 commit/push。
+  This turn changes only text rendering in DevicesDialog.kt and synchronizes both documentation pairs. Debug/lint pass; evidence: build/step86-devices/remove-stream-status-build.txt. No new tests, test execution or emulator/hardware validation; no commit/push.
+
+### 5.43.3 紧凑设备卡、Clear History 与固定弹窗（2026-10-04） / Compact device cards, Clear History and a fixed dialog
+
+- 用户要求：缩小设备名称及 Connect/Disconnect 按钮，使名称单行显示；Saved devices 标题右侧同一行加入 Clear History 清理已保存设备记录；连接错误单行，Recheck 缩小并放到同一行，连接后弹窗高度保持固定。
+  Request: Reduce device-name type and Connect/Disconnect controls, keep names on one line, place Clear History to the right of Saved devices, combine a single-line connection error with a smaller Recheck action, and keep dialog height stable after connection.
+- 设备名称改为 13 sp/18 sp、Medium、单行，超长名称末尾省略，完整名称仍保留在文本语义中；普通设备图标缩至 28 dp。操作文字为 11 sp/15 sp，减小按钮内边距，沿用 Material 触控尺寸；大字号/窄宽度仍将操作放到下一行。此规则覆盖此前设备名换行的要求。
+  Device names use 13 sp/18 sp Medium on one line, with end ellipsis for long names and complete text retained in semantics. Device icons shrink to 28 dp. Action labels use 11 sp/15 sp and smaller padding while retaining Material touch-target sizing; narrow/large-font layouts still stack actions below identities. This supersedes the former multiline-name rule.
+- Clear History 直接清除本 App 已保存设备记录，不清除 Activity History，不断开当前连接。删除 SharedPreferences 的 devices 数据项并检查提交结果，沿用 IO/Mutex 串行写入；成功后更新列表，失败保留错误提示。空列表且无读取错误时禁用；清除后原已保存扫描结果自动归入 Nearby，当前设备仍只出现一次。未来真实成功重连可再次保存设备。没有执行用户设备上的实际清除。
+  Clear History directly removes this App's saved-device records, preserving Activity History and the active connection. Remove only the SharedPreferences devices entry, check commit success and serialize on the existing IO/mutex path. Update the list after success and report failures. Disable for an empty error-free list. Previously saved scan results become Nearby entries, with the current device still unique; a later genuine successful connection may save a device again. No saved devices on the user's hardware were cleared.
+- 连接/配置/流错误去重并合并为一行 11 sp 文本，超长省略，Recheck 同行且保持原启用限制；不恢复逐流状态或详情区。弹窗固定为可用窗口高度的 90%，内容区占剩余高度并滚动，连接、断开、错误或列表变化不会改变外框高度。保留权限与保存恢复操作。
+  Deduplicate and combine connection/configuration/stream errors into one 11 sp line with ellipsis and an adjacent Recheck action retaining its original guards. Do not restore stream statuses/details. Fix the dialog to 90% of the available window height and scroll the remaining body area, so connection, errors or list changes do not resize its frame. Preserve permission and save recovery actions.
+- Saved devices 标题使用 11—18 sp 自动适配，在系统字号 2.0 下仍与 Clear History 同行完整显示。标准设备名在 1.0/2.0 字号的受控检查中均完整单行，超长名称按规则省略。
+  The Saved devices heading fits within 11–18 sp so it remains complete beside Clear History at system font scale 2.0. Standard device names remain complete on one line at both tested scales; unusually long names use the specified ellipsis.
+- 本轮 231 项单元测试通过；分轮 35 项不同仪器检查全部通过，包括 2 项隔离 SharedPreferences/SQLite 持久化检查、7 项 Devices 检查及 Header/Chrome/错误布局回归。初次名称检查误把段落空白宽度判为文字溢出，改为检查实际行边界、垂直高度和省略号后通过；最终 Devices 7 项在 1.0 与 2.0 字号分别复跑通过。debug/测试 APK 构建和 lint 通过（0 errors、16 warnings）。证据在 build/step86-compact；受控浅/深主题、错误同行、清除后连接保留及大字号滚动截图已检查。两对中英文文档同步，无 commit/push；Samsung/H10 真实蓝牙与清除后的重连仍待真机验证。
+  All 231 unit tests pass. Across the recorded runs, 35 distinct instrumentation checks pass, including two isolated SharedPreferences/SQLite persistence checks, seven Devices checks and Header/Chrome/error-layout regressions. An initial name assertion counted paragraph whitespace as overflow; actual line bounds, vertical height and ellipsis checks pass. All seven final Devices checks pass again at font scales 1.0 and 2.0. Debug/test APK builds and lint pass (zero errors, 16 warnings). Evidence is in build/step86-compact. Controlled light/dark, inline-error, retained-connection-after-clear and large-font scrolling captures were reviewed. Both bilingual documentation pairs are synchronized; no commit/push. Samsung/H10 BLE behavior and reconnecting after clear still require hardware validation.
+
+### 5.43.4 缩小弹窗高度（2026-10-04） / Reduce dialog height
+
+- 用户提示词：将当前弹窗高度减少到原来的 60%，暂不考虑大量 Nearby 设备。
+  User prompt: Reduce the current dialog height to 60% of its previous height; do not handle large Nearby lists in this change.
+- DevicesDialog.kt 的固定高度由可用窗口的 90% 改为 54%（90% × 60%），覆盖 5.43.3 的高度规则；沿用现有布局和中间滚动，不增加列表处理逻辑。
+  Change the fixed height in DevicesDialog.kt from 90% to 54% of the available window (90% × 60%), superseding the height rule in 5.43.3. Retain the existing layout and body scrolling without new list-handling logic.
+- debug 构建通过，日志为 build/step86-compact/build-height60.txt；本轮未新增或运行测试、lint、模拟器视觉或真机验收。同步两对中英文文档，无 commit/push。
+  The debug build passes; evidence is in build/step86-compact/build-height60.txt. No tests, lint, emulator visual checks or hardware validation were added/run this turn. Both bilingual documentation pairs are synchronized; no commit/push.
+
+### 5.43.5 精简连接提示（2026-10-04） / Shorten connection messages
+
+- 用户提示词：删除连接错误提示中 Tap 及其后面的文本。
+  User prompt: Remove Tap and the following text from connection error messages.
+- PolarBleManager.kt 移除连接结束、10 秒超时、连接异常及主动断开提示中的 Tap 重试/重连句，保留原因、GATT 状态或异常类型；连接操作逻辑不变。
+  Remove the Tap retry/reconnect sentence from connection-ended, ten-second timeout, connection-exception and intentional-disconnection messages in PolarBleManager.kt. Retain reasons, GATT status or exception type; connection behavior is unchanged.
+- debug 构建通过（build/step86-compact/build-error-copy.txt）；本轮无新增测试，未运行测试套件、lint 或设备验收。同步两对中英文文档，无 commit/push。
+  The debug build passes (build/step86-compact/build-error-copy.txt). No tests were added; test suites, lint and device validation were not run this turn. Both bilingual documentation pairs are synchronized; no commit/push.
+
 ## 6. 功能开发步骤
 
 按下表顺序推进；一次只处理一个编号。依赖未满足时先说明缺口。
@@ -1592,6 +1665,7 @@
 | 8.4e | 合并参考图布局、单屏无滚动、卡片/标题/状态清理、统计/空间调整、Stop 重置及三图等高，统一方案见 5.34 | 默认字号竖屏已实施并验证；历史及后续记录合并见 5.34.3；手机固定竖屏；竖屏大字号适配与 H10 真机 pending，不标记整体 UI 全面完成 |
 | 8.5 | History 列表与详情，8.5a—8.5d | 软件与本轮模拟器验收完成（5.40）；231 单元、分轮 53 项不同仪器检查通过，深浅/字号 1.0/2.0 已核对；Samsung/H10 pending |
 | 8.5a | 卡片列表、10 条自动分页、右侧滚动条、适度字重 | 分轮 41 项不同 SQLite/Compose 检查通过，另字号 2.0 视觉重复检查通过；构建/lint 0 errors、22 warnings；Samsung/H10 pending |
+| 8.6 | Devices 参考图弹窗、移除详情与设备操作整理 | 第一版已实施；231 单元、33 UI 及 5 次字号 2.0 重复检查通过，构建/lint 0 errors、16 warnings；见 5.43.1，Samsung/H10 pending |
 | 9.1 | 验证拒绝权限、断线、页面重建和后台行为 | 行为符合设计，无重复采集 |
 | 9.2 | 真机完整演示并记录性能与算法局限 | 完成采集→处理→保存→重启查询 |
 | 9.3 | 整理证据、提交文件与展示材料 | 所有作业交付项齐全 |
@@ -1773,3 +1847,26 @@
 - [ ] 准备不超过 2 分钟的演示视频作为可选备份。
 - [ ] 每位成员承担实质展示内容。
 - [ ] 按文档于 10 月 4 日 23:59 前提交；变更以课程通知为准。
+
+### 5.43.6 Dialog height 80% / 弹窗高度 80%（2026-10-04）
+
+- 按用户要求，固定高度改为可用窗口的 80%，覆盖此前 54%；其余布局沿用。
+  Set the fixed height to 80% of the available window as requested, superseding 54%; retain the remaining layout.
+- Debug 构建通过（build/step86-compact/build-height80.txt）；本轮未运行测试、lint 或视觉/真机验收。两对文档同步，无 commit/push。
+  Debug build passed (build/step86-compact/build-height80.txt); no tests, lint, visual or hardware checks this turn. Both documentation pairs synchronized; no commit/push.
+
+
+### 5.43.7 Timeout message / 超时提示（2026-10-04）
+
+- 按用户要求，删除超时后的 No connection was confirmed; the request was cancelled.，仅保留 Connection timed out after 10 seconds.。取消未确认连接时保留原始 message，清理与连接状态逻辑不变。
+  Remove the extra No connection was confirmed; the request was cancelled. after timeout. Retain the original cancellation message; cleanup and connection state logic remain unchanged.
+- Debug 构建通过（build/step86-compact/build-timeout-copy.txt）；未运行测试、lint 或真机验收。两对文档同步，无 commit/push。
+  Debug build passed (build/step86-compact/build-timeout-copy.txt); no tests, lint or hardware checks this turn. Both documentation pairs synchronized; no commit/push.
+
+
+### 5.44 History list without Incomplete / 移除列表完整性标记（2026-10-04）
+
+- 用户提示词：删除 History 列表中 Incomplete 的显示，不需要检测数据未完成状态。列表卡片已移除 record.incomplete 判断及 Incomplete 文本；列表展示不再区分完整性。仅调整列表，保留已有数据记录和详情页行为；覆盖 4.3/5.35 中列表标记要求。
+  User prompt: Remove Incomplete from the History list; the list does not need to check incomplete-data status. Remove the record.incomplete condition and label from list cards. Preserve stored records and detail-page behavior. This supersedes the list-marker requirement in 4.3/5.35.
+- 更新既有 HistoryListTest 断言为标记不存在；debug 与测试 APK 构建通过（build/step86-compact/build-history-label.txt）。未运行测试套件、lint 或真机验收；两对文档同步，无 commit/push。
+  Update the existing HistoryListTest assertion to expect no marker. Debug and test APK builds pass (build/step86-compact/build-history-label.txt). Test suites, lint and hardware checks were not run; both documentation pairs synchronized, no commit/push.

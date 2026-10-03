@@ -63,7 +63,6 @@ import com.example.polarh10activityviewer.ble.DevicesDialog
 import com.example.polarh10activityviewer.session.SessionHeader
 import com.example.polarh10activityviewer.session.SessionControls
 import com.example.polarh10activityviewer.session.SessionScaffold
-import com.example.polarh10activityviewer.session.SessionStatusPanel
 import com.example.polarh10activityviewer.session.SessionGap
 import com.example.polarh10activityviewer.session.startDisabledReason
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
@@ -170,6 +169,7 @@ class SensorActivity : ComponentActivity() {
                         batteryLevel = batteryLevel,
                         onConnect = ::handleConnect,
                         savedDevicesState = savedDevicesState,
+                        onClearSavedDevices = bleManager::clearSavedDevices,
                         onDisconnect = ::handleDisconnect,
                         onRetryDisconnect = ::handleRetryDisconnect,
                         dataReadiness = dataReadiness,
@@ -184,7 +184,10 @@ class SensorActivity : ComponentActivity() {
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
                         disabledReason = disabledReason,
-                        saveStatus = { SavePanel(saveState, bleManager.storage.saves, session.record?.id, showRetry = false) },
+                        saveStatus = {
+                            if (saveState.status in setOf(SaveStatus.SAVING, SaveStatus.FAILED))
+                                SavePanel(saveState, bleManager.storage.saves, session.record?.id, showRetry = false)
+                        },
                         charts = { LiveChartPanel(bleManager, dataReadiness) },
                     ) }
                 )
@@ -362,7 +365,8 @@ internal fun SessionScreen(
     session: SessionState = SessionState(),
     disabledReason: String? = null,
     saveStatus: @Composable () -> Unit = {},
-    charts: @Composable () -> Unit = {}
+    charts: @Composable () -> Unit = {},
+    onClearSavedDevices: () -> Unit = {}
 ) {
     var showDevices by rememberSaveable { mutableStateOf(false) }
     val validBattery = batteryLevel.takeIf {
@@ -375,24 +379,9 @@ internal fun SessionScreen(
     val accBusy = accSubscription.status in setOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING)
     val ecgBusy = ecgSubscription.status in setOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING, SubscriptionStatus.STOPPING)
     val notices = buildList {
-        errorMessage?.let { add(it) }
         heartRateMessage?.let { add(it) }
-        if (!steps.receivedAcc) add("No ACC observations. Statistics are unavailable.")
-        else if (steps.durationMs == 0L) add("Mean cadence needs a positive Running duration.")
-        if (steps.message != "Detecting steps.") add(steps.message)
-        if (steps.incompleteAcc) add("Incomplete ACC data. Mean cadence may be lower.")
         listOf("HR" to hrSubscription, "ACC" to accSubscription, "ECG" to ecgSubscription).forEach { (name, stream) ->
             stream.error?.let { add("$name: $it") }
-        }
-        dataReadiness.forEach { (type, state) ->
-            state.error?.let { add("$type: $it") }
-            if (state.status == DataReadinessStatus.READY && !state.configurationComplete && state.error == null)
-                add("Open Devices to confirm $type configuration before starting.")
-        }
-        session.record?.let { record ->
-            if (record.incomplete) add("Incomplete session data. Some streams have missing or failed observations.")
-            if (session.status == SessionStatus.STOPPED && !record.eligibleForSaving)
-                add("No valid observations to save. Connect a device and Start a new session.")
         }
     }
     if (showDevices) {
@@ -406,9 +395,12 @@ internal fun SessionScreen(
             onConnect = onConnect, onDisconnect = onDisconnect, onRetryDisconnect = onRetryDisconnect,
             onStartScan = onStartScan, onStopScan = onStopScan, onRecheck = onRecheckData,
             onClose = ::closeDevices,
-            sessionDetails = {
-                SessionStatusPanel(session, disabledReason)
-                notices.distinct().forEach { Text(it) }
+            onClearSavedDevices = onClearSavedDevices,
+            streamErrors = notices,
+            alerts = {
+                if (!session.open && connectionState.status == ConnectionStatus.CONNECTED && availability == BluetoothAvailability.READY)
+                    disabledReason?.let { Text(it) }
+                if (session.endReason == "TIME_LIMIT") Text("Session time limit reached.")
                 saveStatus()
             }
         )

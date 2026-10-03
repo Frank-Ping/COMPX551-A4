@@ -81,7 +81,7 @@ class SessionChromeTest {
                             SessionScreen(availability.value, true, null, {}, ScanState(), {}, {}, connection.value, {},
                                 SavedDevicesState(loading = false), {}, {}, readiness, {},
                                 batteryLevel = 72, session = session.value, disabledReason = disabled,
-                                saveStatus = { controller?.let { SavePanel(save, it, session.value.record?.id, showRetry = false) } },
+                                saveStatus = { if (save.status in setOf(SaveStatus.SAVING, SaveStatus.FAILED)) controller?.let { SavePanel(save, it, session.value.record?.id, showRetry = false) } },
                                 hrSubscription = subscriptions.value.getValue(PolarDeviceDataType.HR),
                                 accSubscription = subscriptions.value.getValue(PolarDeviceDataType.ACC),
                                 ecgSubscription = subscriptions.value.getValue(PolarDeviceDataType.ECG),
@@ -191,11 +191,13 @@ class SessionChromeTest {
         mount()
         listOf(BluetoothAvailability.PERMISSIONS_NEEDED, BluetoothAvailability.BLUETOOTH_OFF).forEach { state ->
             compose.runOnIdle { availability.value = state }
-            visible("Open Devices to enable Bluetooth access.")
+            visible(state.message)
             compose.onNodeWithContentDescription("Start").assertIsNotEnabled()
         }
         compose.runOnIdle { availability.value = BluetoothAvailability.READY; connection.value = ConnectionState() }
-        visible("Open Devices and connect an H10 to Start.")
+        compose.onNodeWithContentDescription("Open Devices").performClick()
+        compose.onNodeWithText("Saved devices").assertIsDisplayed()
+        compose.onNodeWithText("Close").performClick()
         assertEquals(0, starts)
     }
 
@@ -209,7 +211,9 @@ class SessionChromeTest {
             compose.onNodeWithText("Save session ID:", substring = true).assertDoesNotExist()
             compose.onNodeWithText("Save: No session to save").assertDoesNotExist()
             compose.runOnIdle { session.value = session.value.copy(record = databaseFixture("previous").record) }
-            visible("Save: Saved")
+            compose.onNodeWithContentDescription("Open Devices").performClick()
+            compose.onNodeWithText("Save: Saved").assertDoesNotExist()
+            compose.onNodeWithText("Close").performClick()
         } finally { scope.cancel() }
     }
 

@@ -91,6 +91,7 @@ class PolarBleManager(context: Context) {
     internal val storage = SessionStorage.get(appContext)
     private val savedDeviceStore = SavedDeviceStore.get(appContext)
     val savedDevicesState = savedDeviceStore.state
+    fun clearSavedDevices() = savedDeviceStore.clear()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var api: PolarBleApi? = null
     private var pendingCleanup: PolarBleApi? = null
@@ -492,12 +493,12 @@ class PolarBleManager(context: Context) {
                         connectionConfirmed = false
                         val reason = if (state.status == ConnectionStatus.DISCONNECTING) state.error else {
                             "Connection ended: ${info.reason.name.replace('_', ' ')}" +
-                                (info.gattStatus?.let { " (GATT $it)" } ?: "") + ". Tap the device to retry."
+                                (info.gattStatus?.let { " (GATT $it)" } ?: "") + "."
                         }
                         mutableConnectionState.value = ConnectionState(
                             error = reason,
                             message = if (state.status == ConnectionStatus.DISCONNECTING && reason == null) {
-                                "Disconnected. Tap a device to reconnect."
+                                "Disconnected."
                             } else null
                         )
                     }
@@ -615,14 +616,14 @@ class PolarBleManager(context: Context) {
         mutableConnectionState.value = ConnectionState(ConnectionStatus.CONNECTING, device)
         connectionTimeout = Runnable {
             if (api === currentApi && mutableConnectionState.value.status == ConnectionStatus.CONNECTING) {
-                interruptConnection("Connection timed out after 10 seconds. Tap the device to retry.")
+                interruptConnection("Connection timed out after 10 seconds.")
             }
         }.also { mainHandler.postDelayed(it, 10_000L) }
         try {
             currentApi.connectToDevice(deviceId)
         } catch (error: Exception) {
             Log.e("PolarBleManager", "Connection request failed", error)
-            interruptConnection("Connection failed (${error.javaClass.simpleName}). Tap the device to retry.")
+            interruptConnection("Connection failed (${error.javaClass.simpleName}).")
         }
     }
 
@@ -791,7 +792,7 @@ class PolarBleManager(context: Context) {
                 mutableConnectionState.value.status == ConnectionStatus.DISCONNECTING && disposeSdk()) {
                 mutableConnectionState.value = ConnectionState(
                     error = reason,
-                    message = "No connection was confirmed; the request was cancelled."
+                    message = message
                 )
                 onBluetoothStateChanged?.invoke()
             }
