@@ -6,6 +6,20 @@ import org.junit.Test
 class ChartScaleTest {
     private fun points(vararg values: Double?) = values.mapIndexed { i, v -> ChartPoint(i.toDouble(), v, false) }
 
+    @Test fun savedMeanOutsideDownsampledExtremaRemainsVisibleWithoutChangingHistory() {
+        val history = points(80.0, 90.0)
+        val scale = chartScale(history, ChartKind.HEART_RATE, 125.0)
+        assertTrue(scale.upper >= 125.0)
+        assertEquals(125.0, chartMeanInRange(125.0, scale, true)!!, 0.0)
+        assertEquals(listOf(80.0, 90.0), history.map { it.value })
+    }
+
+    @Test fun absentHistoryDoesNotBecomeMeasuredDataFromItsSavedMean() {
+        assertEquals(ChartScale(0.0, 1.0), chartScale(points(null), ChartKind.HEART_RATE, 125.0))
+        assertEquals(chartScale(points(80.0), ChartKind.HEART_RATE),
+            chartScale(points(80.0), ChartKind.HEART_RATE, Double.NaN))
+    }
+
     @Test fun positiveHrUsesZeroAndTenPercentHeadroom() {
         assertEquals(ChartScale(0.0, 132.0), chartScale(points(100.0, 120.0), ChartKind.HEART_RATE))
     }

@@ -80,6 +80,7 @@ internal fun HistoryList(database: SessionDatabase, sessionStatus: @Composable (
     val time = remember(zone) { DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH).withZone(zone) }
     val accent = sessionBlue()
     val track = sessionBorder()
+    val displayedRecords = records
     LazyColumn(state = list, modifier = Modifier.fillMaxSize().background(sessionBackground())
         .testTag("history-list").drawWithContent {
             drawContent()
@@ -103,11 +104,11 @@ internal fun HistoryList(database: SessionDatabase, sessionStatus: @Composable (
             Text("History Activities", Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 textAlign = TextAlign.Center, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
         }
-        items(records, key = { it.id }, contentType = { "activity" }) { record ->
+        items(displayedRecords, key = { it.id }, contentType = { "activity" }) { record ->
             HistoryListCard(record, date, time) { onSelect(record.id) }
         }
         item(key = "status") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.testTag("history-list-status"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error)
                     Button(onClick = { loading = true; retry++ }, enabled = !loading) { Text("Retry query") }

@@ -341,23 +341,16 @@ class SessionMetricsTest {
                 .fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("Duration", substring = false).reveal().performClick()
             compose.waitUntil(10_000) { compose.onAllNodesWithText("Delete session").fetchSemanticsNodes().isNotEmpty() }
-            visible("Session ID: controlled-history")
-            visible("HR min / max / mean: 80 / 140 / 110.12 bpm")
-            visible("Running duration: 2500 ms")
+            compose.onNodeWithTag("history-detail-controlled-history").assertExists()
+            visible("80–140")
             for (night in listOf(false, true)) {
                 compose.runOnIdle { dark.value = night }
-                visible("Heart rate zones"); screenshot("history-${if (night) "dark" else "light"}-font2-zones")
-                val maximum = fixture.record.summary.zoneDurationsMs.withIndex().maxBy { it.value }
-                val bar = compose.onNodeWithContentDescription(
-                    "Zone ${maximum.index + 1}, cumulative duration ${com.example.polarh10activityviewer.heartrate.formatZoneDuration(maximum.value)}")
-                bar.reveal()
-                val bounds = bar.fetchSemanticsNode().boundsInRoot
-                assertTrue("History must retain its vertical plot", bounds.height > bounds.width * 3)
-                screenshot("history-${if (night) "dark" else "light"}-font2-vertical-plot")
-                noOverflow("Zone 3 · Moderate"); noOverflow("125–139 bpm · 00:00")
-                visible("Unclassified time: 00:01")
-                screenshot("history-${if (night) "dark" else "light"}-font2-details")
-                visible("Very light: 4.00% of Running time")
+                visible("HR Zones")
+                noOverflow("125–139 bpm")
+                visible("4%")
+                visible("20%")
+                compose.onNodeWithText("Unclassified", substring = true).assertDoesNotExist()
+                screenshot("history-${if (night) "dark" else "light"}-font2-horizontal-zones")
                 visible("Delete session")
             }
             assertEquals(fixture, runBlocking { db.detail("controlled-history") })

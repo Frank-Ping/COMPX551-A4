@@ -27,7 +27,7 @@ import java.util.Locale
 
 @Composable
 internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: () -> Unit,
-    sessionStatus: @Composable () -> Unit = {}) {
+    sessionStatus: @Composable () -> Unit = {}, allowCompact: Boolean = true) {
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     // A new ID starts in its loading state before the query effect is launched.
@@ -64,7 +64,8 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
         snapshot = detail?.takeIf { it.record.id == selectedId }, loading = loading,
         error = error, deleteError = deleteError, date = date, canGoBack = !confirmDelete,
         onBack = { back() }, onRetry = { loading = true; reload++ },
-        onDelete = { date = historyDateFormatter(); confirmDelete = true }, sessionStatus = sessionStatus
+        onDelete = { date = historyDateFormatter(); confirmDelete = true }, sessionStatus = sessionStatus,
+        allowCompact = allowCompact
     )
     if (confirmDelete) AlertDialog(
         onDismissRequest = { if (!loading) confirmDelete = false },

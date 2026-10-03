@@ -5,6 +5,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveChartPresentationTest {
+    @Test fun historyTicksCoverTheWholeSessionInsteadOfTheLiveWindow() {
+        val history = snapshot(1_200_000.0, 1_200_000.0)
+        assertEquals(listOf("00:00", "05:00", "10:00", "15:00", "20:00"),
+            chartTimeTicks(history, 600f, 8f, maximum = 5) { 50f }.map { it.label })
+        val narrow = chartTimeTicks(history, 220f, 8f, maximum = 5) { 90f }
+        assertEquals(listOf("00:00", "20:00"), narrow.map { it.label })
+        assertEquals(listOf("00:00"),
+            chartTimeTicks(snapshot(0.0, 0.0), 300f, 8f, maximum = 5) { 50f }.map { it.label })
+    }
     private fun snapshot(end: Double = 60_000.0, window: Double = 5000.0) =
         ChartSnapshot(emptyList(), end, window, SubscriptionStatus.RECEIVING)
 

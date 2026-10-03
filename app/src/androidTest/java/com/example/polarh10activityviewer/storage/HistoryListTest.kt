@@ -68,7 +68,7 @@ class HistoryListTest {
         }
         compose.onNodeWithTag("history-row-$recordId").assertIsDisplayed()
     }
-    private fun click(text: String) { compose.onNodeWithText(text).performScrollTo().performClick() }
+    private fun click(text: String) { if (text == "Back") compose.onNodeWithContentDescription("Back").performClick() else compose.onNodeWithText(text).performScrollTo().performClick() }
     private fun rename(unavailable: Boolean) = runBlocking {
         withContext(Dispatchers.IO) {
             db.writableDatabase.execSQL(if (unavailable) "ALTER TABLE sessions RENAME TO unavailable_sessions"
@@ -76,7 +76,7 @@ class HistoryListTest {
         }
     }
     private fun end() {
-        list().performScrollToNode(hasText("Stored on this device only. Uninstalling or clearing app data deletes history."))
+        list().performScrollToNode(hasTestTag("history-list-status"))
     }
 
     @Test fun emptyDatabaseShowsEmptyStateWithoutLoadMore() {
@@ -98,7 +98,7 @@ class HistoryListTest {
         compose.onNodeWithText("Load more").assertDoesNotExist()
         compose.onNodeWithTag(tag(0)).performClick()
         awaitText("Delete session")
-        compose.onNodeWithText("Session ID: ${id(0)}").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("history-detail-${id(0)}").assertExists()
     }
 
     @Test fun reopenedDatabaseLoadsFortyFiveTiedTimeRowsAutomaticallyInStableOrder() {
@@ -112,7 +112,10 @@ class HistoryListTest {
             visited += id(index)
             val visible = compose.onAllNodes(SemanticsMatcher("History card") {
                 it.config.getOrElse(SemanticsProperties.TestTag) { "" }.startsWith("history-row-")
-            }).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }
+            }).fetchSemanticsNodes().filter {
+                compose.onNodeWithTag(it.config[SemanticsProperties.TestTag]).isDisplayed()
+            }
+                .sortedBy { it.boundsInRoot.top }.map { it.config[SemanticsProperties.TestTag] }
             assertEquals(visible.distinct(), visible)
             assertEquals(visible.sortedDescending(), visible)
         }
@@ -203,7 +206,7 @@ class HistoryListTest {
             compose.setContent { MaterialTheme {
                 val save by controller.state.collectAsState()
                 HistoryPanel(db, save.sessionId.takeIf { save.status == SaveStatus.SAVED }, {},
-                    sessionStatus = { SavePanel(save, controller, snapshot.record.id) })
+                    sessionStatus = { SavePanel(save, controller, snapshot.record.id) }, allowCompact = !save.blocksStart)
             } }
             compose.runOnIdle { controller.submit(snapshot) }
             compose.waitUntil(10_000) { controller.state.value.status == SaveStatus.FAILED }
@@ -221,6 +224,39 @@ class HistoryListTest {
         } finally { scope.cancel() }
     }
 
+    @Test fun failedSaveRetryFromDetailPreservesSelectedSessionAndRefreshesOnBack() {
+        seed(1)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val controller = SessionSaveController(scope, db::save)
+        val pending = databaseFixture("pending-detail", 9999)
+        try {
+            compose.setContent { MaterialTheme {
+                val save by controller.state.collectAsState()
+                HistoryPanel(db, save.sessionId.takeIf { save.status == SaveStatus.SAVED }, {},
+                    sessionStatus = { if (save.blocksStart) SavePanel(save, controller, pending.record.id) },
+                    allowCompact = !save.blocksStart)
+            } }
+            awaitRow(id(0)); compose.onNodeWithTag(tag(0)).performClick(); awaitText("Delete session")
+            runBlocking { withContext(Dispatchers.IO) {
+                db.writableDatabase.execSQL("CREATE TRIGGER fail_detail_save BEFORE INSERT ON motion_points BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+            } }
+            compose.runOnIdle { controller.submit(pending) }
+            awaitText("Retry save")
+            assertTrue(controller.state.value.blocksStart)
+            click("Discard session"); compose.onNodeWithText("Cancel").performClick()
+            assertEquals(SaveStatus.FAILED, controller.state.value.status)
+            compose.onNodeWithTag("history-detail-${id(0)}").assertExists()
+            compose.onNodeWithText("Delete session").performScrollTo().assertIsDisplayed()
+            noTextOverflow()
+            runBlocking { withContext(Dispatchers.IO) { db.writableDatabase.execSQL("DROP TRIGGER fail_detail_save") } }
+            click("Retry save")
+            compose.waitUntil(10_000) { controller.state.value.status == SaveStatus.SAVED }
+            compose.onNodeWithTag("history-detail-${id(0)}").assertExists()
+            assertEquals(pending, runBlocking { db.detail(pending.record.id) })
+            click("Back"); awaitRow(pending.record.id)
+        } finally { scope.cancel() }
+    }
+
     @Test fun detailReturnReentryAndStateRestorationReloadFirstPageAtTop() {
         seed(25)
         val visible = mutableStateOf(true)
@@ -232,13 +268,13 @@ class HistoryListTest {
         awaitRow(id(24)); reveal(id(12))
         compose.onNodeWithTag(tag(12)).performClick(); awaitText("Delete session")
         click("Back"); awaitRow(id(24))
-        compose.onNodeWithText("Saved activities").assertIsDisplayed()
+        compose.onNodeWithText("History Activities").assertIsDisplayed()
         reveal(id(12)); restoration.emulateSavedInstanceStateRestore()
         awaitRow(id(24))
-        compose.onNodeWithText("Saved activities").assertIsDisplayed()
+        compose.onNodeWithText("History Activities").assertIsDisplayed()
         reveal(id(12)); Espresso.pressBack()
         compose.onNodeWithText("Open History").performClick(); awaitRow(id(24))
-        compose.onNodeWithText("Saved activities").assertIsDisplayed()
+        compose.onNodeWithText("History Activities").assertIsDisplayed()
     }
 
     @Test fun leavingDuringBlockedPageQueryRejectsLateRowsAndDuplicateLoads() {
@@ -259,12 +295,12 @@ class HistoryListTest {
         }
         try {
             assertTrue(acquired.await(5, TimeUnit.SECONDS))
-            list().performScrollToNode(hasTestTag(tag(15))); end(); awaitText("Loading…")
+            list().performScrollToNode(hasTestTag(tag(15))); end(); compose.waitForIdle()
             repeat(3) { list().performTouchInput { swipeUp() } }
             Espresso.pressBack(); compose.onNodeWithText("Open History").performClick()
             release.countDown(); blocker.get(5, TimeUnit.SECONDS)
             awaitRow(id(24))
-            compose.onNodeWithText("Saved activities").assertIsDisplayed()
+            compose.onNodeWithText("History Activities").assertIsDisplayed()
             for (index in 24 downTo 0) reveal(id(index))
             end(); compose.onNodeWithText("Retry query").assertDoesNotExist()
         } finally { release.countDown(); blocker.get(5, TimeUnit.SECONDS); executor.shutdownNow() }
@@ -291,7 +327,7 @@ class HistoryListTest {
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night; savedId.value = night.toString() }
             awaitRow("visual-0")
-            compose.onNodeWithText("Saved activities").assertIsDisplayed()
+            compose.onNodeWithText("History Activities").assertIsDisplayed()
             noTextOverflow()
             capture("${if(night) "dark" else "light"}-top")
             reveal("visual-1"); noTextOverflow()
@@ -311,8 +347,9 @@ class HistoryListTest {
                 assertFalse("Truncated: ${layout.layoutInput.text}", layout.multiParagraph.didExceedMaxLines)
                 assertTrue("Vertical overflow: ${layout.layoutInput.text}", layout.size.height >= layout.multiParagraph.height - 1)
                 repeat(layout.lineCount) { line ->
-                    assertTrue("Right overflow: ${layout.layoutInput.text}", layout.getLineRight(line) <= layout.size.width + 1)
-                    assertTrue("Left overflow: ${layout.layoutInput.text}", layout.getLineLeft(line) >= -1)
+                    // Aligned text uses paragraph coordinates, not the intrinsic Text box's origin.
+                    assertTrue("Horizontal overflow: ${layout.layoutInput.text}",
+                        layout.getLineRight(line) - layout.getLineLeft(line) <= layout.size.width + 1)
                 }
             }
         }

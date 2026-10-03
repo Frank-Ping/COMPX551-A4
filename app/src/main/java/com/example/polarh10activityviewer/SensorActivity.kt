@@ -156,7 +156,7 @@ class SensorActivity : ComponentActivity() {
                                 if (saveState.blocksStart) {
                                     SavePanel(saveState, bleManager.storage.saves, session.record?.id)
                                 }
-                            })
+                            }, allowCompact = !saveState.blocksStart)
                     },
                     sessionContent = { SessionScreen(
                         availability = availability,
