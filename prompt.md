@@ -2743,3 +2743,10 @@ Implement the first Devices dialog redesign using ui/Devices-dialog.png. Remove 
   User prompt: Also remove Incomplete from Activity Summary. Remove the label below the date/time and its record.incomplete display condition in HistoryDetailLayout.kt. Retain date/time, other layout and stored fields. This supersedes the earlier detail-marker requirement.
 - Debug 构建通过（build/step86-compact/build-summary-label.txt）；本轮未新增或运行测试、lint、视觉或真机验收。两对文档同步，无 commit/push。
   Debug build passed (build/step86-compact/build-summary-label.txt); no tests, lint, visual or hardware checks were added/run this turn. Both documentation pairs synchronized; no commit/push.
+
+### 5.45 Session HR Zone display / Session 区间展示（2026-10-04）
+
+- 用户提示词：删除 Session 页面 HR Zone 最下方的 Unclassified。SessionHeartRateZonePanel.kt 已删除 Unclassified time 行及其显示判断；保留五个区间、时长计算及存储字段，覆盖此前 Session 未归类时长展示要求。
+  User prompt: Remove Unclassified below HR Zone on Session. Remove the Unclassified time row and its display condition from SessionHeartRateZonePanel.kt. Retain the five zones, duration calculations and stored fields; this supersedes the previous Session unclassified-duration display requirement.
+- 同步既有 SessionMetricsTest 的标记断言和截图定位；debug/测试 APK 构建通过（build/step86-compact/build-session-unclassified.txt）。未运行测试套件、lint 或视觉/真机验收；两对文档同步，无 commit/push。
+  Update the existing SessionMetricsTest label assertion and capture target. Debug/test APK builds pass (build/step86-compact/build-session-unclassified.txt). Test suites, lint and visual/hardware checks were not run; both documentation pairs synchronized, no commit/push.

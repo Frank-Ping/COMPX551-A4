@@ -79,6 +79,5 @@ internal fun SessionHeartRateZonePanel(state: HeartRateZoneState) {
                     }
                 }
             }
-            if (state.unclassifiedMs > 0) Text("Unclassified time: ${formatZoneDuration(state.unclassifiedMs)}", style = MaterialTheme.typography.bodySmall)
     }
 }

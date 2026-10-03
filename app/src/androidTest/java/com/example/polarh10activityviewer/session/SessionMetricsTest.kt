@@ -275,7 +275,7 @@ class SessionMetricsTest {
         }
         visible("Z3"); visible("125–139 bpm")
         visible("Z5"); visible("≥155 bpm")
-        visible("Unclassified time: 00:01")
+        compose.onNodeWithText("Unclassified", substring = true).assertDoesNotExist()
     }
 
     @Test fun longValuesFitAndErrorsStayOnOneLineWithoutExpandingCards() {
@@ -320,7 +320,7 @@ class SessionMetricsTest {
             noOverflow("124"); visible("steps/min")
             screenshot("$prefix-Motion")
             noOverflow("100.0"); visible("m"); screenshot("$prefix-Activity-summary")
-            visible("Unclassified time: 00:01"); screenshot("$prefix-Heart-rate-zones")
+            visible("Z5"); screenshot("$prefix-Heart-rate-zones")
         }
     }
 
