@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import com.example.polarh10activityviewer.ui.theme.*
@@ -26,11 +27,12 @@ import com.example.polarh10activityviewer.session.sessionBlue
 import kotlin.math.roundToInt
 
 @Composable
-internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Double?, statusLabel: String?) {
+internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Double?, statusLabel: String?,
+    scale: ChartScale = chartScale(snapshot.points, kind), height: Dp? = null,
+    maximumTimeTicks: Int = if (snapshot.windowMs == 5000.0) 6 else 3) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-    val plotHeight = ((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f)
+    val plotHeight = height ?: (((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f))
     Column {
-    val scale = chartScale(snapshot.points, kind)
     val valid = snapshot.points.any { it.value != null }
     val mean = if (kind == ChartKind.ELECTROCARDIOGRAM) null else chartMeanInRange(sessionMean, scale, valid)
     val ticks = chartYTicks(scale, kind)
@@ -106,7 +108,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     }
     BoxWithConstraints(Modifier.fillMaxWidth().padding(start = gutter)) {
         val width = with(density) { maxWidth.toPx() }
-        val timeTicks = chartTimeTicks(snapshot, width, with(density) { ContentSpacing.toPx() }) {
+        val timeTicks = chartTimeTicks(snapshot, width, with(density) { ContentSpacing.toPx() }, maximumTimeTicks) {
             measurer.measure(it, style).size.width.toFloat()
         }
         if (timeTicks.isEmpty()) {

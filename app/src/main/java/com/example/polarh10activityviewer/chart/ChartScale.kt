@@ -7,8 +7,11 @@ import kotlin.math.floor
 internal data class ChartScale(val lower: Double, val upper: Double)
 
 // Display bounds only: never feed rounded values back into samples or statistics.
-internal fun chartScale(points: List<ChartPoint>, kind: ChartKind): ChartScale {
-    val values = points.mapNotNull { it.value }
+internal fun chartScale(points: List<ChartPoint>, kind: ChartKind, referenceValue: Double? = null): ChartScale {
+    val samples = points.mapNotNull { it.value }
+    // A saved mean may fall outside the per-second history extrema.
+    val values = if (samples.isNotEmpty() && referenceValue != null && referenceValue.isFinite())
+        samples + referenceValue else samples
     if (values.isEmpty()) return if (kind == ChartKind.ELECTROCARDIOGRAM)
         ChartScale(-1.0, 1.0) else ChartScale(0.0, 1.0)
     val lower = minOf(0.0, values.min())

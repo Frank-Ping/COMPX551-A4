@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
@@ -96,30 +97,23 @@ internal fun HistoryList(database: SessionDatabase, sessionStatus: @Composable (
             drawRoundRect(track, Offset(x, inset), Size(width, height), CornerRadius(width))
             drawRoundRect(accent.copy(alpha = 0.65f), Offset(x, inset + fraction * (height - thumb)),
                 Size(width, thumb), CornerRadius(width))
-        }, contentPadding = PaddingValues(start = 16.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
+        }, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item(key = "heading") {
-            Column(Modifier.padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Saved activities", fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
-                Text("Most recent first", style = MaterialTheme.typography.bodyLarge)
-            }
+            Text("History Activities", Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                textAlign = TextAlign.Center, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
         }
         items(records, key = { it.id }, contentType = { "activity" }) { record ->
             HistoryListCard(record, date, time) { onSelect(record.id) }
         }
         item(key = "status") {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (loading) Text("Loading…")
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error)
                     Button(onClick = { loading = true; retry++ }, enabled = !loading) { Text("Retry query") }
                 }
                 if (!loading && error == null && records.isEmpty()) Text("No saved sessions")
                 sessionStatus()
-                Text("Stored on this device only. Uninstalling or clearing app data deletes history.",
-                    style = MaterialTheme.typography.bodySmall)
-                Text("An unsaved session may be lost if the process ends before the database commit.",
-                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }

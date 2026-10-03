@@ -153,8 +153,9 @@ class SensorActivity : ComponentActivity() {
                         HistoryPanel(bleManager.storage.database,
                             saveState.sessionId.takeIf { saveState.status == SaveStatus.SAVED },
                             onBack = { showHistory = false }, sessionStatus = {
-                                SessionStatusPanel(session, disabledReason)
-                                SavePanel(saveState, bleManager.storage.saves, session.record?.id)
+                                if (saveState.blocksStart) {
+                                    SavePanel(saveState, bleManager.storage.saves, session.record?.id)
+                                }
                             })
                     },
                     sessionContent = { SessionScreen(

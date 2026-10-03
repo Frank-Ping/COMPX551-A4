@@ -27,8 +27,8 @@ internal data class ChartTimeTick(val fraction: Float, val label: String)
 
 // Select equally spaced labels only if their measured boxes leave a readable gap.
 internal fun chartTimeTicks(snapshot: ChartSnapshot, width: Float, gap: Float,
+    maximum: Int = if (snapshot.windowMs == 5000.0) 6 else 3,
     measure: (String) -> Float): List<ChartTimeTick> {
-    val maximum = if (snapshot.windowMs == 5000.0) 6 else 3
     for (count in maximum downTo 2) {
         val ticks = (0 until count).map { i ->
             val fraction = i.toFloat() / (count - 1)
