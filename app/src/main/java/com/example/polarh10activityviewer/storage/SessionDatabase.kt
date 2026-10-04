@@ -22,11 +22,11 @@ import kotlinx.coroutines.withContext
 internal const val HISTORY_PAGE_SIZE = 10
 
 internal class SessionDatabase(context: Context, name: String = NAME) :
-    SQLiteOpenHelper(context.applicationContext, name, null, 5) {
+    SQLiteOpenHelper(context.applicationContext, name, null, 6) {
     override fun onConfigure(db: SQLiteDatabase) {
-        // Rebuilding the v3 parent table must not cascade-delete signal/history rows.
+        // Rebuilding the parent table must not cascade-delete ECG/history rows.
         // onConfigure precedes SQLiteOpenHelper's migration transaction.
-        db.setForeignKeyConstraintsEnabled(db.version != 3)
+        db.setForeignKeyConstraintsEnabled(db.version !in 2..5)
     }
 
     override fun onOpen(db: SQLiteDatabase) {
@@ -70,7 +70,6 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
     private fun createSignalTables(db: SQLiteDatabase) {
         db.execSQL("ALTER TABLE sessions ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
         db.execSQL("ALTER TABLE sessions ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
-        db.execSQL("ALTER TABLE sessions ADD COLUMN receivedRr INTEGER NOT NULL DEFAULT 0")
         db.execSQL("""CREATE TABLE ecg_segments (sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
             segmentId INTEGER NOT NULL, anchorSensor INTEGER NOT NULL, anchorElapsed INTEGER NOT NULL,
             validStart INTEGER NOT NULL, validEnd INTEGER NOT NULL, rate INTEGER NOT NULL,
@@ -79,52 +78,53 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             chunkIndex INTEGER NOT NULL, segmentId INTEGER NOT NULL, firstMs REAL NOT NULL, lastMs REAL NOT NULL,
             version INTEGER NOT NULL, samples BLOB NOT NULL, PRIMARY KEY(sessionId, chunkIndex))""")
         db.execSQL("CREATE INDEX ecg_window ON ecg_chunks(sessionId, firstMs)")
-        db.execSQL("""CREATE TABLE rr_points (sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-            recordIndex INTEGER NOT NULL, segmentId INTEGER NOT NULL, rrMs INTEGER NOT NULL, receivedAt INTEGER NOT NULL,
-            elapsedMs INTEGER NOT NULL, batchIndex INTEGER NOT NULL, withinBatch INTEGER NOT NULL,
-            PRIMARY KEY(sessionId, recordIndex))""")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        check(oldVersion in 1..4 && newVersion == 5)
+        check(oldVersion in 1..5 && newVersion == 6)
         if (oldVersion == 1) createSignalTables(db)
         if (oldVersion < 3) addActivityMetrics(db)
-        if (oldVersion == 3) {
-            // Copy only the session table; large ECG/RR/history tables stay in place.
-            createSessions(db, "sessions_v4")
-            db.execSQL("ALTER TABLE sessions_v4 ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
-            db.execSQL("ALTER TABLE sessions_v4 ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
-            db.execSQL("ALTER TABLE sessions_v4 ADD COLUMN receivedRr INTEGER NOT NULL DEFAULT 0")
-            addActivityMetrics(db, "sessions_v4")
-            val columns = db.rawQuery("PRAGMA table_info(sessions_v4)", null).use { c ->
-                buildList { while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
-            }.joinToString(",")
-            db.execSQL("INSERT INTO sessions_v4 ($columns) SELECT $columns FROM sessions")
-            db.execSQL("DROP TABLE sessions")
-            db.execSQL("ALTER TABLE sessions_v4 RENAME TO sessions")
-            db.execSQL("CREATE INDEX sessions_started ON sessions(startedAt DESC, id DESC)")
-        }
-        addStrainScore(db)
-        // Pre-v4 records need the raw-load migration; v4 loads remain unchanged.
-        db.rawQuery("SELECT * FROM sessions", null).use { c ->
-            while (c.moveToNext()) {
-                val record = c.record()
-                val finalized = c.long("commitState") == 1L && !record.collectionIncomplete
-                val rawStrain = if (oldVersion < 4) {
-                    if (finalized) ActivityMetricsCalculator.strain(record) else null
-                } else record.summary.activityMetrics.sessionStrain
-                db.update("sessions", ContentValues().apply {
-                    if (oldVersion < 4) {
-                        put("sessionStrain", rawStrain)
-                        put("metricsVersion", if (finalized) ActivityMetricsCalculator.VERSION else null)
-                    }
-                    put("sessionStrainScore", if (finalized) ActivityMetricsCalculator.strainScore(rawStrain) else null)
-                }, "id = ?", arrayOf(record.id))
+        if (oldVersion == 3) rebuildSessions(db, includeScore = false)
+        if (oldVersion < 5) {
+            addStrainScore(db)
+            // Pre-v4 records need the raw-load migration; v4 loads remain unchanged.
+            db.rawQuery("SELECT * FROM sessions", null).use { c ->
+                while (c.moveToNext()) {
+                    val record = c.record()
+                    val finalized = c.long("commitState") == 1L && !record.collectionIncomplete
+                    val rawStrain = if (oldVersion < 4) {
+                        if (finalized) ActivityMetricsCalculator.strain(record) else null
+                    } else record.summary.activityMetrics.sessionStrain
+                    db.update("sessions", ContentValues().apply {
+                        if (oldVersion < 4) {
+                            put("sessionStrain", rawStrain)
+                            put("metricsVersion", if (finalized) ActivityMetricsCalculator.VERSION else null)
+                        }
+                        put("sessionStrainScore", if (finalized) ActivityMetricsCalculator.strainScore(rawStrain) else null)
+                    }, "id = ?", arrayOf(record.id))
+                }
             }
         }
+        if (oldVersion in 2..5 && oldVersion != 3) rebuildSessions(db, includeScore = true)
+        db.execSQL("DROP TABLE IF EXISTS rr_points")
         db.rawQuery("PRAGMA foreign_key_check", null).use { check(!it.moveToFirst()) }
     }
 
+    // Copy only retained summary columns. Android 13 SQLite cannot DROP COLUMN.
+    private fun rebuildSessions(db: SQLiteDatabase, includeScore: Boolean) {
+        createSessions(db, "sessions_v6")
+        db.execSQL("ALTER TABLE sessions_v6 ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE sessions_v6 ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
+        addActivityMetrics(db, "sessions_v6")
+        if (includeScore) db.execSQL("ALTER TABLE sessions_v6 ADD COLUMN sessionStrainScore REAL")
+        val columns = db.rawQuery("PRAGMA table_info(sessions_v6)", null).use { c ->
+            buildList { while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
+        }.joinToString(",")
+        db.execSQL("INSERT INTO sessions_v6 ($columns) SELECT $columns FROM sessions")
+        db.execSQL("DROP TABLE sessions")
+        db.execSQL("ALTER TABLE sessions_v6 RENAME TO sessions")
+        db.execSQL("CREATE INDEX sessions_started ON sessions(startedAt DESC, id DESC)")
+    }
     private fun addActivityMetrics(db: SQLiteDatabase, table: String = "sessions") {
         listOf("intensity REAL", "cardioLoad REAL", "cadenceCvPercent REAL", "cadencePointCount INTEGER",
             "metricsVersion INTEGER", "sessionStrain REAL").forEach {
@@ -227,8 +227,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         db.beginTransaction()
         try {
             db.execSQL("""DELETE FROM sessions WHERE commitState = 0 AND receivedValidHr = 0 AND ACC_received = 0
-                AND NOT EXISTS (SELECT 1 FROM ecg_chunks WHERE sessionId = sessions.id)
-                AND NOT EXISTS (SELECT 1 FROM rr_points WHERE sessionId = sessions.id)""")
+                AND NOT EXISTS (SELECT 1 FROM ecg_chunks WHERE sessionId = sessions.id)""")
             db.execSQL("""UPDATE sessions SET commitState = 2, collectionIncomplete = 1, interrupted = 1,
                 endReason = 'Data collection incomplete' WHERE commitState = 0""")
             db.setTransactionSuccessful()
@@ -261,13 +260,6 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
                         put("samples", chunk.bytes)
                     })
                 }
-                batch.rr.forEach { point ->
-                    db.replaceOrThrow("rr_points", null, ContentValues().apply {
-                        put("sessionId", record.id); put("recordIndex", point.index); put("segmentId", point.segment)
-                        put("rrMs", point.intervalMs); put("receivedAt", point.receivedAt); put("elapsedMs", point.elapsedMs)
-                        put("batchIndex", point.batchIndex); put("withinBatch", point.withinBatch)
-                    })
-                }
                 batch.hr.forEach { p -> db.replaceOrThrow("hr_points", null, ContentValues().apply {
                     put("sessionId", record.id); put("secondBucket", p.secondBucket); put("elapsedMs", p.elapsedMs)
                     put("bpm", p.bpm); put("breakBefore", p.breakBefore)
@@ -279,24 +271,6 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             }
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
-    }
-
-    suspend fun rrCount(id: String): Long = withContext(Dispatchers.IO) {
-        readableDatabase.rawQuery("SELECT COALESCE(MAX(recordIndex),0) FROM rr_points WHERE sessionId = ?", arrayOf(id)).use {
-            it.moveToFirst(); it.getLong(0)
-        }
-    }
-
-    suspend fun rrWindow(id: String, start: Long): List<ChartPoint> = withContext(Dispatchers.IO) {
-        readableDatabase.rawQuery("SELECT * FROM rr_points WHERE sessionId = ? AND recordIndex >= ? ORDER BY recordIndex LIMIT 60",
-            arrayOf(id, start.toString())).use { c ->
-            var segment: Long? = null
-            buildList { while (c.moveToNext()) {
-                val next = c.long("segmentId")
-                add(ChartPoint(c.long("recordIndex").toDouble(), c.long("rrMs").toDouble(), segment != next))
-                segment = next
-            } }
-        }
     }
 
     suspend fun ecgWindow(id: String, start: Long, end: Long): List<ChartPoint> = withContext(Dispatchers.IO) {
@@ -330,7 +304,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         put("id", id); put("startRequestedAt", startRequestedAt); put("startedAt", startedAt)
         put("endedAt", endedAt); put("durationMs", durationMs); put("deviceName", device?.name)
         put("deviceId", device?.deviceId); put("endReason", endReason); put("interrupted", interrupted)
-        put("collectionIncomplete", collectionIncomplete); put("receivedRr", receivedRr)
+        put("collectionIncomplete", collectionIncomplete)
         put("incomplete", incomplete); put("receivedValidHr", summary.receivedValidHr)
         with(summary) {
             put("minimumHr", minimumHr); put("maximumHr", maximumHr); put("meanHr", meanHr)
@@ -357,7 +331,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         id = text("id")!!, startRequestedAt = long("startRequestedAt"), startedAt = long("startedAt"),
         endedAt = long("endedAt"), durationMs = long("durationMs"), endReason = text("endReason"),
         device = text("deviceId")?.let { ConnectionDevice(text("deviceName")!!, it) },
-        interrupted = bool("interrupted"), collectionIncomplete = bool("collectionIncomplete"), receivedRr = bool("receivedRr"),
+        interrupted = bool("interrupted"), collectionIncomplete = bool("collectionIncomplete"),
         summary = SessionSummary(minimumHr = nullableLong("minimumHr")?.toInt(), maximumHr = nullableLong("maximumHr")?.toInt(),
             meanHr = number("meanHr"), validHrCount = long("validHrCount"),
             zoneDurationsMs = List(5) { long("zone${it}Ms") }, unclassifiedMs = long("unclassifiedMs"),

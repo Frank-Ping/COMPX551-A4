@@ -31,7 +31,7 @@ import kotlin.math.abs
 internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Double?, statusLabel: String?,
     modifier: Modifier = Modifier, scale: ChartScale = chartScale(snapshot.points, kind), height: Dp? = null,
     maximumTimeTicks: Int = if (snapshot.windowMs == 5000.0) 6 else 3,
-    indexAxis: Boolean = false, plainLine: Boolean = false, unitLabel: String = kind.unit, chartLabel: String = kind.label,
+    plainLine: Boolean = false,
     axisWidth: Dp? = null) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
     val plotHeight = height ?: (((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f))
@@ -59,7 +59,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     val axis = MaterialTheme.colorScheme.outline
     val meanInk = if (kind == ChartKind.HEART_RATE) Color(0xFFF59E0B) else ink
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(unitLabel, style = style, color = textColor)
+        Text(kind.unit, style = style, color = textColor)
         statusLabel?.let { Text(it, style = style, color = textColor) }
     }
     Row(Modifier.fillMaxWidth()) {
@@ -73,7 +73,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
             }
         }
         Canvas(Modifier.weight(1f).height(plotHeight).then(modifier).testTag("live-chart-plot")
-            .semantics { contentDescription = "${chartLabel} line chart${if (valid) "" else ": no valid data"}" }) {
+            .semantics { contentDescription = "${kind.label} line chart${if (valid) "" else ": no valid data"}" }) {
             val span = (snapshot.endMs - snapshot.startMs).coerceAtLeast(1.0)
             fun y(value: Double) = inset + ((size.height - 2 * inset) *
                 (1 - (value - scale.lower) / (scale.upper - scale.lower))).toFloat()
@@ -122,12 +122,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
             }
         }
     }
-    if (indexAxis) {
-        Row(Modifier.fillMaxWidth().padding(start = gutter), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(snapshot.startMs.toLong().toString(), style = style, color = textColor)
-            Text(snapshot.endMs.toLong().toString(), style = style, color = textColor)
-        }
-    } else BoxWithConstraints(Modifier.fillMaxWidth().padding(start = gutter)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(start = gutter)) {
         val width = with(density) { maxWidth.toPx() }
         val timeTicks = chartTimeTicks(snapshot, width, with(density) { ContentSpacing.toPx() }, maximumTimeTicks) {
             measurer.measure(it, style).size.width.toFloat()

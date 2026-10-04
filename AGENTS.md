@@ -1,5 +1,8 @@
 # AGENTS.md
 
+> 最新调整（2026-10-04）：RR图表及App内RR提取、缓存、会话标记、写入和查询流程已移除。Activity Summary仅保留HR/Cadence/ECG；SQLite v6删除旧RR表及receivedRr字段，保留其他摘要、评分和历史。实施与本轮验证见5.49；下方RR功能记录为历史状态。Samsung/H10 pending，无commit/push。
+> Latest revision (2026-10-04): Removed RR charts and app-level RR extraction, buffering, session flags, writes and queries. Activity Summary retains HR/Cadence/ECG. SQLite v6 removes the legacy RR table and receivedRr column while preserving other summaries, scores and history. See 5.49 for implementation and validation; earlier RR entries are historical. Samsung/H10 pending, no commit/push.
+
 > 最新评分存储（2026-10-04，9.0b）：SQLite v5新增sessionStrainScore REAL，保存完整精度0–100评分，同时保留原始AU；旧记录按规则补算，History直接读已存评分。262单元、27项不同模拟器检查及深色字号2.0的5项UI重复检查通过；构建/lint通过（0 errors、23 warnings）。见5.48.8—5.48.9，覆盖下方仅展示换算规则；真机pending，无commit/push。
 > Latest score persistence (2026-10-04, 9.0b): SQLite v5 adds sessionStrainScore REAL for full-precision 0–100 scores alongside raw AU. Legacy scores are backfilled under the defined rules and History reads persisted scores. All 262 unit tests, 27 distinct emulator checks and five dark/font2.0 UI repeats pass; builds/lint pass (zero errors, 23 warnings). Sections 5.48.8–5.48.9 supersede display-only conversion; hardware pending, no commit/push.
 
@@ -2244,3 +2247,40 @@ English prompt: Add persisted Session Strain scores to 9.0b only. Replace the di
   Evidence is under build/step90b-score-storage-validation with standard unit/lint reports. The complete instrumentation, four-hour stress and separate chart-layout suites were not rerun; layout/acquisition/lifecycle business code is unchanged.
 - 两对AGENTS.md/prompt.md已同步。只操作本轮启动的emulator-5590，Samsung/H10真机未安装或验证。无commit/push，不推进后续步骤。
   Both documentation pairs are synchronized. Only task-started emulator-5590 was used; Samsung/H10 installation/validation remains pending. No commit/push or later steps.
+
+### 5.48.10 Activity Summary 点击与字号调整 / Interaction and typography (2026-10-04)
+
+- 按用户最新要求，Intensity、Cardio Load、Cadence Stability、Session Strain 只显示结果，删除四项卡片的点击入口、说明状态和详情弹窗。本节覆盖此前点击说明要求；指标计算与 SQLite v5 保存规则不变。
+  The four metric cards now display results only. Remove click actions, explanation state and help dialogs, superseding earlier help-interaction requirements. Metric calculations and SQLite v5 persistence remain unchanged.
+- Heart Rate 与 Cadence 数值统一为21sp、26sp行高，使用相同卡片高度与内容排布，不再分别自动缩字。下面 Intensity/Cardio Load/Cadence Stability 三项数值沿用同一个20sp样式；Session Strain也保持20sp。大字号继续纵向排布和滚动。
+  Heart Rate and Cadence values share 21sp text and 26sp line height, equal card heights and matching layout, without independent autosizing. The three metrics below retain their shared 20sp value style; Session Strain remains 20sp. Enlarged system fonts retain stacked, scrollable content.
+- 本轮验证：debug/测试APK构建通过；lint为0 errors、23 warnings。独立emulator-5590默认字号下9项相关检查通过（ActivityMetricsUiTest 5项、HistoryPresentationTest 4项），实际系统字号2.0复跑6项通过（指标5项及深浅主题布局1项）。已视觉核对默认字号整页、实际指标数值及深色大字号滚动截图，均为合成测试夹具。未新增测试类，未重跑全量单元测试，未安装或操作Samsung/H10，无commit/push。
+  Validation: debug/test APK builds pass; lint reports zero errors and 23 warnings. Nine relevant checks pass on emulator-5590 at normal font, with six repeats passing at actual system font 2.0. Inspected normal-font full-page/metric-value captures and dark enlarged-font scrolling captures using synthetic fixtures. No new test classes, full unit-suite rerun, Samsung/H10 installation or operation, commit or push.
+- 证据 / Evidence: build/summary-type-polish/build.txt、light1-tests.txt、dark2-tests.txt、metrics-light1.png、light1-captures/、font2-captures/。两对AGENTS.md/prompt.md已同步。
+
+## 5.49 删除RR功能 / Remove RR functionality（2026-10-04）
+
+- 按用户要求完整删除RR图表与应用内采集、存储相关流程，覆盖5.46及之后所有RR窗口、六十条浏览、四图切换和RR持久化要求。Activity Summary保留HR、Cadence、ECG三种等宽选项，ECG仍为五秒窗口、左右滑动与固定布局；沿用5.48.10的无点击高层指标和统一字号。
+  Remove the RR feature as requested, superseding earlier RR windows, sixty-record browsing, four-chart selection and persistence requirements. Keep HR/Cadence/ECG with equal-width choices, five-second ECG swipe windows and fixed layout. Retain 5.48.10 metric interactions and typography.
+- Polar BLE SDK仍为8.3.0。RR是PolarHrSample内随HR回调附带的字段；App不再读取rrsMs/rrAvailable，不再由RR启动会话或获得保存资格，但保留startHrStreaming及有效HR处理。SDK/设备仍可能在HR数据包中附带RR，不宣称关闭了设备端字段发送。官方定义：[PolarHrData 8.3.0](https://raw.githubusercontent.com/polarofficial/polar-ble-sdk/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/model/PolarHrData.kt)。
+  Retain SDK 8.3.0 HR streaming and valid-HR processing, without reading RR fields or using them to start/qualify an activity. The SDK/device may still include RR in HR packets; this does not claim disabling transmission at the sensor.
+- 删除RrPoint、SignalBatch.rr、RR分段/批次/计数/缓存、endRr/receiveRr/markRrReceived、128条RR分批与checkpoint触发、rrCount/rrWindow和RR专用图轴参数。SignalBuffer/SignalWriter继续服务ECG及已有摘要/HR/运动checkpoint；保留队列容量、暂停/继续、停止保存和异常归档。
+  Remove RR models, buffering/segmentation, counters, flags, batching/checkpoint triggers, queries and chart-axis overrides. Keep ECG/history checkpoints, queue limits, pause/continue, final save and interrupted recovery.
+- SQLite升级v6：新库没有rr_points或receivedRr；已有v2—v5在升级事务中仅复制保留的摘要列，删掉RR标记并DROP旧RR表；不重建/复制ECG及HR/步频子表。v1直接创建现行无RR信号结构；既有v1—v4评分迁移规则继续执行，v5原始AU及已存百分制评分原样保留。旧已保存活动本身保留；未提交且删除RR后已无HR/ACC/ECG数据的空记录由原恢复规则删除。
+  SQLite v6 creates no RR schema. During migration preserve summary columns and all ECG/HR/motion child tables, remove the RR flag/table and retain earlier score migrations. V5 raw AU and stored scores are copied exactly. Keep finalized activities; recovery removes unfinished records with no remaining HR/ACC/ECG data.
+- 当前minSdk=33，其SQLite为3.32，因此沿用重建摘要表方法，不使用较新DROP COLUMN。onConfigure在需要重建时先关闭外键，升级事务内核对foreign_key_check，onOpen恢复外键；失败时schema、数据与user_version一起回滚。依据：[Android SQLite版本](https://developer.android.com/reference/android/database/sqlite/package-summary)、[SQLite ALTER TABLE](https://www.sqlite.org/lang_altertable.html)。
+  Use the summary-table rebuild supported by minSdk 33 SQLite, with foreign keys configured before migration, integrity checked inside the transaction and enforcement restored on open. Failed upgrades roll back schema, rows and version.
+### 5.49.1 本轮实施与验证 / Implementation and validation
+
+- 生产代码已移除全部RR处理，源码中只保留升级时DROP旧rr_points的清理语句；测试中的RR仅用于构造旧数据库与断言功能已移除。修改PolarBleManager、SignalHistory、SessionRecord、SessionState、SessionDatabase、HistoryCharts和LiveChartPlot，并更新相关既有测试；新增RrRemovalDatabaseTest三项。
+  Production code retains only the legacy RR table-drop statement. Test RR references construct historical schemas or assert absence. Updated the acquisition, buffer, session, database and chart owners and relevant tests; added three migration/removal checks.
+- 261项单元测试通过（移除原1项RR缓存测试，0 failures/errors/skips）；debug、测试APK和lint通过（0 errors、23 warnings）。首轮测试夹具误用了派生属性作为构造参数，修正为validHrCount后构建和全部单元测试通过。
+  All 261 unit tests pass after removing one obsolete RR-buffer test, with zero failures/errors/skips. Debug/test builds and lint pass (zero errors, 23 warnings). Corrected an initial test-fixture constructor argument before the successful full build/test run.
+- 独立emulator-5590共53项不同检查通过：RR移除/迁移3、指标数据库8、信号数据库6、SessionDatabase6、图表3、HistoryDetail9、HistoryPresentation4、指标UI5、AutoPauseLifecycle7、进程恢复2。实际系统字号2.0复跑9项通过（图表3、指标UI5、深浅主题布局1），不重复计入53项。
+  Fifty-three distinct emulator checks pass across database, charts, History, metrics, lifecycle and process-recovery runs. Nine repeat at actual system font 2.0 and are not counted twice.
+- 数据库覆盖新库无RR、v1—v5保留升级、v5已存12.5评分不重算、原始AU/HR/步频/ECG保留、旧RR表/标记删除、重开、级联删除、升级失败回滚及重试；四小时合成ECG共1,872,000点的分块存储与有界窗口检查通过。独立进程seed→force-stop→冷启动→verify通过，未完成20秒记录恢复为唯一异常归档且ECG窗口保留。以上不是H10四小时性能或系统自然杀进程验证。
+  Verify fresh/legacy schemas, unchanged persisted scores/raw AU/history/ECG, RR removal, reopen/cascade and rollback/retry. Four-hour synthetic ECG storage/window coverage and a controlled seed/force-stop/cold-start/recovery sequence pass. These do not establish physical-device performance or natural process-kill behavior.
+- 28项UI/生命周期首轮中，旧blockedDelete检查在Espresso.pressBack遇到窗口焦点异常；其余27项通过，该项随后单独复跑通过，没有为此修改生产代码。默认字号整页、三图选择及深色大字号滚动/ECG选择截图已视觉核对；保留全部初始日志，不能把首轮混合日志称作全通过。
+  The initial 28-check UI/lifecycle run had one Espresso window-focus failure in the existing blocked-delete test; the other 27 passed and the failing check passed separately on retry without a production-code change. Inspected normal-font three-chart/full-page and dark enlarged-font scrolling/ECG captures. Retain initial logs rather than labeling the mixed run all-pass.
+- 证据：build/rr-removal-validation/的build-final.txt、recovery-build.txt、database-tests.txt、ui-lifecycle-tests.txt、delete-focus-retry.txt、dark2-tests.txt、process-seed.txt、process-recovery.txt、passed-tests.txt、light1-captures/、font2-captures/、ecg-dark2.png；截图均为合成测试数据。两对文档同步，真机未安装或操作，无commit/push。
+  Evidence is under build/rr-removal-validation; screenshots use synthetic fixtures. Both documentation pairs are synchronized. No Samsung/H10 installation or operation, commit or push.

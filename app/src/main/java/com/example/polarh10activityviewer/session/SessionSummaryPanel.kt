@@ -31,21 +31,20 @@ internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boo
             SummaryValue("Total Steps", summary.totalSteps?.toString() ?: "--")
         ), enlarged = true)
     }
-    SummaryCard(section(1.35f), "Heart Rate") {
+    // Both sensor cards reserve the same title, label and value space.
+    val sensorHeight = with(LocalDensity.current) { 18.sp.toDp() + 13.sp.toDp() + 26.sp.toDp() } + 20.dp
+    val sensorModifier = if (compact) Modifier.height(sensorHeight) else Modifier
+    SummaryCard(sensorModifier, "Heart Rate") {
         SummaryMetrics(listOf(
             SummaryValue("Mean HR", summaryNumber(summary.meanHr, 0), "bpm"),
             SummaryValue("Range", "${summary.minimumHr ?: "--"}–${summary.maximumHr ?: "--"}", "bpm")
         ))
     }
-    // Reserve the title, label and value line heights before adding the card's padding.
-    val cadenceHeight = with(LocalDensity.current) { (18.sp.toDp() + 13.sp.toDp() + 27.sp.toDp()) } + 20.dp
-    SummaryCard(if (compact) Modifier.height(cadenceHeight) else Modifier, "Cadence") {
-        Box(Modifier.padding(bottom = 6.dp)) {
-            SummaryMetrics(listOf(
-                SummaryValue("Mean", summaryNumber(summary.meanCadence, 0), "steps/min"),
-                SummaryValue("Max", summaryNumber(summary.maximumCadence, 0), "steps/min")
-            ))
-        }
+    SummaryCard(sensorModifier, "Cadence") {
+        SummaryMetrics(listOf(
+            SummaryValue("Mean", summaryNumber(summary.meanCadence, 0), "steps/min"),
+            SummaryValue("Max", summaryNumber(summary.maximumCadence, 0), "steps/min")
+        ))
     }
     ActivityMetricCards(record, compact)
 }
@@ -63,8 +62,8 @@ private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false
                         lineHeight = if (enlarged) 14.sp else 13.sp, letterSpacing = 0.sp)
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(value.value, fontSize = if (enlarged) 26.sp else 23.sp,
-                            lineHeight = if (enlarged) 30.sp else 28.sp, fontWeight = FontWeight.SemiBold)
+                        Text(value.value, fontSize = 21.sp,
+                            lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
                         value.unit?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
@@ -84,11 +83,11 @@ private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false
                     BasicText(value.value, Modifier.weight(1f, fill = false), maxLines = 1,
                         style = MaterialTheme.typography.bodyLarge.copy(
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = if (enlarged) 26.sp else 23.sp,
-                            lineHeight = if (enlarged) 30.sp else 27.sp,
+                            fontSize = if (enlarged) 26.sp else 21.sp,
+                            lineHeight = if (enlarged) 30.sp else 26.sp,
                             fontWeight = FontWeight.SemiBold),
-                        autoSize = TextAutoSize.StepBased(minFontSize = 18.sp,
-                            maxFontSize = if (enlarged) 26.sp else 23.sp))
+                        autoSize = if (enlarged) TextAutoSize.StepBased(minFontSize = 18.sp,
+                            maxFontSize = 26.sp) else null)
                     value.unit?.let {
                         Text(it, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Normal,
                             maxLines = 1, softWrap = false)

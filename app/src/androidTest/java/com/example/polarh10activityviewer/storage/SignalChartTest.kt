@@ -29,41 +29,34 @@ class SignalChartTest {
     private val db = SessionDatabase(context, name)
     @After fun close() { db.close(); context.deleteDatabase(name) }
 
-    @Test fun allFourTabsAreEnabledAndInterruptedMessageOverridesEmptyText() {
+    @Test fun threeTabsAreEnabledWithoutRrAndInterruptedMessageOverridesEmptyText() {
         val fixture = databaseFixture().copy(record = databaseFixture().record.copy(collectionIncomplete = true))
         compose.setContent { PolarH10ActivityViewerTheme { HistoryCharts(fixture, Modifier.height(430.dp), db) } }
-        for (label in listOf("HR", "Cadence", "ECG", "RR")) {
+        for (label in listOf("HR", "Cadence", "ECG")) {
             compose.onNodeWithText(label, useUnmergedTree = true).assertIsEnabled().performClick()
             compose.waitUntil(5000) { compose.onAllNodesWithText("Data collection incomplete").fetchSemanticsNodes().size == 1 }
-            compose.onNodeWithText("No recorded RR data").assertDoesNotExist()
+            compose.onNodeWithText("RR").assertDoesNotExist()
             compose.onNodeWithText("No ECG data in this interval").assertDoesNotExist()
         }
     }
 
     @Test fun swipesBrowseFixedWindowsAndClampAtBothEnds() = runBlocking<Unit> {
         val buffer = SignalBuffer()
-        val fixture = databaseFixture().copy(record = databaseFixture().record.copy(id = "window", durationMs = 12_000, receivedRr = true),
+        val fixture = databaseFixture().copy(record = databaseFixture().record.copy(id = "window", durationMs = 12_000),
             hrPoints = emptyList(), motionPoints = emptyList())
-        buffer.receiveRr(List(180) { 800 }, 12000, 13000, 13000)
+        for (second in 0 until 12) buffer.receiveEcg(List(130) { i ->
+            RawEcg(1_000_000_000L + second * 1_000_000_000L + i * 1_000_000_000L / 130, i - 65)
+        }, (second + 1) * 1000L, 130)
         db.writeSignals(listOf(buffer.take(fixture.record, emptyList(), emptyList(), true)))
         db.save(fixture)
         compose.setContent { PolarH10ActivityViewerTheme { HistoryCharts(fixture, Modifier.height(430.dp), db) } }
-        compose.onNodeWithText("RR", useUnmergedTree = true).performClick()
-        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("RR line chart").fetchSemanticsNodes().size == 1 }
+        compose.onNodeWithText("ECG", useUnmergedTree = true).performClick()
+        compose.waitUntil(5000) { compose.onAllNodesWithContentDescription("ECG line chart").fetchSemanticsNodes().size == 1 }
         val plot = compose.onNodeWithTag("live-chart-plot")
         fun start(value: String) = plot.assert(SemanticsMatcher.expectValue(
             androidx.compose.ui.semantics.SemanticsProperties.StateDescription, value))
         plot.performTouchInput { swipeRight() }
-        start("RR window start: 1")
-        plot.performTouchInput { swipeLeft() }
-        start("RR window start: 61")
-        plot.performTouchInput { swipeLeft() }
-        start("RR window start: 121")
-        plot.performTouchInput { swipeLeft() }
-        start("RR window start: 121")
-        plot.performTouchInput { swipeRight() }
-        start("RR window start: 61")
-        compose.onNodeWithText("ECG", useUnmergedTree = true).performClick()
+        start("ECG window start: 0")
         plot.performTouchInput { swipeLeft() }
         start("ECG window start: 5000")
         plot.performTouchInput { swipeLeft() }
@@ -93,14 +86,14 @@ class SignalChartTest {
         val plot = compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot()
         val titles = listOf("Duration", "Total Steps", "Intensity", "Cardio Load", "Cadence Stability", "Session Strain")
         val summaries = titles.map { compose.onNodeWithText(it).getUnclippedBoundsInRoot() }
-        for (choice in listOf("Cadence", "ECG", "RR", "HR")) {
+        for (choice in listOf("Cadence", "ECG", "HR")) {
             compose.onNode(hasText(choice) and hasClickAction()).performClick()
             compose.waitForIdle()
             assertEquals(card, compose.onNodeWithTag("history-chart-card").getUnclippedBoundsInRoot())
             assertEquals(plot, compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot())
             assertEquals(summaries, titles.map { compose.onNodeWithText(it).getUnclippedBoundsInRoot() })
             compose.onNodeWithText("Data collection incomplete").assertExists()
-            if (choice in listOf("ECG", "RR")) {
+            if (choice == "ECG") {
                 compose.onNodeWithText("Browse").assertDoesNotExist()
                 compose.onNodeWithTag("live-chart-plot").performTouchInput { swipeLeft() }
                 assertEquals(card, compose.onNodeWithTag("history-chart-card").getUnclippedBoundsInRoot())

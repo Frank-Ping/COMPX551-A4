@@ -3223,3 +3223,33 @@ English prompt: Add persisted Session Strain scores to 9.0b only. Replace the di
   Evidence is under build/step90b-score-storage-validation with standard unit/lint reports. The complete instrumentation, four-hour stress and separate chart-layout suites were not rerun; layout/acquisition/lifecycle business code is unchanged.
 - 两对AGENTS.md/prompt.md已同步。只操作本轮启动的emulator-5590，Samsung/H10真机未安装或验证。无commit/push，不推进后续步骤。
   Both documentation pairs are synchronized. Only task-started emulator-5590 was used; Samsung/H10 installation/validation remains pending. No commit/push or later steps.
+
+## Activity Summary 点击与字号调整 / Interaction and typography (2026-10-04)
+
+中文：只调整Activity Summary。删除Intensity、Cardio Load、Cadence Stability、Session Strain四项高层数据的点击详情功能。增大实际显示偏小的心率数值、减小Cadence数值，统一为21sp；两卡高度和排布一致，避免独立自动缩字。下面三项指标数值保持统一20sp。保留系统字号缩放、英文界面、缺失占位和已存结果。移除不再使用的说明弹窗代码，更新现有相关检查，验证构建、lint和模拟器默认/大字号布局。同步两对文档，不commit/push。
+
+English: Adjust Activity Summary only. Remove detail interactions from Intensity, Cardio Load, Cadence Stability and Session Strain. Enlarge the visually smaller heart-rate values and reduce cadence values to a shared 21sp, using equal card heights and matching layouts without independent autosizing. Keep the three metrics below at a common 20sp. Preserve system font scaling, English UI, missing placeholders and saved results. Remove unused help-dialog code, update existing relevant checks, verify builds/lint and normal/enlarged-font emulator layouts, and synchronize both documentation pairs. Do not commit or push.
+- 本轮验证：debug/测试APK构建通过；lint为0 errors、23 warnings。独立emulator-5590默认字号下9项相关检查通过（ActivityMetricsUiTest 5项、HistoryPresentationTest 4项），实际系统字号2.0复跑6项通过（指标5项及深浅主题布局1项）。已视觉核对默认字号整页、实际指标数值及深色大字号滚动截图，均为合成测试夹具。未新增测试类，未重跑全量单元测试，未安装或操作Samsung/H10，无commit/push。
+  Validation: debug/test APK builds pass; lint reports zero errors and 23 warnings. Nine relevant checks pass on emulator-5590 at normal font, with six repeats passing at actual system font 2.0. Inspected normal-font full-page/metric-value captures and dark enlarged-font scrolling captures using synthetic fixtures. No new test classes, full unit-suite rerun, Samsung/H10 installation or operation, commit or push.
+- 证据 / Evidence: build/summary-type-polish/build.txt、light1-tests.txt、dark2-tests.txt、metrics-light1.png、light1-captures/、font2-captures/。两对AGENTS.md/prompt.md已同步。
+
+## 删除RR功能 / Remove RR functionality（2026-10-04）
+
+中文：删除RR图表以及应用内RR采集、缓存、状态、数据存储、查询和窗口浏览等相关流程。保留HR、ACC/步频和ECG，保留最近一次Activity Summary字号及无点击详情调整。Polar SDK的HR回调可能附带RR字段，App不再提取或使用，不停用HR订阅。SQLite升级v6，删除旧RR表与标记字段，保留其他历史、评分、ECG和暂停/保存/异常归档行为；沿用已存在的旧版评分迁移。验证新库、v1—v5升级、保留完整精度评分及信号、失败回滚重试、级联删除和HR/Cadence/ECG界面、ECG滑动、深浅主题及大字号。同步两对中英文文档；不操作Samsung/H10，不commit/push。
+
+English: Remove RR charts and all app-level RR extraction, buffering, state, storage, queries and browsing. Preserve HR, ACC/cadence, ECG and the latest Activity Summary typography/noninteractive metric cards. Ignore RR fields bundled with SDK HR callbacks while retaining HR streaming. Upgrade SQLite to v6, dropping the RR table/flag while preserving other history, scores, ECG, pause/save/recovery behavior and existing score migrations. Validate fresh databases, v1–v5 upgrades, precise scores and signals, rollback/retry, cascade deletion, three-chart UI, ECG swipes, themes and enlarged fonts. Synchronize both bilingual documentation pairs; do not operate Samsung/H10, commit or push.
+
+### 5.49.1 本轮实施与验证 / Implementation and validation
+
+- 生产代码已移除全部RR处理，源码中只保留升级时DROP旧rr_points的清理语句；测试中的RR仅用于构造旧数据库与断言功能已移除。修改PolarBleManager、SignalHistory、SessionRecord、SessionState、SessionDatabase、HistoryCharts和LiveChartPlot，并更新相关既有测试；新增RrRemovalDatabaseTest三项。
+  Production code retains only the legacy RR table-drop statement. Test RR references construct historical schemas or assert absence. Updated the acquisition, buffer, session, database and chart owners and relevant tests; added three migration/removal checks.
+- 261项单元测试通过（移除原1项RR缓存测试，0 failures/errors/skips）；debug、测试APK和lint通过（0 errors、23 warnings）。首轮测试夹具误用了派生属性作为构造参数，修正为validHrCount后构建和全部单元测试通过。
+  All 261 unit tests pass after removing one obsolete RR-buffer test, with zero failures/errors/skips. Debug/test builds and lint pass (zero errors, 23 warnings). Corrected an initial test-fixture constructor argument before the successful full build/test run.
+- 独立emulator-5590共53项不同检查通过：RR移除/迁移3、指标数据库8、信号数据库6、SessionDatabase6、图表3、HistoryDetail9、HistoryPresentation4、指标UI5、AutoPauseLifecycle7、进程恢复2。实际系统字号2.0复跑9项通过（图表3、指标UI5、深浅主题布局1），不重复计入53项。
+  Fifty-three distinct emulator checks pass across database, charts, History, metrics, lifecycle and process-recovery runs. Nine repeat at actual system font 2.0 and are not counted twice.
+- 数据库覆盖新库无RR、v1—v5保留升级、v5已存12.5评分不重算、原始AU/HR/步频/ECG保留、旧RR表/标记删除、重开、级联删除、升级失败回滚及重试；四小时合成ECG共1,872,000点的分块存储与有界窗口检查通过。独立进程seed→force-stop→冷启动→verify通过，未完成20秒记录恢复为唯一异常归档且ECG窗口保留。以上不是H10四小时性能或系统自然杀进程验证。
+  Verify fresh/legacy schemas, unchanged persisted scores/raw AU/history/ECG, RR removal, reopen/cascade and rollback/retry. Four-hour synthetic ECG storage/window coverage and a controlled seed/force-stop/cold-start/recovery sequence pass. These do not establish physical-device performance or natural process-kill behavior.
+- 28项UI/生命周期首轮中，旧blockedDelete检查在Espresso.pressBack遇到窗口焦点异常；其余27项通过，该项随后单独复跑通过，没有为此修改生产代码。默认字号整页、三图选择及深色大字号滚动/ECG选择截图已视觉核对；保留全部初始日志，不能把首轮混合日志称作全通过。
+  The initial 28-check UI/lifecycle run had one Espresso window-focus failure in the existing blocked-delete test; the other 27 passed and the failing check passed separately on retry without a production-code change. Inspected normal-font three-chart/full-page and dark enlarged-font scrolling/ECG captures. Retain initial logs rather than labeling the mixed run all-pass.
+- 证据：build/rr-removal-validation/的build-final.txt、recovery-build.txt、database-tests.txt、ui-lifecycle-tests.txt、delete-focus-retry.txt、dark2-tests.txt、process-seed.txt、process-recovery.txt、passed-tests.txt、light1-captures/、font2-captures/、ecg-dark2.png；截图均为合成测试数据。两对文档同步，真机未安装或操作，无commit/push。
+  Evidence is under build/rr-removal-validation; screenshots use synthetic fixtures. Both documentation pairs are synchronized. No Samsung/H10 installation or operation, commit or push.

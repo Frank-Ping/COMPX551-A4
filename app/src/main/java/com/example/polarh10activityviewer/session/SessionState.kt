@@ -131,10 +131,6 @@ internal class SessionController(
         finishIfIdle(at)
     }
 
-    fun markRrReceived() {
-        if (state.value.ongoing) mutableState.value = state.value.copy(record = state.value.record?.copy(receivedRr = true))
-    }
-
     fun markMissing(type: PolarDeviceDataType) {
         if (!state.value.ongoing) return
         val record = state.value.record!!

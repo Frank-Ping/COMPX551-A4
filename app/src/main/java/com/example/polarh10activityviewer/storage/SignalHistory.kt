@@ -24,12 +24,10 @@ internal data class EcgSegment(val index: Long, val anchorSensor: Long, val anch
 }
 internal data class EcgChunk(val index: Long, val segment: Long, val firstMs: Double, val lastMs: Double,
     val bytes: ByteArray)
-internal data class RrPoint(val index: Long, val segment: Long, val intervalMs: Int,
-    val receivedAt: Long, val elapsedMs: Long, val batchIndex: Long, val withinBatch: Int)
 internal data class SignalBatch(val record: SessionRecord, val ecg: List<EcgChunk>, val segments: List<EcgSegment>,
-    val rr: List<RrPoint>, val hr: List<HrHistoryPoint>, val motion: List<MotionHistoryPoint>) {
+    val hr: List<HrHistoryPoint>, val motion: List<MotionHistoryPoint>) {
     val size: Int get() = 512 + ecg.sumOf { it.bytes.size + 64 } + segments.size * 64 +
-        rr.size * 56 + hr.size * 48 + motion.size * 56
+        hr.size * 48 + motion.size * 56
 }
 
 // A short acquisition buffer; whole-session samples never live in Compose state.
@@ -37,20 +35,13 @@ internal class SignalBuffer {
     private val open = mutableListOf<RawEcg>()
     private val chunks = mutableListOf<EcgChunk>()
     private val segments = linkedMapOf<Long, EcgSegment>()
-    private val intervals = mutableListOf<RrPoint>()
     private var current: EcgSegment? = null
     private var previousSensor: Long? = null
     private var bucket = 0L
     private var segmentIndex = 0L
     private var chunkIndex = 0L
-    private var rrIndex = 0L
-    private var rrSegment = 0L
-    private var rrBatch = 0L
-    private var previousRrArrival: Long? = null
-    private var rrBreak = true
     private var runningStart = 0L
-    val bytes get() = open.size * 12 + chunks.sumOf { it.bytes.size + 64 } + intervals.size * 56 + segments.size * 64
-    val rrPending get() = intervals.size
+    val bytes get() = open.size * 12 + chunks.sumOf { it.bytes.size + 64 } + segments.size * 64
 
     fun receiveEcg(samples: List<RawEcg>, elapsed: Long, rate: Int) {
         require(rate > 0)
@@ -72,25 +63,11 @@ internal class SignalBuffer {
         }
     }
 
-    fun receiveRr(values: List<Int?>, elapsed: Long, receivedAt: Long, arrival: Long) {
-        rrBatch++
-        if (previousRrArrival?.let { arrival - it > 3000 } == true) rrBreak = true
-        previousRrArrival = arrival
-        if (values.isEmpty()) rrBreak = true
-        values.forEachIndexed { order, value ->
-            if (value == null || value <= 0) rrBreak = true else {
-                if (rrBreak) { rrSegment++; rrBreak = false }
-                intervals.add(RrPoint(++rrIndex, rrSegment, value, receivedAt, elapsed, rrBatch, order))
-            }
-        }
-    }
-
-    fun endRr() { rrBreak = true; previousRrArrival = null }
     fun endEcg(elapsed: Long) {
         current?.let { segments[it.index] = it.copy(validEnd = elapsed) }
         closeChunk(); current = null; previousSensor = null
     }
-    fun boundary(elapsed: Long) { endEcg(elapsed); endRr(); runningStart = elapsed }
+    fun boundary(elapsed: Long) { endEcg(elapsed); runningStart = elapsed }
     private fun closeChunk() {
         if (open.isEmpty()) return
         val segment = checkNotNull(current)
@@ -101,8 +78,8 @@ internal class SignalBuffer {
     fun take(record: SessionRecord, hr: List<HrHistoryPoint>, motion: List<MotionHistoryPoint>, flush: Boolean): SignalBatch {
         if (flush) closeChunk()
         current?.let { segments[it.index] = it.copy(validEnd = record.durationMs) }
-        return SignalBatch(record, chunks.toList(), segments.values.toList(), intervals.toList(), hr, motion).also {
-            chunks.clear(); segments.clear(); intervals.clear()
+        return SignalBatch(record, chunks.toList(), segments.values.toList(), hr, motion).also {
+            chunks.clear(); segments.clear()
         }
     }
 }

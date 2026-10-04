@@ -140,7 +140,7 @@ class HistoryDetailTest {
         assertText("No recorded heart rate data")
         compose.onNodeWithContentDescription("Heart rate line chart: no valid data").assertExists()
         compose.onNodeWithText("ECG").assertIsEnabled()
-        compose.onNodeWithText("RR").assertIsEnabled()
+        compose.onNodeWithText("RR").assertDoesNotExist()
         assertEquals(snapshot, runBlocking { db.detail("zero") })
     }
 

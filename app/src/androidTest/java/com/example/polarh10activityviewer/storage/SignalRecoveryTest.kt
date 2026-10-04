@@ -22,14 +22,13 @@ class SignalRecoveryTest {
                     RawEcg(1_000_000_000L + second*1_000_000_000L + i*1_000_000_000L/130, spike)
                 }, (second+1)*1000L, 130)
             }
-            buffer.receiveRr(List(180) { 780 + (it % 9)*10 }, 20_000, 21_000, 21_000)
             val fixture = databaseFixture("step90a-interrupted-demo", 1_791_073_800_000L).let { original ->
                 original.copy(record = original.record.copy(durationMs = 20_000,
-                    endedAt = original.record.startedAt!! + 20_000, receivedRr = true))
+                    endedAt = original.record.startedAt!! + 20_000))
             }
             db.writeSignals(listOf(buffer.take(fixture.record, fixture.hrPoints, fixture.motionPoints, true)))
             assertNull(db.detail(fixture.record.id))
-            assertEquals(180L, db.rrCount(fixture.record.id))
+            assertTrue(db.ecgWindow(fixture.record.id, 0, 5000).size in 649..652)
         } finally { db.close() }
     }
 
@@ -40,7 +39,6 @@ class SignalRecoveryTest {
             val record = db.detail("step90a-interrupted-demo")!!.record
             assertTrue(record.collectionIncomplete)
             assertEquals(20_000L, record.durationMs)
-            assertEquals(180L, db.rrCount(record.id))
             assertTrue(db.ecgWindow(record.id, 0, 5000).size in 649..652)
             assertEquals(1, db.page().count { it.id == record.id })
         } finally { db.close() }

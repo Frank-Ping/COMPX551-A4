@@ -72,7 +72,7 @@ class HistoryPresentationTest {
         for (title in listOf("Intensity", "Cardio Load", "Cadence Stability", "Session Strain")) show(title)
         for (title in listOf("Overview", "Activity charts", "Unclassified")) compose.onNodeWithText(title).assertDoesNotExist()
         compose.onAllNodesWithText("Duration").assertCountEquals(1)
-        for (choice in listOf("ECG", "RR")) {
+        for (choice in listOf("ECG")) {
             compose.onNodeWithText(choice).performScrollTo().assertIsEnabled().performClick()
             compose.onNodeWithText(choice).assertIsSelected()
         }

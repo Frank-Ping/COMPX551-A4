@@ -1,5 +1,6 @@
 package com.example.polarh10activityviewer.storage
 
+import com.example.polarh10activityviewer.session.SessionSummary
 import com.example.polarh10activityviewer.session.SessionRecord
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -11,9 +12,8 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class SignalHistoryTest {
     private fun record(time: Long = 2000) = SessionRecord("test", 0, null, startedAt = 1, endedAt = 3000,
-        durationMs = time, receivedRr = true)
-    private fun batch() = SignalBatch(record(), emptyList(), emptyList(),
-        listOf(RrPoint(1, 1, 800, 1000, 0, 1, 0)), emptyList(), emptyList())
+        durationMs = time, summary = SessionSummary(validHrCount = 1))
+    private fun batch() = SignalBatch(record(), emptyList(), emptyList(), emptyList(), emptyList())
 
     @Test fun codecPreservesNanosecondsAndSignedVoltageExactly() {
         val points = listOf(RawEcg(9876543210987654, Int.MIN_VALUE), RawEcg(9876543218680001, Int.MAX_VALUE), RawEcg(0, 0))
@@ -45,19 +45,6 @@ class SignalHistoryTest {
         val result = buffer.take(record(), emptyList(), emptyList(), true)
         assertEquals(points, result.ecg.flatMap { EcgCodec.decode(it.bytes) })
         assertEquals(4, result.segments.size)
-    }
-
-    @Test fun rrPreservesEqualValuesOrderAndSeparatesMissingIntervals() {
-        val buffer = SignalBuffer()
-        buffer.receiveRr(listOf(800, 800, null, 0, 820), 0, 100, 100)
-        buffer.receiveRr(listOf(810), 4000, 4100, 4100)
-        val result = buffer.take(record(4000), emptyList(), emptyList(), true)
-        assertEquals(listOf(800, 800, 820, 810), result.rr.map { it.intervalMs })
-        assertEquals(listOf(1L, 2L, 3L, 4L), result.rr.map { it.index })
-        assertEquals(listOf(1L, 1L, 2L, 3L), result.rr.map { it.segment })
-        assertEquals(listOf(0, 1, 4, 0), result.rr.map { it.withinBatch })
-        assertTrue(record().eligibleForSaving)
-        assertFalse(record().summary.receivedValidHr)
     }
 
     @Test fun writerRetainsFailedBatchUntilExplicitRetryAndInitializesOnce() = runTest {

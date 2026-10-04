@@ -53,9 +53,8 @@ import androidx.compose.ui.semantics.contentDescription
 internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modifier, database: SessionDatabase? = null) {
     val id = snapshot.record.id
     var choice by rememberSaveable(id) { mutableIntStateOf(0) }
-    var windowStart by rememberSaveable(id, choice) { mutableLongStateOf(if (choice == 3) 1L else 0L) }
+    var windowStart by rememberSaveable(id, choice) { mutableLongStateOf(0L) }
     var loaded by remember(id, choice, windowStart) { mutableStateOf<List<ChartPoint>>(emptyList()) }
-    var rrCount by remember(id) { mutableLongStateOf(0L) }
     var queryError by remember(id, choice, windowStart) { mutableStateOf<String?>(null) }
     var loading by remember(id, choice, windowStart) { mutableStateOf(choice >= 2) }
     var retry by remember(id) { mutableIntStateOf(0) }
@@ -63,20 +62,15 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
         if (choice < 2) return@LaunchedEffect
         loading = true; queryError = null
         try {
-            val result = if (choice == 2) database?.ecgWindow(id, windowStart,
+            val result = database?.ecgWindow(id, windowStart,
                 minOf(windowStart + 5000, snapshot.record.durationMs)).orEmpty()
-            else {
-                val count = database?.rrCount(id) ?: 0L
-                ensureActive(); rrCount = count
-                database?.rrWindow(id, windowStart).orEmpty()
-            }
             ensureActive(); loaded = result
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { queryError = "Chart query failed. Please retry." }
         finally { if (isActive) loading = false }
     }
     val kind = when (choice) { 0 -> ChartKind.HEART_RATE; 2 -> ChartKind.ELECTROCARDIOGRAM; else -> ChartKind.CADENCE }
-    val labels = listOf("HR", "Cadence", "ECG", "RR")
+    val labels = listOf("HR", "Cadence", "ECG")
     val points = remember(snapshot, choice, loaded) { when (choice) {
         0 -> snapshot.hrPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore) }
         1 -> snapshot.motionPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore) }
@@ -85,21 +79,18 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
     val mean = when (choice) { 0 -> snapshot.record.summary.meanHr; 1 -> snapshot.record.summary.meanCadence; else -> null }
     val end = when (choice) {
         2 -> minOf(windowStart + 5000, snapshot.record.durationMs).toDouble()
-        3 -> minOf(windowStart + 59, rrCount.coerceAtLeast(1)).toDouble()
         else -> snapshot.record.durationMs.toDouble()
     }
     val chart = ChartSnapshot(points, end, if (choice >= 2) (end - windowStart).coerceAtLeast(0.0) else end, SubscriptionStatus.STOPPED)
     val scale = chartScale(points, kind, mean)
-    val maximum = if (choice == 2) (snapshot.record.durationMs - 5000).coerceAtLeast(0) else (rrCount - 59).coerceAtLeast(1)
-    val minimum = if (choice == 3) 1L else 0L
-    val step = if (choice == 3) 60L else 5000L
+    val maximum = (snapshot.record.durationMs - 5000).coerceAtLeast(0)
     fun moveWindow(forward: Boolean): Boolean {
-        val next = (windowStart + if (forward) step else -step).coerceIn(minimum, maximum)
+        val next = (windowStart + if (forward) 5000L else -5000L).coerceIn(0, maximum)
         if (next == windowStart) return false
         windowStart = next
         return true
     }
-    val swipe = if (choice >= 2) Modifier.pointerInput(id, choice, minimum, maximum) {
+    val swipe = if (choice == 2) Modifier.pointerInput(id, choice, maximum) {
         var distance = 0f
         detectHorizontalDragGestures(
             onDragStart = { distance = 0f },
@@ -117,7 +108,7 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
     SummaryCard(modifier.testTag("history-chart-card")) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val effectiveWidth = maxWidth / LocalDensity.current.fontScale
-            val columns = if (effectiveWidth >= 300.dp) 4 else if (effectiveWidth >= 150.dp) 2 else 1
+            val columns = if (effectiveWidth >= 225.dp) 3 else if (effectiveWidth >= 150.dp) 2 else 1
             Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 labels.indices.toList().chunked(columns).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -135,7 +126,7 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
             val axisHeight = with(LocalDensity.current) { MaterialTheme.typography.bodySmall.lineHeight.toDp() } * 2
             LivePlot(chart, kind, mean, statusLabel = null, scale = scale,
                 height = (maxHeight - axisHeight).coerceAtLeast(36.dp), maximumTimeTicks = 5,
-                indexAxis = choice == 3, plainLine = choice >= 2, unitLabel = if (choice == 3) "ms" else kind.unit, chartLabel = if (choice == 3) "RR" else kind.label,
+                plainLine = choice == 2,
                 axisWidth = 48.dp * LocalDensity.current.fontScale, modifier = swipe)
             if (queryError != null) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(queryError!!, style = MaterialTheme.typography.bodySmall)
@@ -144,7 +135,7 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
                 val message = if (snapshot.record.collectionIncomplete) "Data collection incomplete"
                     else if (points.none { it.value != null }) when (choice) {
                         0 -> "No recorded heart rate data"; 1 -> "No recorded cadence data"
-                        2 -> "No ECG data in this interval"; else -> "No recorded RR data"
+                        else -> "No ECG data in this interval"
                     } else null
                 message?.let { Text(it, Modifier.align(Alignment.Center), style = MaterialTheme.typography.bodySmall) }
             }

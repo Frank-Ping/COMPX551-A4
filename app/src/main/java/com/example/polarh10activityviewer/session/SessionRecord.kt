@@ -54,11 +54,10 @@ internal data class SessionRecord(
     val endReason: String? = null,
     val interrupted: Boolean = false,
     val collectionIncomplete: Boolean = false,
-    val receivedRr: Boolean = false,
     val summary: SessionSummary = SessionSummary(),
     val streams: Map<PolarDeviceDataType, StreamObservation> = checkedDataTypes.associateWith { StreamObservation() }
 ) {
-    val eligibleForSaving: Boolean get() = startedAt != null && (receivedRr || summary.receivedValidHr ||
+    val eligibleForSaving: Boolean get() = startedAt != null && (summary.receivedValidHr ||
         streams.getValue(PolarDeviceDataType.ACC).received || streams.getValue(PolarDeviceDataType.ECG).received)
     val incomplete: Boolean get() = interrupted || !summary.receivedValidHr ||
         streams.values.any { !it.received || it.missing || it.failed }
