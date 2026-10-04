@@ -24,10 +24,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.polarh10activityviewer.ui.theme.PagePadding
 import com.example.polarh10activityviewer.ui.theme.SectionSpacing
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
+import com.example.polarh10activityviewer.storage.SessionStorage
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SessionStorage.get(applicationContext)
         enableEdgeToEdge()
         setContent {
             PolarH10ActivityViewerTheme {

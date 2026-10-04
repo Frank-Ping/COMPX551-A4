@@ -23,6 +23,8 @@ internal class SessionSaveController(private val scope: CoroutineScope, private 
     private val mutableState = MutableStateFlow(SaveState())
     val state = mutableState.asStateFlow()
     private var pending: SessionSnapshot? = null
+    var beforeRetry: (suspend () -> Unit)? = null
+    var discardPending: (suspend (String) -> Unit)? = null
 
     fun submit(snapshot: SessionSnapshot): Boolean {
         if (state.value.blocksStart || state.value.sessionId == snapshot.record.id) return false
@@ -37,22 +39,36 @@ internal class SessionSaveController(private val scope: CoroutineScope, private 
 
     fun retry(): Boolean {
         if (state.value.status != SaveStatus.FAILED) return false
-        savePending()
+        savePending(retrying = true)
         return true
     }
 
     fun discard(): Boolean {
         if (state.value.status != SaveStatus.FAILED) return false
-        pending = null
-        mutableState.value = state.value.copy(status = SaveStatus.DISCARDED, error = null)
+        val cleanup = discardPending
+        if (cleanup == null) {
+            pending = null
+            mutableState.value = state.value.copy(status = SaveStatus.DISCARDED, error = null)
+        } else {
+            val id = checkNotNull(state.value.sessionId)
+            mutableState.value = state.value.copy(status = SaveStatus.SAVING)
+            scope.launch {
+                try {
+                    cleanup(id); pending = null
+                    mutableState.value = SaveState(SaveStatus.DISCARDED, id)
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { mutableState.value = SaveState(SaveStatus.FAILED, id, error.message) }
+            }
+        }
         return true
     }
 
-    private fun savePending() {
+    private fun savePending(retrying: Boolean = false) {
         val snapshot = checkNotNull(pending)
         mutableState.value = SaveState(SaveStatus.SAVING, snapshot.record.id)
         scope.launch {
             try {
+                if (retrying) beforeRetry?.invoke()
                 write(snapshot)
                 pending = null
                 mutableState.value = SaveState(SaveStatus.SAVED, snapshot.record.id)

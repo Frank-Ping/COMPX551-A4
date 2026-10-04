@@ -73,5 +73,7 @@ internal class MotionHistory {
         mutableState.value = state.value.copy(frozen = false)
     }
 
+    fun since(bucket: Long): List<MotionHistoryPoint> = points.takeLastWhile { it.secondBucket >= bucket }
+
     fun snapshot(): List<MotionHistoryPoint> = points.toList()
 }

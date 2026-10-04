@@ -8,6 +8,9 @@ import com.example.polarh10activityviewer.history.MotionHistory
 import com.example.polarh10activityviewer.motion.StepDetector
 import com.example.polarh10activityviewer.sensor.AccBuffer
 import com.example.polarh10activityviewer.sensor.EcgBuffer
+import com.example.polarh10activityviewer.storage.SignalBuffer
+import com.example.polarh10activityviewer.storage.RawEcg
+import com.example.polarh10activityviewer.session.SessionRecord
 import com.example.polarh10activityviewer.sensor.h10EcgSamples
 import com.example.polarh10activityviewer.session.SessionController
 import com.example.polarh10activityviewer.session.SessionStatus
@@ -131,6 +134,10 @@ class PolarBleManager(context: Context) {
     internal val stepState = stepDetector.state
     private val accBuffer = AccBuffer { stepDetector.receive(it) }
     val accSamples = accBuffer.samples
+    private var signals = SignalBuffer()
+    private var checkpointBucket = 0L
+    private var checkpointAt = -1000L
+    private var discardingRecording = false
     private val ecgBuffer = EcgBuffer()
     val ecgSamples = ecgBuffer.samples
     internal val liveCharts = LiveCharts { ecgBuffer.samples.value }
@@ -153,12 +160,18 @@ class PolarBleManager(context: Context) {
         if (type == PolarDeviceDataType.ACC && session.state.value.ongoing) {
             stepDetector.onSubscriptionState(status, dataSubscriptions.states.value.getValue(type).error)
         }
+        if (status != SubscriptionStatus.RECEIVING) {
+            if (type == PolarDeviceDataType.ECG) signals.endEcg(session.elapsedAt(eventTime))
+            if (type == PolarDeviceDataType.HR) signals.endRr()
+        }
         ecgBuffer.onSubscriptionState(type, status)
         session.onSubscriptionState(type, status, eventTime)
     }
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
+            signals = SignalBuffer()
+            checkpointBucket = 0L; checkpointAt = -1000L
             hrHistory.reset(session.state.value.record?.id)
             motionHistory.reset(session.state.value.record?.id)
             liveCharts.reset()
@@ -185,12 +198,15 @@ class PolarBleManager(context: Context) {
             SessionSummary.from(latestHeartRate.statistics.value, heartRateZones.state.value, stepState.value)
         },
         onSummaryFrozen = { record ->
+            if (!discardingRecording) checkpointSignals(record, true)
             val snapshot = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
             mutableLastSnapshot.value = snapshot
-            storage.saves.submit(snapshot)
+            if (!discardingRecording) storage.saves.submit(snapshot)
         },
-        canStart = { !storage.saves.state.value.blocksStart },
-        onResume = { hrHistory.resume(); motionHistory.resume(); liveCharts.resume() })
+        canStart = { !storage.saves.state.value.blocksStart && !storage.recording.state.value.blocked },
+        onResume = { hrHistory.resume(); motionHistory.resume(); liveCharts.resume() },
+        onPaused = { record -> checkpointSignals(record, true) })
+    init { storage.recording.onFailure = { session.pause() } }
     internal val sessionState = session.state
 
     @MainThread
@@ -222,13 +238,13 @@ class PolarBleManager(context: Context) {
     fun pauseSession() = session.pause()
 
     @MainThread
-    fun resumeSession() = session.resume(connectedForData() &&
+    fun resumeSession() = session.resume(!storage.recording.state.value.blocked && connectedForData() &&
         sessionState.value.acceptsDevice(mutableConnectionState.value.device?.deviceId) && mutableDataReadiness.value.values.any {
         it.status == DataReadinessStatus.READY && it.configurationComplete
     }, ::startSessionStreams)
 
     @MainThread
-    fun retryStream(type: PolarDeviceDataType): Boolean = session.retry(type, connectedForData()) {
+    fun retryStream(type: PolarDeviceDataType): Boolean = session.retry(type, !storage.recording.state.value.blocked && connectedForData()) {
         startStream(type)
     }
 
@@ -243,7 +259,47 @@ class PolarBleManager(context: Context) {
                 motionHistory.record(elapsed, stepState.value,
                     warmingUp = stepDetector.isWarmingUp, segment = stepDetector.segment)
                 liveCharts.advance(elapsed)
+                checkpointSignals(session.state.value.record!!)
             }
+        }
+    }
+
+    private fun acceptSignalInput(bytes: Int): Boolean {
+        if (storage.recording.state.value.blocked) return false
+        if (storage.recording.canAccept(signals.bytes + bytes + 8192)) return true
+        session.markMissing(PolarDeviceDataType.ECG)
+        session.markMissing(PolarDeviceDataType.HR)
+        storage.recording.fail("Recording queue is full. Unaccepted input was not recorded.")
+        return false
+    }
+
+    private fun checkpointSignals(record: SessionRecord, force: Boolean = false) {
+        if (!record.eligibleForSaving) return
+        if (!force && record.durationMs - checkpointAt < 1000 && signals.rrPending < 128) return
+        if (!force && !storage.recording.canAccept(signals.bytes + 8192)) {
+            if (storage.recording.state.value.error == null) storage.recording.fail("Recording queue is full. Recording paused.")
+            return
+        }
+        if (force) signals.boundary(record.durationMs)
+        val checkpoint = record.copy(endedAt = record.endedAt ?: System.currentTimeMillis())
+        val batch = signals.take(checkpoint, hrHistory.since(checkpointBucket), motionHistory.since(checkpointBucket), force)
+        checkpointAt = record.durationMs
+        checkpointBucket = record.durationMs / 1000
+        val rrBatches = batch.rr.chunked(128)
+        if (rrBatches.size <= 1) storage.recording.enqueue(batch) else rrBatches.forEachIndexed { index, rr ->
+            storage.recording.enqueue(if (index == 0) batch.copy(rr = rr) else batch.copy(
+                rr = rr, ecg = emptyList(), segments = emptyList(), hr = emptyList(), motion = emptyList()))
+        }
+    }
+
+    fun discardRecording() {
+        val id = session.state.value.record?.id ?: return
+        scanScope.launch {
+            try {
+                storage.recording.discard(id)
+                discardingRecording = true
+                try { session.stop("Session discarded", reset = true) } finally { discardingRecording = false }
+            } catch (error: Exception) { storage.recording.fail(error.message ?: "Unable to discard recording") }
         }
     }
 
@@ -272,7 +328,12 @@ class PolarBleManager(context: Context) {
             checkFeature(source, identifier, PolarDeviceDataType.HR)
             source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
         },
-        onData = { data, receivedTime, receivedDate ->
+        onData = onData@ { data, receivedTime, receivedDate ->
+            val rr = data.samples.flatMap { sample ->
+                if (!sample.rrAvailable || (sample.contactStatusSupported && !sample.contactStatus) || sample.rrsMs.isEmpty())
+                    listOf(null) else sample.rrsMs.map { it.takeIf { value -> value > 0 } }
+            }
+            if (!acceptSignalInput(rr.size * 56)) return@onData
             val beforeCount = latestHeartRate.statistics.value.count
             val receivedValid = latestHeartRate.receive(data, receivedDate)
             if (latestHeartRate.statistics.value.count - beforeCount < data.samples.size ||
@@ -280,12 +341,15 @@ class PolarBleManager(context: Context) {
                 session.markMissing(PolarDeviceDataType.HR)
             }
             previousHrArrival = receivedTime
-            if (receivedValid) session.onValidData(receivedTime, receivedDate)
+            if (receivedValid || rr.any { it != null }) session.onValidData(receivedTime, receivedDate)
+            if (rr.any { it != null }) session.markRrReceived()
+            signals.receiveRr(rr, session.elapsedAt(receivedTime), receivedDate, receivedTime)
             heartRateZones.receive(latestHeartRate.reading.value, receivedValid, session.elapsedAt(receivedTime))
             session.refresh(session.state.value.generation, receivedTime)
             if (session.state.value.status == SessionStatus.RUNNING) {
                 liveCharts.receiveHr(session.state.value.elapsedMs, latestHeartRate.reading.value)
                 hrHistory.receive(session.state.value.elapsedMs, latestHeartRate.reading.value)
+                checkpointSignals(session.state.value.record!!)
             }
         }
     )
@@ -317,7 +381,8 @@ class PolarBleManager(context: Context) {
                 val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
                 source.startEcgStreaming(identifier, settings).h10EcgSamples()
             },
-            onData = { data, receivedTime, receivedDate ->
+            onData = onData@ { data, receivedTime, receivedDate ->
+                if (!acceptSignalInput(data.size * 100)) return@onData
                 val sampleRate = mutableDataReadiness.value.getValue(PolarDeviceDataType.ECG)
                     .selected.getValue(PolarSensorSetting.SettingType.SAMPLE_RATE)
                 var previous = ecgBuffer.samples.value.lastOrNull()?.timeStamp
@@ -332,6 +397,8 @@ class PolarBleManager(context: Context) {
                 session.refresh(session.state.value.generation, receivedTime)
                 liveCharts.receiveEcg(data, session.elapsedAt(receivedTime),
                     sampleRate)
+                signals.receiveEcg(data.map { RawEcg(it.timeStamp, it.voltage) }, session.elapsedAt(receivedTime), sampleRate)
+                checkpointSignals(session.state.value.record!!)
             }
         )
     }

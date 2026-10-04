@@ -121,7 +121,7 @@ class HistoryDetailTest {
         compose.onNodeWithText("12:00").assertHasNoClickAction()
         compose.onNodeWithContentDescription("Session details").assertDoesNotExist()
         click("Delete session")
-        compose.onNodeWithText("Running started: $date\nIts summary and both history series will be permanently deleted.").assertIsDisplayed()
+        compose.onNodeWithText("Running started: $date\nIts summary and all recorded chart data will be permanently deleted.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(snapshot, runBlocking { db.detail("date") })
         assertDetail("date")
@@ -139,8 +139,8 @@ class HistoryDetailTest {
         assertText("No valid heart rate data")
         assertText("No recorded heart rate data")
         compose.onNodeWithContentDescription("Heart rate line chart: no valid data").assertExists()
-        compose.onNodeWithText("ECG").assertIsNotEnabled()
-        compose.onNodeWithText("RR").assertIsNotEnabled()
+        compose.onNodeWithText("ECG").assertIsEnabled()
+        compose.onNodeWithText("RR").assertIsEnabled()
         assertEquals(snapshot, runBlocking { db.detail("zero") })
     }
 

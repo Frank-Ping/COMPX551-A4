@@ -65,13 +65,13 @@ internal fun HistoryPanel(database: SessionDatabase, savedId: String?, onBack: (
         error = error, deleteError = deleteError, date = date, canGoBack = !confirmDelete,
         onBack = { back() }, onRetry = { loading = true; reload++ },
         onDelete = { date = historyDateFormatter(); confirmDelete = true }, sessionStatus = sessionStatus,
-        allowCompact = allowCompact
+        allowCompact = allowCompact, database = database
     )
     if (confirmDelete) AlertDialog(
         onDismissRequest = { if (!loading) confirmDelete = false },
         title = { Text("Delete this session?") },
         text = { Text("Running started: ${date.format(Instant.ofEpochMilli(detail!!.record.startedAt!!))}\n" +
-            "Its summary and both history series will be permanently deleted.") },
+            "Its summary and all recorded chart data will be permanently deleted.") },
         confirmButton = { TextButton(enabled = !loading, onClick = {
             val id = selectedId!!
             loading = true; deleteError = null

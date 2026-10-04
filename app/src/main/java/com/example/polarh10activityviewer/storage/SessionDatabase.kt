@@ -13,13 +13,14 @@ import com.example.polarh10activityviewer.session.SessionRecord
 import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.session.SessionSummary
 import com.example.polarh10activityviewer.session.StreamObservation
+import com.example.polarh10activityviewer.chart.ChartPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal const val HISTORY_PAGE_SIZE = 10
 
 internal class SessionDatabase(context: Context, name: String = NAME) :
-    SQLiteOpenHelper(context.applicationContext, name, null, 1) {
+    SQLiteOpenHelper(context.applicationContext, name, null, 2) {
     override fun onConfigure(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
     }
@@ -49,10 +50,30 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             secondBucket INTEGER NOT NULL, elapsedMs INTEGER NOT NULL, cadence REAL,
             speedMetresPerSecond REAL, breakBefore INTEGER NOT NULL,
             PRIMARY KEY(sessionId, secondBucket))""")
+        createSignalTables(db)
+    }
+
+    private fun createSignalTables(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE sessions ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE sessions ADD COLUMN receivedRr INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("""CREATE TABLE ecg_segments (sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            segmentId INTEGER NOT NULL, anchorSensor INTEGER NOT NULL, anchorElapsed INTEGER NOT NULL,
+            validStart INTEGER NOT NULL, validEnd INTEGER NOT NULL, rate INTEGER NOT NULL,
+            PRIMARY KEY(sessionId, segmentId))""")
+        db.execSQL("""CREATE TABLE ecg_chunks (sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            chunkIndex INTEGER NOT NULL, segmentId INTEGER NOT NULL, firstMs REAL NOT NULL, lastMs REAL NOT NULL,
+            version INTEGER NOT NULL, samples BLOB NOT NULL, PRIMARY KEY(sessionId, chunkIndex))""")
+        db.execSQL("CREATE INDEX ecg_window ON ecg_chunks(sessionId, firstMs)")
+        db.execSQL("""CREATE TABLE rr_points (sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            recordIndex INTEGER NOT NULL, segmentId INTEGER NOT NULL, rrMs INTEGER NOT NULL, receivedAt INTEGER NOT NULL,
+            elapsedMs INTEGER NOT NULL, batchIndex INTEGER NOT NULL, withinBatch INTEGER NOT NULL,
+            PRIMARY KEY(sessionId, recordIndex))""")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        error("No database migration is defined from $oldVersion to $newVersion.")
+        check(oldVersion == 1 && newVersion == 2)
+        createSignalTables(db)
     }
 
     suspend fun save(snapshot: SessionSnapshot) = withContext(Dispatchers.IO) {
@@ -61,10 +82,12 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         val db = writableDatabase
         db.beginTransaction()
         try {
-            // A committed UUID is already complete because all three tables share this transaction.
-            val exists = db.rawQuery("SELECT id FROM sessions WHERE id = ?", arrayOf(record.id)).use { it.moveToFirst() }
+            // Only finalize after signal writes drain; committed UUIDs are idempotent.
+            val exists = db.rawQuery("SELECT commitState FROM sessions WHERE id = ?", arrayOf(record.id)).use { it.moveToFirst() && it.getInt(0) != 0 }
             if (!exists) {
-                db.insertOrThrow("sessions", null, record.values())
+                upsertRecord(db, record, 1)
+                db.delete("hr_points", "sessionId = ?", arrayOf(record.id))
+                db.delete("motion_points", "sessionId = ?", arrayOf(record.id))
                 snapshot.hrPoints.forEach { point ->
                     require(point.sessionId == record.id)
                     db.insertOrThrow("hr_points", null, ContentValues().apply {
@@ -89,7 +112,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
 
     // Keyset pagination stays stable when a newer session is saved between page requests.
     suspend fun page(before: SessionRecord? = null): List<SessionRecord> = withContext(Dispatchers.IO) {
-        val where = if (before == null) "" else "WHERE startedAt < ? OR (startedAt = ? AND id < ?)"
+        val where = if (before == null) "WHERE commitState != 0" else "WHERE commitState != 0 AND (startedAt < ? OR (startedAt = ? AND id < ?))"
         val args = before?.let { arrayOf(it.startedAt.toString(), it.startedAt.toString(), it.id) }
         readableDatabase.rawQuery("SELECT * FROM sessions $where ORDER BY startedAt DESC, id DESC LIMIT $HISTORY_PAGE_SIZE", args).use { cursor ->
             buildList { while (cursor.moveToNext()) add(cursor.record()) }
@@ -100,7 +123,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         val db = readableDatabase
         db.beginTransaction()
         try {
-            val record = db.rawQuery("SELECT * FROM sessions WHERE id = ?", arrayOf(id)).use {
+            val record = db.rawQuery("SELECT * FROM sessions WHERE id = ? AND commitState != 0", arrayOf(id)).use {
                 if (it.moveToFirst()) it.record() else null
             }
             val result = record?.let {
@@ -134,10 +157,121 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         }
     }
 
+    private fun upsertRecord(db: SQLiteDatabase, record: SessionRecord, commitState: Int) {
+        val values = record.values().apply { put("commitState", commitState) }
+        if (db.update("sessions", values, "id = ?", arrayOf(record.id)) == 0) db.insertOrThrow("sessions", null, values)
+    }
+
+    // Called exactly once by the application storage owner, never on ordinary page navigation.
+    suspend fun recoverInterrupted() = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL("""DELETE FROM sessions WHERE commitState = 0 AND receivedValidHr = 0 AND ACC_received = 0
+                AND NOT EXISTS (SELECT 1 FROM ecg_chunks WHERE sessionId = sessions.id)
+                AND NOT EXISTS (SELECT 1 FROM rr_points WHERE sessionId = sessions.id)""")
+            db.execSQL("""UPDATE sessions SET commitState = 2, collectionIncomplete = 1, interrupted = 1,
+                endReason = 'Data collection incomplete' WHERE commitState = 0""")
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    suspend fun writeSignals(batches: List<SignalBatch>) = withContext(Dispatchers.IO) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (batch in batches) {
+                val record = batch.record
+                require(record.eligibleForSaving)
+                val finished = db.rawQuery("SELECT commitState FROM sessions WHERE id = ?", arrayOf(record.id)).use {
+                    it.moveToFirst() && it.getInt(0) != 0
+                }
+                check(!finished) { "Cannot append to a finalized activity" }
+                upsertRecord(db, record, 0)
+                batch.segments.forEach { segment ->
+                    db.replaceOrThrow("ecg_segments", null, ContentValues().apply {
+                        put("sessionId", record.id); put("segmentId", segment.index)
+                        put("anchorSensor", segment.anchorSensor); put("anchorElapsed", segment.anchorElapsed)
+                        put("validStart", segment.validStart); put("validEnd", segment.validEnd); put("rate", segment.rate)
+                    })
+                }
+                batch.ecg.forEach { chunk ->
+                    db.replaceOrThrow("ecg_chunks", null, ContentValues().apply {
+                        put("sessionId", record.id); put("chunkIndex", chunk.index); put("segmentId", chunk.segment)
+                        put("firstMs", chunk.firstMs); put("lastMs", chunk.lastMs); put("version", EcgCodec.VERSION)
+                        put("samples", chunk.bytes)
+                    })
+                }
+                batch.rr.forEach { point ->
+                    db.replaceOrThrow("rr_points", null, ContentValues().apply {
+                        put("sessionId", record.id); put("recordIndex", point.index); put("segmentId", point.segment)
+                        put("rrMs", point.intervalMs); put("receivedAt", point.receivedAt); put("elapsedMs", point.elapsedMs)
+                        put("batchIndex", point.batchIndex); put("withinBatch", point.withinBatch)
+                    })
+                }
+                batch.hr.forEach { p -> db.replaceOrThrow("hr_points", null, ContentValues().apply {
+                    put("sessionId", record.id); put("secondBucket", p.secondBucket); put("elapsedMs", p.elapsedMs)
+                    put("bpm", p.bpm); put("breakBefore", p.breakBefore)
+                }) }
+                batch.motion.forEach { p -> db.replaceOrThrow("motion_points", null, ContentValues().apply {
+                    put("sessionId", record.id); put("secondBucket", p.secondBucket); put("elapsedMs", p.elapsedMs)
+                    put("cadence", p.cadence); put("speedMetresPerSecond", p.speedMetresPerSecond); put("breakBefore", p.breakBefore)
+                }) }
+            }
+            db.setTransactionSuccessful()
+        } finally { db.endTransaction() }
+    }
+
+    suspend fun rrCount(id: String): Long = withContext(Dispatchers.IO) {
+        readableDatabase.rawQuery("SELECT COALESCE(MAX(recordIndex),0) FROM rr_points WHERE sessionId = ?", arrayOf(id)).use {
+            it.moveToFirst(); it.getLong(0)
+        }
+    }
+
+    suspend fun rrWindow(id: String, start: Long): List<ChartPoint> = withContext(Dispatchers.IO) {
+        readableDatabase.rawQuery("SELECT * FROM rr_points WHERE sessionId = ? AND recordIndex >= ? ORDER BY recordIndex LIMIT 60",
+            arrayOf(id, start.toString())).use { c ->
+            var segment: Long? = null
+            buildList { while (c.moveToNext()) {
+                val next = c.long("segmentId")
+                add(ChartPoint(c.long("recordIndex").toDouble(), c.long("rrMs").toDouble(), segment != next))
+                segment = next
+            } }
+        }
+    }
+
+    suspend fun ecgWindow(id: String, start: Long, end: Long): List<ChartPoint> = withContext(Dispatchers.IO) {
+        readableDatabase.rawQuery("""SELECT c.*, s.anchorSensor, s.anchorElapsed, s.validStart, s.validEnd, s.rate
+            FROM ecg_chunks c JOIN ecg_segments s ON c.sessionId=s.sessionId AND c.segmentId=s.segmentId
+            WHERE c.sessionId = ? AND c.firstMs <= ? AND c.lastMs >= ? ORDER BY c.chunkIndex""",
+            arrayOf(id, (end + 1000).toString(), (start - 1000).toString())).use { c ->
+            val result = mutableListOf<ChartPoint>()
+            var previousSegment: Long? = null
+            var previousTime: Double? = null
+            while (c.moveToNext()) {
+                check(c.long("version") == EcgCodec.VERSION.toLong())
+                val segment = c.long("segmentId")
+                for (sample in EcgCodec.decode(c.getBlob(c.getColumnIndexOrThrow("samples")))) {
+                    val time = c.long("anchorElapsed") + (sample.timestamp - c.long("anchorSensor")) / 1_000_000.0
+                    if (time < c.long("validStart") || time > c.long("validEnd") || time < 0) continue
+                    val broken = previousSegment != segment || previousTime?.let { time <= it ||
+                        (time - it) * c.long("rate") > 3000 } != false
+                    result.add(ChartPoint(time, sample.voltage.toDouble(), broken))
+                    previousSegment = segment; previousTime = time
+                }
+            }
+            // Keep at most one neighboring point per segment at each viewport boundary.
+            result.filterIndexed { i, p -> p.elapsedMs in start.toDouble()..end.toDouble() ||
+                (p.elapsedMs < start && result.getOrNull(i+1)?.let { !it.breakBefore && it.elapsedMs >= start } == true) ||
+                (p.elapsedMs > end && !p.breakBefore && result.getOrNull(i-1)?.elapsedMs?.let { it <= end } == true) }
+        }
+    }
+
     private fun SessionRecord.values() = ContentValues().apply {
         put("id", id); put("startRequestedAt", startRequestedAt); put("startedAt", startedAt)
         put("endedAt", endedAt); put("durationMs", durationMs); put("deviceName", device?.name)
         put("deviceId", device?.deviceId); put("endReason", endReason); put("interrupted", interrupted)
+        put("collectionIncomplete", collectionIncomplete); put("receivedRr", receivedRr)
         put("incomplete", incomplete); put("receivedValidHr", summary.receivedValidHr)
         with(summary) {
             put("minimumHr", minimumHr); put("maximumHr", maximumHr); put("meanHr", meanHr)
@@ -158,7 +292,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
         id = text("id")!!, startRequestedAt = long("startRequestedAt"), startedAt = long("startedAt"),
         endedAt = long("endedAt"), durationMs = long("durationMs"), endReason = text("endReason"),
         device = text("deviceId")?.let { ConnectionDevice(text("deviceName")!!, it) },
-        interrupted = bool("interrupted"),
+        interrupted = bool("interrupted"), collectionIncomplete = bool("collectionIncomplete"), receivedRr = bool("receivedRr"),
         summary = SessionSummary(minimumHr = nullableLong("minimumHr")?.toInt(), maximumHr = nullableLong("maximumHr")?.toInt(),
             meanHr = number("meanHr"), validHrCount = long("validHrCount"),
             zoneDurationsMs = List(5) { long("zone${it}Ms") }, unclassifiedMs = long("unclassifiedMs"),

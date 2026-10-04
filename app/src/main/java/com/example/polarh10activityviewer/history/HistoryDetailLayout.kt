@@ -32,7 +32,7 @@ import java.util.Locale
 @Composable
 internal fun HistoryDetailLayout(snapshot: SessionSnapshot?, loading: Boolean, error: String?, deleteError: String?,
     date: DateTimeFormatter, canGoBack: Boolean, onBack: () -> Unit, onRetry: () -> Unit,
-    onDelete: () -> Unit, sessionStatus: @Composable () -> Unit, allowCompact: Boolean = true) {
+    onDelete: () -> Unit, sessionStatus: @Composable () -> Unit, allowCompact: Boolean = true, database: com.example.polarh10activityviewer.storage.SessionDatabase? = null) {
     val typography = MaterialTheme.typography.copy(
         titleMedium = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp, lineHeight = 18.sp),
         titleSmall = MaterialTheme.typography.titleSmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
@@ -89,7 +89,7 @@ internal fun HistoryDetailLayout(snapshot: SessionSnapshot?, loading: Boolean, e
                         else -> {
                             SessionSummaryPanel(snapshot.record, compact)
                             HistoryCharts(snapshot, if (compact) Modifier.weight(3.1f)
-                                else Modifier.height(300.dp * LocalDensity.current.fontScale))
+                                else Modifier.height(400.dp * LocalDensity.current.fontScale), database)
                             HistoryZones(snapshot.record, if (compact) Modifier.weight(2.7f) else Modifier)
                             deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                             OutlinedButton(onClick = onDelete, enabled = !loading,

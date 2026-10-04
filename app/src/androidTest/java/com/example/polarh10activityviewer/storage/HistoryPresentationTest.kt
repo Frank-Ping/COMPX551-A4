@@ -62,7 +62,7 @@ class HistoryPresentationTest {
     private fun show(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
     private fun selectCadence() = compose.onNode(hasText("Cadence") and hasClickAction()).performScrollTo().performClick()
 
-    @Test fun summaryUsesStoredValuesAndKeepsFourUndefinedMetricsAndDisabledChoices() {
+    @Test fun summaryUsesStoredValuesAndKeepsFourUndefinedMetricsAndEnabledChoices() {
         mount()
         for (value in listOf("1920", "125", "70–160", "96", "144")) show(value)
         compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
@@ -73,9 +73,10 @@ class HistoryPresentationTest {
         for (title in listOf("Overview", "Activity charts", "Unclassified")) compose.onNodeWithText(title).assertDoesNotExist()
         compose.onAllNodesWithText("Duration").assertCountEquals(1)
         for (choice in listOf("ECG", "RR")) {
-            compose.onNodeWithText(choice).performScrollTo().assertIsNotEnabled().performClick()
-            compose.onNodeWithText("HR").assertIsSelected()
+            compose.onNodeWithText(choice).performScrollTo().assertIsEnabled().performClick()
+            compose.onNodeWithText(choice).assertIsSelected()
         }
+        compose.onNodeWithText("HR").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Heart rate, whole session. Dashed line: saved mean 125.0 bpm. Gaps are not interpolated.").assertExists()
         selectCadence()
         compose.onNodeWithContentDescription("Cadence, whole session. Dashed line: saved mean 96.0 steps/min. Gaps are not interpolated.").assertExists()

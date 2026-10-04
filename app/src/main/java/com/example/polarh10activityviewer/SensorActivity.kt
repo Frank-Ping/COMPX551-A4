@@ -22,6 +22,7 @@ import com.example.polarh10activityviewer.session.SessionStatus
 import com.example.polarh10activityviewer.session.HeartRateCard
 import com.example.polarh10activityviewer.session.MotionCard
 import com.example.polarh10activityviewer.session.ActivitySummaryCard
+import com.example.polarh10activityviewer.history.RecordingPanel
 import com.example.polarh10activityviewer.history.HistoryPanel
 import com.example.polarh10activityviewer.history.SavePanel
 import com.example.polarh10activityviewer.storage.SaveStatus
@@ -120,6 +121,7 @@ class SensorActivity : ComponentActivity() {
             val steps by bleManager.stepState.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             val session by bleManager.sessionState.collectAsState()
+            val recordingState by bleManager.storage.recording.state.collectAsState()
             val saveState by bleManager.storage.saves.state.collectAsState()
             var showHistory by rememberSaveable { mutableStateOf(false) }
             LaunchedEffect(session.generation, session.status) {
@@ -133,7 +135,7 @@ class SensorActivity : ComponentActivity() {
             }
             PolarH10ActivityViewerTheme {
                 val disabledReason = startDisabledReason(availability, !systemRequestPending, connectionState,
-                    session, saveState.blocksStart, subscriptionStates.values.toList(), dataReadiness.values)
+                    session, saveState.blocksStart || recordingState.blocked, subscriptionStates.values.toList(), dataReadiness.values)
                 SessionScaffold(showHistory, {
                     if (it) bleManager.pauseForNavigation()
                     showHistory = it
@@ -142,7 +144,7 @@ class SensorActivity : ComponentActivity() {
                         SessionControls(disabledReason == null, session.open,
                             ::handleStartSession, { bleManager.stopSession() },
                             canPause = session.status == SessionStatus.RUNNING,
-                            canResume = session.status == SessionStatus.PAUSED && !systemRequestPending &&
+                            canResume = !recordingState.blocked && session.status == SessionStatus.PAUSED && !systemRequestPending &&
                                 availability == BluetoothAvailability.READY && connectionState.status == ConnectionStatus.CONNECTED &&
                                 session.acceptsDevice(connectionState.device?.deviceId) &&
                                 subscriptionStates.values.none { it.status == SubscriptionStatus.STOPPING } &&
@@ -152,12 +154,14 @@ class SensorActivity : ComponentActivity() {
                     },
                     historyContent = {
                         HistoryPanel(bleManager.storage.database,
-                            saveState.sessionId.takeIf { saveState.status == SaveStatus.SAVED },
+                            saveState.sessionId.takeIf { saveState.status == SaveStatus.SAVED } ?: "storage-ready-${recordingState.ready}",
                             onBack = { showHistory = false }, sessionStatus = {
+                                if (!saveState.blocksStart) RecordingPanel(recordingState,
+                                    { bleManager.storage.recording.retry() }, { bleManager.discardRecording() }, session.open)
                                 if (saveState.blocksStart) {
                                     SavePanel(saveState, bleManager.storage.saves, session.record?.id)
                                 }
-                            }, allowCompact = !saveState.blocksStart)
+                            }, allowCompact = !saveState.blocksStart && !recordingState.blocked)
                     },
                     sessionContent = { SessionScreen(
                         availability = availability,
@@ -187,8 +191,10 @@ class SensorActivity : ComponentActivity() {
                         session = session,
                         disabledReason = disabledReason,
                         saveStatus = {
+                            if (!saveState.blocksStart) RecordingPanel(recordingState,
+                                { bleManager.storage.recording.retry() }, { bleManager.discardRecording() }, session.open)
                             if (saveState.status in setOf(SaveStatus.SAVING, SaveStatus.FAILED))
-                                SavePanel(saveState, bleManager.storage.saves, session.record?.id, showRetry = false)
+                                SavePanel(saveState, bleManager.storage.saves, session.record?.id, showRetry = true)
                         },
                         charts = { LiveChartPanel(bleManager, dataReadiness) },
                     ) }

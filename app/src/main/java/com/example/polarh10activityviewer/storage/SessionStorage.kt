@@ -7,7 +7,15 @@ import kotlinx.coroutines.SupervisorJob
 
 internal class SessionStorage private constructor(context: Context) {
     val database = SessionDatabase(context.applicationContext)
-    val saves = SessionSaveController(CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate), database::save)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    val recording = SignalWriter(scope, database::recoverInterrupted, database::writeSignals, database::delete)
+    val saves = SessionSaveController(scope) { snapshot ->
+        recording.drain()
+        database.save(snapshot)
+    }.apply {
+        beforeRetry = { recording.retry(); recording.drain() }
+        discardPending = { id -> recording.discard(id) }
+    }
 
     companion object {
         @Volatile private var instance: SessionStorage? = null

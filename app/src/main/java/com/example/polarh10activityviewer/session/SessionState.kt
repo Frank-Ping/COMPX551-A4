@@ -41,7 +41,8 @@ internal class SessionController(
     private val wallNow: () -> Long = System::currentTimeMillis,
     private val onSummaryFrozen: (SessionRecord) -> Unit = {},
     private val canStart: () -> Boolean = { true },
-    private val onResume: () -> Unit = {}
+    private val onResume: () -> Unit = {},
+    private val onPaused: (SessionRecord) -> Unit = {}
 ) {
     private val mutableState = MutableStateFlow(SessionState())
     val state = mutableState.asStateFlow()
@@ -79,6 +80,7 @@ internal class SessionController(
         clearHr()
         mutableState.value = state.value.copy(record = state.value.record!!.copy(
             durationMs = accumulatedMs, summary = readSummary(accumulatedMs)))
+        onPaused(state.value.record!!)
         subscriptions.stopAll()
         finishIfIdle()
         return true
@@ -127,6 +129,10 @@ internal class SessionController(
                     failed = previous.failed || status == SubscriptionStatus.FAILED))))
         }
         finishIfIdle(at)
+    }
+
+    fun markRrReceived() {
+        if (state.value.ongoing) mutableState.value = state.value.copy(record = state.value.record?.copy(receivedRr = true))
     }
 
     fun markMissing(type: PolarDeviceDataType) {

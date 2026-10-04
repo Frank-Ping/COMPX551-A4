@@ -1,5 +1,11 @@
 package com.example.polarh10activityviewer.history
 
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import kotlin.math.abs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -7,6 +13,14 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.material3.TextButton
+import com.example.polarh10activityviewer.storage.SessionDatabase
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,48 +50,107 @@ import com.example.polarh10activityviewer.session.sessionBlue
 import androidx.compose.ui.semantics.contentDescription
 
 @Composable
-internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modifier) {
-    var kind by rememberSaveable(snapshot.record.id) { mutableStateOf(ChartKind.HEART_RATE) }
-    val points = remember(snapshot, kind) {
-        if (kind == ChartKind.HEART_RATE) snapshot.hrPoints.map {
-            ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore)
-        } else snapshot.motionPoints.map {
-            ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore)
-        }
+internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modifier, database: SessionDatabase? = null) {
+    val id = snapshot.record.id
+    var choice by rememberSaveable(id) { mutableIntStateOf(0) }
+    var windowStart by rememberSaveable(id, choice) { mutableLongStateOf(if (choice == 3) 1L else 0L) }
+    var loaded by remember(id, choice, windowStart) { mutableStateOf<List<ChartPoint>>(emptyList()) }
+    var rrCount by remember(id) { mutableLongStateOf(0L) }
+    var queryError by remember(id, choice, windowStart) { mutableStateOf<String?>(null) }
+    var loading by remember(id, choice, windowStart) { mutableStateOf(choice >= 2) }
+    var retry by remember(id) { mutableIntStateOf(0) }
+    LaunchedEffect(id, choice, windowStart, retry) {
+        if (choice < 2) return@LaunchedEffect
+        loading = true; queryError = null
+        try {
+            val result = if (choice == 2) database?.ecgWindow(id, windowStart,
+                minOf(windowStart + 5000, snapshot.record.durationMs)).orEmpty()
+            else {
+                val count = database?.rrCount(id) ?: 0L
+                ensureActive(); rrCount = count
+                database?.rrWindow(id, windowStart).orEmpty()
+            }
+            ensureActive(); loaded = result
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { queryError = "Chart query failed. Please retry." }
+        finally { if (isActive) loading = false }
     }
-    val duration = snapshot.record.durationMs.toDouble()
-    val chart = remember(points, duration) { ChartSnapshot(points, duration, duration, SubscriptionStatus.STOPPED) }
-    val mean = if (kind == ChartKind.HEART_RATE) snapshot.record.summary.meanHr else snapshot.record.summary.meanCadence
-    val scale = remember(points, kind, mean) { chartScale(points, kind, mean) }
-    val hasData = points.any { it.value != null }
-    SummaryCard(modifier) {
+    val kind = when (choice) { 0 -> ChartKind.HEART_RATE; 2 -> ChartKind.ELECTROCARDIOGRAM; else -> ChartKind.CADENCE }
+    val labels = listOf("HR", "Cadence", "ECG", "RR")
+    val points = remember(snapshot, choice, loaded) { when (choice) {
+        0 -> snapshot.hrPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore) }
+        1 -> snapshot.motionPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore) }
+        else -> loaded
+    } }
+    val mean = when (choice) { 0 -> snapshot.record.summary.meanHr; 1 -> snapshot.record.summary.meanCadence; else -> null }
+    val end = when (choice) {
+        2 -> minOf(windowStart + 5000, snapshot.record.durationMs).toDouble()
+        3 -> minOf(windowStart + 59, rrCount.coerceAtLeast(1)).toDouble()
+        else -> snapshot.record.durationMs.toDouble()
+    }
+    val chart = ChartSnapshot(points, end, if (choice >= 2) (end - windowStart).coerceAtLeast(0.0) else end, SubscriptionStatus.STOPPED)
+    val scale = chartScale(points, kind, mean)
+    val maximum = if (choice == 2) (snapshot.record.durationMs - 5000).coerceAtLeast(0) else (rrCount - 59).coerceAtLeast(1)
+    val minimum = if (choice == 3) 1L else 0L
+    val step = if (choice == 3) 60L else 5000L
+    fun moveWindow(forward: Boolean): Boolean {
+        val next = (windowStart + if (forward) step else -step).coerceIn(minimum, maximum)
+        if (next == windowStart) return false
+        windowStart = next
+        return true
+    }
+    val swipe = if (choice >= 2) Modifier.pointerInput(id, choice, minimum, maximum) {
+        var distance = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { distance = 0f },
+            onDragCancel = { distance = 0f },
+            onDragEnd = { if (abs(distance) >= size.width * 0.1f) moveWindow(distance < 0) },
+            onHorizontalDrag = { change, amount -> change.consume(); distance += amount }
+        )
+    }.semantics {
+        stateDescription = "${labels[choice]} window start: $windowStart"
+        customActions = listOf(
+            CustomAccessibilityAction("Previous window") { moveWindow(false) },
+            CustomAccessibilityAction("Next window") { moveWindow(true) }
+        )
+    } else Modifier
+    SummaryCard(modifier.testTag("history-chart-card")) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val effectiveWidth = maxWidth / LocalDensity.current.fontScale
             val columns = if (effectiveWidth >= 300.dp) 4 else if (effectiveWidth >= 150.dp) 2 else 1
-            val choices = listOf("HR" to ChartKind.HEART_RATE, "Cadence" to ChartKind.CADENCE,
-                "ECG" to null, "RR" to null)
             Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                choices.chunked(columns).forEach { row ->
+                labels.indices.toList().chunked(columns).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        row.forEach { (label, choice) ->
-                            HistoryChartChoice(label, choice == kind, choice != null, Modifier.weight(1f)) {
-                                if (choice != null) kind = choice
-                            }
-                        }
+                        row.forEach { index -> HistoryChartChoice(labels[index], choice == index, true, Modifier.weight(1f)) {
+                            choice = index
+                        } }
                     }
                 }
             }
         }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).semantics {
-            contentDescription = "${kind.label}, whole session. Dashed line: saved mean ${mean ?: "--"} ${kind.unit}. Gaps are not interpolated."
+            contentDescription = if (choice < 2) "${kind.label}, whole session. Dashed line: saved mean ${mean ?: "--"} ${kind.unit}. Gaps are not interpolated."
+                else "${labels[choice]} recorded data. Gaps are not interpolated."
         }) {
             val axisHeight = with(LocalDensity.current) { MaterialTheme.typography.bodySmall.lineHeight.toDp() } * 2
             LivePlot(chart, kind, mean, statusLabel = null, scale = scale,
-                height = (maxHeight - axisHeight).coerceAtLeast(36.dp), maximumTimeTicks = 5)
-            if (!hasData) Text("No recorded ${if (kind == ChartKind.HEART_RATE) "heart rate" else "cadence"} data",
-                Modifier.align(Alignment.Center), style = MaterialTheme.typography.bodySmall)
+                height = (maxHeight - axisHeight).coerceAtLeast(36.dp), maximumTimeTicks = 5,
+                indexAxis = choice == 3, plainLine = choice >= 2, unitLabel = if (choice == 3) "ms" else kind.unit, chartLabel = if (choice == 3) "RR" else kind.label,
+                axisWidth = 48.dp * LocalDensity.current.fontScale, modifier = swipe)
+            if (queryError != null) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(queryError!!, style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = { retry++ }) { Text("Retry query") }
+            } else if (!loading) {
+                val message = if (snapshot.record.collectionIncomplete) "Data collection incomplete"
+                    else if (points.none { it.value != null }) when (choice) {
+                        0 -> "No recorded heart rate data"; 1 -> "No recorded cadence data"
+                        2 -> "No ECG data in this interval"; else -> "No recorded RR data"
+                    } else null
+                message?.let { Text(it, Modifier.align(Alignment.Center), style = MaterialTheme.typography.bodySmall) }
+            }
         }
     }
+
 }
 
 @Composable

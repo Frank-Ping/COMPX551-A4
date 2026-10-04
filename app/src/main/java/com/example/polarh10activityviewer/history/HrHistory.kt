@@ -67,6 +67,8 @@ internal class HrHistory {
         mutableState.value = state.value.copy(frozen = false)
     }
 
+    fun since(bucket: Long): List<HrHistoryPoint> = points.takeLastWhile { it.secondBucket >= bucket }
+
     fun snapshot(): List<HrHistoryPoint> = points.toList()
 
     companion object {
