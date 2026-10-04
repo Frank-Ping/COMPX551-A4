@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
+import com.example.polarh10activityviewer.heartrate.HeartRateZone
 import com.example.polarh10activityviewer.ui.theme.*
 import com.example.polarh10activityviewer.session.sessionBlue
 import kotlin.math.roundToInt
@@ -79,6 +81,21 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                 (1 - (value - scale.lower) / (scale.upper - scale.lower))).toFloat()
             fun position(point: ChartPoint) = Offset(
                 ((point.elapsedMs - snapshot.startMs) / span * size.width).toFloat(), y(point.value!!))
+            val heartRateBrush = if (kind == ChartKind.HEART_RATE) {
+                val stops = buildList {
+                    add(0f to HeartRateZoneColors[HeartRateZone.from(scale.upper.toInt()).ordinal])
+                    HeartRateZone.entries.drop(1).asReversed().forEach { zone ->
+                        if (zone.minimumBpm > scale.lower && zone.minimumBpm <= scale.upper) {
+                            val fraction = ((scale.upper - zone.minimumBpm) / (scale.upper - scale.lower)).toFloat()
+                            // Repeated stops switch color exactly at each BPM boundary, without blending zones.
+                            add(fraction to HeartRateZoneColors[zone.ordinal])
+                            add(fraction to HeartRateZoneColors[zone.ordinal - 1])
+                        }
+                    }
+                    add(1f to HeartRateZoneColors[HeartRateZone.from(scale.lower.toInt()).ordinal])
+                }
+                Brush.verticalGradient(*stops.toTypedArray(), startY = y(scale.upper), endY = y(scale.lower))
+            } else null
             clipRect {
                 ticks.filterNot { ecg && it == 0.0 }.forEach { value ->
                     drawLine(axis.copy(alpha = 0.25f), Offset(0f, y(value)), Offset(size.width, y(value)))
@@ -119,9 +136,14 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                         }
                         drawPath(fill, ink.copy(alpha = 0.10f))
                     }
-                    drawPath(path, ink, style = Stroke(width = (if (kind == ChartKind.ELECTROCARDIOGRAM) 1 else 2).dp.toPx()))
+                    val stroke = Stroke(width = (if (kind == ChartKind.ELECTROCARDIOGRAM) 1 else 2).dp.toPx())
+                    if (heartRateBrush != null) drawPath(path, heartRateBrush, style = stroke)
+                    else drawPath(path, ink, style = stroke)
                     if (segment.size == 1 && (kind != ChartKind.ELECTROCARDIOGRAM || !plainLine)) {
-                        segment.forEach { drawCircle(ink, 2.dp.toPx(), position(it)) }
+                        val point = segment.first()
+                        val pointInk = if (kind == ChartKind.HEART_RATE)
+                            HeartRateZoneColors[HeartRateZone.from(point.value!!.toInt()).ordinal] else ink
+                        drawCircle(pointInk, 2.dp.toPx(), position(point))
                     }
                 }
                 mean?.let {

@@ -5,19 +5,13 @@ import com.example.polarh10activityviewer.ble.HeartRateReading
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-internal enum class HeartRateZone(val label: String, val range: String) {
-    VERY_LIGHT("Very light", "<110"), LIGHT("Light", "110–124"),
-    MODERATE("Moderate", "125–139"), HIGH("High", "140–154"), VERY_HIGH("Very high", "≥155");
+internal enum class HeartRateZone(val label: String, val range: String, val minimumBpm: Int) {
+    VERY_LIGHT("Very light", "<110", Int.MIN_VALUE), LIGHT("Light", "110–124", 110),
+    MODERATE("Moderate", "125–139", 125), HIGH("High", "140–154", 140), VERY_HIGH("Very high", "≥155", 155);
 
     companion object {
         // The caller supplies the existing HR owner's validated final reading.
-        fun from(bpm: Int): HeartRateZone = when {
-            bpm < 110 -> VERY_LIGHT
-            bpm < 125 -> LIGHT
-            bpm < 140 -> MODERATE
-            bpm < 155 -> HIGH
-            else -> VERY_HIGH
-        }
+        fun from(bpm: Int): HeartRateZone = entries.last { bpm >= it.minimumBpm }
     }
 }
 
