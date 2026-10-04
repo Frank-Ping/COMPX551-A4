@@ -220,13 +220,13 @@ class HeartRateZonesTest {
             assertTrue(f.subscriptions.isActive(ACC))
             val source = MutableSharedFlow<PolarHrData>()
             f.now = 5000
-            assertTrue(f.session.retry(HR, true) { f.startHr(source) })
+            assertTrue(f.startHr(source))
             assertEquals(2000L, f.state.unclassifiedMs)
             runCurrent()
             f.now = 6000
             source.emit(batch(130))
             val before = f.state
-            assertFalse(f.session.retry(HR, true) { error("Rejected duplicate") })
+            assertFalse(f.startHr(source))
             assertEquals(before, f.state)
             f.now = 7000
             f.refresh()
@@ -349,7 +349,7 @@ class HeartRateZonesTest {
         runCurrent()
         val next = MutableSharedFlow<PolarHrData>()
         f.now = 4000
-        assertTrue(f.session.retry(HR, true) { f.startHr(next) })
+        assertTrue(f.startHr(next))
         runCurrent()
         next.emit(batch(130))
         val before = f.state

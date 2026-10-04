@@ -76,7 +76,7 @@ class SessionTimeLimitTest {
     }
 
     @Test fun lateEventGuardRejectsMutationAndTerminationAndStopUseSameCutoff() = runTest {
-        for (entry in 0..3) {
+        for (entry in 0..2) {
             val f = Fixture(this)
             f.start(); runCurrent()
             f.now += SessionController.TIME_LIMIT_MS + 9000
@@ -85,7 +85,6 @@ class SessionTimeLimitTest {
                 0 -> if (!f.session.checkTimeLimit()) accepted = true
                 1 -> f.session.stop("Disconnected")
                 2 -> f.session.onSubscriptionState(HR, SubscriptionStatus.FAILED)
-                3 -> assertFalse(f.session.retry(HR, true) { accepted = true; true })
             }
             runCurrent()
             assertFalse(accepted)

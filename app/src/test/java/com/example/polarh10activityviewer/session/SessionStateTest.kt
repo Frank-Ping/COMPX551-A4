@@ -156,7 +156,6 @@ class SessionStateTest {
         var attempts = 0
         assertFalse(f.session.start(false) { attempts++ })
         assertFalse(f.startStream(HR, f.running()))
-        assertFalse(f.session.retry(ECG, true) { attempts++; true })
         assertEquals(0, attempts)
         assertEquals(7, f.accSamples.single().x)
         assertEquals(SessionStatus.IDLE, f.state.status)
@@ -212,7 +211,7 @@ class SessionStateTest {
         f.session.refresh(generation)
         f.session.stop("Must not replace reason")
         assertFalse(f.start())
-        assertFalse(f.session.retry(ECG, true) { error("Retry during stop") })
+        assertFalse(f.startStream(ECG, f.running()))
         assertEquals(1_000L, f.state.elapsedMs)
         assertEquals("User stopped", f.state.endReason)
         assertTrue(f.connected)
@@ -289,13 +288,10 @@ class SessionStateTest {
         val generation = f.state.generation
         assertEquals(SessionStatus.RUNNING, f.state.status)
         assertEquals(-10, f.ecg.samples.value.single().voltage)
-        assertFalse(f.session.retry(ECG, false) { error("Prerequisites unavailable") })
-        assertFalse(f.session.retry(HR, true) { error("Duplicate") })
+        assertFalse(f.startStream(HR, f.running()))
         f.now = 4_000
         var settingsChecks = 0
-        assertTrue(f.session.retry(ECG, true) {
-            f.startStream(ECG, flow { settingsChecks++; emit(20); awaitCancellation() })
-        })
+        assertTrue(f.startStream(ECG, flow { settingsChecks++; emit(20); awaitCancellation() }))
         assertTrue(f.ecg.samples.value.isEmpty())
         assertEquals(75, f.hr.reading.value?.bpm)
         assertEquals(5, f.accSamples.single().x)
@@ -476,10 +472,10 @@ class SessionStateTest {
         assertEquals(1L, f.hr.statistics.value.count)
         assertEquals(SessionStatus.RUNNING, f.state.status)
         f.now = 1_000
-        assertTrue(f.session.retry(HR, true) { f.startStream(HR, f.running(100)) })
+        assertTrue(f.startStream(HR, f.running(100)))
         runCurrent()
         assertEquals(HeartRateStatistics(2, 180, 80, 100), f.hr.statistics.value)
-        assertFalse(f.session.retry(HR, true) { error("Duplicate retry") })
+        assertFalse(f.startStream(HR, f.running()))
         assertEquals(2L, f.hr.statistics.value.count)
         assertEquals(9, f.accSamples.single().x)
         f.session.stop("Done")
@@ -509,7 +505,7 @@ class SessionStateTest {
         f.now = 100_000
         f.session.refresh(f.state.generation)
         assertEquals(2500L, f.state.elapsedMs)
-        assertFalse(f.session.retry(HR, true) { error("No retry while paused") })
+        assertFalse(f.startStream(HR, f.running()))
         assertFalse(f.session.resume(false) { error("Disconnected") })
         assertTrue(f.session.resume(true) { f.startStream(HR, f.running(90)) })
         runCurrent()

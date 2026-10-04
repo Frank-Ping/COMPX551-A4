@@ -3,23 +3,14 @@ package com.example.polarh10activityviewer.history
 import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import com.example.polarh10activityviewer.motion.StepState
 import com.example.polarh10activityviewer.session.MotionHistoryPoint
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-
-internal data class MotionHistoryState(
-    val sessionId: String? = null,
-    val pointCount: Int = 0,
-    val firstElapsedMs: Long? = null,
-    val lastElapsedMs: Long? = null,
-    val frozen: Boolean = false,
-    val limitReached: Boolean = false
-)
 
 // Records existing refresh results; it neither calculates motion nor creates missed ticks.
 internal class MotionHistory {
     private val points = mutableListOf<MotionHistoryPoint>()
-    private val mutableState = MutableStateFlow(MotionHistoryState())
-    val state = mutableState.asStateFlow()
+    var sessionId: String? = null
+        private set
+    var frozen = false
+        private set
     private var status = SubscriptionStatus.IDLE
     private var previousSegment: Long? = null
     private var breakBefore = true
@@ -33,11 +24,12 @@ internal class MotionHistory {
         breakBefore = true
         continuingAfterPause = false
         resumeSegment = null
-        mutableState.value = MotionHistoryState(sessionId = sessionId)
+        this.sessionId = sessionId
+        frozen = false
     }
 
     fun onSubscriptionState(status: SubscriptionStatus, segment: Long? = null) {
-        if (state.value.frozen) return
+        if (frozen) return
         this.status = status
         if (status == SubscriptionStatus.STARTING && continuingAfterPause) resumeSegment = segment
         if (status != SubscriptionStatus.RECEIVING &&
@@ -48,13 +40,9 @@ internal class MotionHistory {
     }
 
     fun record(elapsedMs: Long, motion: StepState, warmingUp: Boolean, segment: Long) {
-        val current = state.value
-        val sessionId = current.sessionId ?: return
-        if (current.frozen || elapsedMs < 0) return
-        if (elapsedMs > HrHistory.MAX_ELAPSED_MS) {
-            mutableState.value = current.copy(limitReached = true)
-            return
-        }
+        val sessionId = sessionId ?: return
+        if (frozen || elapsedMs < 0) return
+        if (elapsedMs > HrHistory.MAX_ELAPSED_MS) return
         if (continuingAfterPause) {
             if (resumeSegment == null) resumeSegment = segment
             if (resumeSegment != segment) {
@@ -77,13 +65,10 @@ internal class MotionHistory {
         previousSegment = segment
         continuingAfterPause = false
         breakBefore = missing
-        mutableState.value = current.copy(pointCount = points.size,
-            firstElapsedMs = points.first().elapsedMs, lastElapsedMs = elapsedMs,
-            limitReached = elapsedMs == HrHistory.MAX_ELAPSED_MS)
     }
 
     fun stop() {
-        if (state.value.sessionId != null) mutableState.value = state.value.copy(frozen = true)
+        if (sessionId != null) frozen = true
     }
 
     fun resume(connectPrevious: Boolean = true) {
@@ -91,7 +76,7 @@ internal class MotionHistory {
         continuingAfterPause = connectPrevious && !breakBefore && last?.cadence != null
         breakBefore = !continuingAfterPause
         resumeSegment = null
-        mutableState.value = state.value.copy(frozen = false)
+        frozen = false
     }
 
     fun since(bucket: Long): List<MotionHistoryPoint> = points.takeLastWhile { it.secondBucket >= bucket }

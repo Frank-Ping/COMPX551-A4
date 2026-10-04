@@ -119,9 +119,7 @@ class PolarBleManager(context: Context) {
     val dataReadiness = mutableDataReadiness.asStateFlow()
     private val latestHeartRate = LatestHeartRate()
     private val hrHistory = HrHistory()
-    internal val hrHistoryState = hrHistory.state
     private val motionHistory = MotionHistory()
-    internal val motionHistoryState = motionHistory.state
     private val mutableLastSnapshot = MutableStateFlow<SessionSnapshot?>(null)
     internal val lastSnapshot = mutableLastSnapshot.asStateFlow()
     private var previousHrArrival: Long? = null
@@ -252,11 +250,6 @@ class PolarBleManager(context: Context) {
         sessionState.value.acceptsDevice(mutableConnectionState.value.device?.deviceId) && mutableDataReadiness.value.values.any {
         it.status == DataReadinessStatus.READY && it.configurationComplete
     }, ::startSessionStreams)
-
-    @MainThread
-    fun retryStream(type: PolarDeviceDataType): Boolean = session.retry(type, !storage.recording.state.value.blocked && connectedForData()) {
-        startStream(type)
-    }
 
     fun refreshSessionTime(generation: Long) {
         session.refresh(generation)

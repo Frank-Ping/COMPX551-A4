@@ -24,7 +24,6 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -85,8 +84,8 @@ class SessionSnapshotTest {
                 zones.refresh(elapsed); detector.updateSessionTime(elapsed)
                 SessionSummary.from(hr.statistics.value, zones.state.value, detector.state.value)
             }, { wall }, { record ->
-                assertTrue(hrHistory.state.value.frozen)
-                assertTrue(motionHistory.state.value.frozen)
+                assertTrue(hrHistory.frozen)
+                assertTrue(motionHistory.frozen)
                 assertSame(session.state.value.record, record)
                 freezes++
                 snapshot = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
@@ -184,7 +183,7 @@ class SessionSnapshotTest {
         assertEquals(com.example.polarh10activityviewer.ble.HeartRateStatistics(), f.hr.statistics.value)
         assertEquals(com.example.polarh10activityviewer.motion.StepState(), f.detector.state.value)
         assertEquals(com.example.polarh10activityviewer.heartrate.HeartRateZoneState(), f.zones.state.value)
-        assertNull(f.hrHistory.state.value.sessionId); assertNull(f.motionHistory.state.value.sessionId)
+        assertNull(f.hrHistory.sessionId); assertNull(f.motionHistory.sessionId)
         assertTrue(f.hrHistory.snapshot().isEmpty()); assertTrue(f.motionHistory.snapshot().isEmpty())
         assertTrue(f.charts.snapshot(ChartKind.HEART_RATE, 0).points.isEmpty())
         assertTrue(f.charts.snapshot(ChartKind.CADENCE, 0).points.isEmpty())
@@ -294,12 +293,12 @@ class SessionSnapshotTest {
         val before = f.motionHistory.snapshot()
         val generation = f.session.state.value.generation
         assertFalse(f.start(source))
-        assertFalse(f.session.retry(ACC, true) { error("Duplicate retry") })
-        // Rotation only reattaches UI collectors to this retained owner.
-        assertSame(f.motionHistory.state.value, f.motionHistory.state.first())
+        assertFalse(f.accStream(source))
+        // Reusing the retained owner does not alter the stored history.
+        assertEquals(before, f.motionHistory.snapshot())
         f.now = 6200; fail.complete(Unit); runCurrent()
         val next = MutableSharedFlow<PolarAccelerometerData>()
-        assertTrue(f.session.retry(ACC, true) { f.accStream(next) }); runCurrent()
+        assertTrue(f.accStream(next)); runCurrent()
         assertEquals(before, f.motionHistory.snapshot())
         assertTrue(f.charts.snapshot(ChartKind.CADENCE, 1200).points.isEmpty())
         f.now = 6300; f.tick()
@@ -417,8 +416,8 @@ class SessionSnapshotTest {
         f.start(flow { emit(samples()); awaitCancellation() }, hrs); runCurrent()
         hrs.emit(120); runCurrent()
         for (second in 0..375) { f.now = 5000 + second * 1000L; f.tick() }
-        assertEquals(376, f.motionHistory.state.value.pointCount)
-        assertEquals(1, f.hrHistory.state.value.pointCount)
+        assertEquals(376, f.motionHistory.snapshot().size)
+        assertEquals(1, f.hrHistory.snapshot().size)
         assertEquals(0L, f.motionHistory.snapshot().first().elapsedMs)
         assertTrue(f.charts.snapshot(ChartKind.CADENCE, 375_000).points.first().elapsedMs > 0)
         f.now = 5000 + HrHistory.MAX_ELAPSED_MS

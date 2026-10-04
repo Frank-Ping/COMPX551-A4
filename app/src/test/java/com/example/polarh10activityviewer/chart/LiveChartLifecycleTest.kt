@@ -74,7 +74,7 @@ class LiveChartLifecycleTest {
         f.tick()
         val before = f.snapshot()
         assertFalse(f.start(source))
-        assertFalse(f.session.retry(HR, true) { error("Rejected duplicate") })
+        assertFalse(f.startStream(source))
         assertEquals(before, f.snapshot())
         f.session.stop("End")
         runCurrent()

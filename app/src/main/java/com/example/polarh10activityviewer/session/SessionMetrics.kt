@@ -43,11 +43,6 @@ import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
 import kotlin.math.roundToInt
 
 @Composable
-private fun MetricCard(title: String?, content: @Composable ColumnScope.() -> Unit) {
-    SessionCard(title = title, content = content)
-}
-
-@Composable
 private fun MetricValue(value: String, unit: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(value, style = MaterialTheme.typography.titleLarge.copy(
@@ -71,7 +66,7 @@ internal fun HeartRateCard(
     stopped: Boolean,
     subscription: SubscriptionState
 ) {
-    MetricCard(null) {
+    SessionCard() {
         val current = zones.current.takeUnless { stopped || reading == null || subscription.status == SubscriptionStatus.FAILED }
         MetricColumns(
             current = {
@@ -105,7 +100,7 @@ internal fun HeartRateCard(
 @Composable
 internal fun MotionCard(steps: StepState, paused: Boolean = false) {
     val displayed = rememberCadenceDisplay(steps, paused)
-    MetricCard(null) {
+    SessionCard() {
         MetricColumns(
             current = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

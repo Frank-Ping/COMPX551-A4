@@ -250,7 +250,7 @@ class SessionRecordTest {
         val id = f.record.id
         assertTrue(f.record.streams.getValue(HR).failed)
         f.now = 3000
-        assertTrue(f.session.retry(HR, true) { f.stream(HR, f.running(140)) }); runCurrent()
+        assertTrue(f.stream(HR, f.running(140))); runCurrent()
         f.tick()
         assertEquals(id, f.record.id)
         assertEquals(2L, f.record.summary.validHrCount)
@@ -258,7 +258,7 @@ class SessionRecordTest {
         assertEquals(3000L, f.record.durationMs)
         assertTrue(f.record.streams.getValue(HR).missing)
         assertTrue(f.record.streams.getValue(HR).failed)
-        assertFalse(f.session.retry(HR, true) { error("Duplicate") })
+        assertFalse(f.stream(HR, f.running(140)))
         f.stop()
     }
 
@@ -381,7 +381,7 @@ class SessionRecordTest {
         assertTrue(f.record.streams.getValue(ACC).failed)
         assertTrue(f.record.incomplete)
         val recovered = MutableSharedFlow<PolarAccelerometerData>()
-        assertTrue(f.session.retry(ACC, true) { f.accStream(recovered) }); runCurrent()
+        assertTrue(f.accStream(recovered)); runCurrent()
         f.now = 20_000; f.tick()
         assertEquals(id, f.record.id)
         assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)

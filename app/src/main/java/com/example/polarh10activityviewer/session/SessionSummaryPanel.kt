@@ -36,14 +36,14 @@ internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boo
     val sensorModifier = if (compact) Modifier.height(sensorHeight) else Modifier
     SummaryCard(sensorModifier, "Heart Rate") {
         SummaryMetrics(listOf(
-            SummaryValue("Mean HR", summaryNumber(summary.meanHr, 0), "bpm"),
+            SummaryValue("Mean HR", summaryNumber(summary.meanHr), "bpm"),
             SummaryValue("Range", "${summary.minimumHr ?: "--"}–${summary.maximumHr ?: "--"}", "bpm")
         ))
     }
     SummaryCard(sensorModifier, "Cadence") {
         SummaryMetrics(listOf(
-            SummaryValue("Mean", summaryNumber(summary.meanCadence, 0), "steps/min"),
-            SummaryValue("Max", summaryNumber(summary.maximumCadence, 0), "steps/min")
+            SummaryValue("Mean", summaryNumber(summary.meanCadence), "steps/min"),
+            SummaryValue("Max", summaryNumber(summary.maximumCadence), "steps/min")
         ))
     }
     ActivityMetricCards(record, compact)
@@ -58,8 +58,8 @@ private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false
             values.forEachIndexed { index, value ->
                 if (index > 0) HorizontalDivider(color = sessionBorder())
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(value.label, fontSize = if (enlarged) 11.sp else 10.sp,
-                        lineHeight = if (enlarged) 14.sp else 13.sp, letterSpacing = 0.sp)
+                    Text(value.label, fontSize = 10.sp,
+                        lineHeight = 13.sp, letterSpacing = 0.sp)
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(value.value, fontSize = 21.sp,
@@ -112,5 +112,5 @@ internal fun SummaryCard(modifier: Modifier = Modifier, title: String? = null,
     }
 }
 
-private fun summaryNumber(value: Double?, decimals: Int = 2) =
-    value?.let { String.format(Locale.ENGLISH, "%.${decimals}f", it) } ?: "--"
+private fun summaryNumber(value: Double?) =
+    value?.let { String.format(Locale.ENGLISH, "%.0f", it) } ?: "--"

@@ -100,14 +100,6 @@ internal class SessionController(
         return true
     }
 
-    fun retry(type: PolarDeviceDataType, available: Boolean, startStream: () -> Boolean): Boolean {
-        if (checkTimeLimit()) return false
-        if (!available || !state.value.ongoing || type !in checkedDataTypes || subscriptions.isActive(type)) return false
-        val accepted = startStream()
-        finishIfIdle()
-        return accepted
-    }
-
     fun onValidData(at: Long = now(), receivedAt: Long = wallNow()) {
         if (state.value.status == SessionStatus.STARTING) {
             startedAt = at

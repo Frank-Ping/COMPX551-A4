@@ -2464,3 +2464,31 @@ English prompt: Add persisted Session Strain scores to 9.0b only. Replace the di
   Filter only copies used for the line/fill, using actual saved-point intervals and resetting at nulls/segment breaks. Preserve raw per-second records, saved-mean references, statistics, scores and SQLite. Existing records use the new rendering without migration or resaving. Both pages share smoothing rules, but one-second Summary and 250 ms Session samples need not produce pixel-identical curves.
 - debug构建、270项既有单元测试（0 failures/errors/skips）、仪器测试源码编译和lint通过（0 errors、20 warnings）。日志build/summary-cadence-smoothing-validation.txt。未新增测试，本轮未运行模拟器/仪器测试或真机，Summary实际观感待用户复核。两对文档同步，无commit/push。
   Debug build, all 270 existing unit tests (zero failures/errors/skips), instrumentation-test source compilation and lint pass (zero errors, 20 warnings). Evidence: build/summary-cadence-smoothing-validation.txt. No new tests or emulator/instrumentation/hardware runs this turn; actual Summary appearance remains for user verification. Both document pairs synchronized; no commit/push.
+
+
+## 5.63 保守冗余清理 / Conservative redundancy cleanup（2026-10-04）
+
+- 用户要求清理冗余代码且不影响运行。删除全源码及测试均无调用的 PolarBleManager.hrHistoryState、motionHistoryState、retryStream，以及未使用的 SectionSpacing、CardCornerRadius。保留已有 SessionState.retry 及其测试。
+  Remove unreferenced manager history-state aliases, the unused retryStream wrapper and two unused layout constants; retain the tested SessionState.retry helper.
+- 删除无引用且 lint 确认未使用的默认 ic_launcher_background/foreground XML。MainActivity 继承 application 的同值 label/theme，删除重复属性及未使用 tools 命名空间。实际启动图标、采集、算法、图表、存储和数据库版本不变；保留用户已有 AGP 9.2.1 修改。
+  Remove two unused template drawable resources and redundant manifest attributes. Preserve active icons, acquisition, calculations, charts, storage, database version and the pre-existing AGP version edit.
+- 清理前后 assembleDebug、testDebugUnitTest、compileDebugAndroidTestKotlin、lintDebug 均通过；两次均为270项单元测试，0 failures/errors/skips。lint从0 errors/13 warnings降至0 errors/10 warnings。证据：build/redundancy-cleanup-baseline.log、build/redundancy-cleanup-validation.log。未新增测试，未运行模拟器/仪器测试或真机，无commit/push。本目录AGENTS.md和prompt.md记录已更新，父目录无对应文档副本。
+  Before and after cleanup: debug build, all 270 unit tests, instrumentation-test source compilation and lint pass. Lint warnings decrease from 13 to 10 with zero errors. No new tests, device/emulator execution, commit or push. Updated this project's documentation; no matching documentation copies exist in its parent directory.
+
+
+## 5.64 深入冗余检查与清理 / Further redundancy cleanup（2026-10-04）
+
+- 用户确认检查并清理前七类候选项。上一轮推送操作被中断，核查未产生新提交；本轮仅修改工作区，不推送。
+  The user authorized inspection and cleanup of the first seven candidate categories. The interrupted push created no new commit; this pass updates the working tree only.
+- 删除无生产调用的 SessionController.retry。既有测试直接调用原有订阅夹具，保留重复订阅拒绝、失败后数据累计、过期事件隔离和暂停/停止限制的覆盖；移除只针对已删除入口的前置条件与超时分支断言，未删除测试用例。
+  Remove the unused session retry wrapper. Existing tests exercise the underlying subscription fixtures, retaining coverage for duplicate rejection, accumulated values, stale events and paused/stopped guards. Remove assertions specific to the retired wrapper; no test cases deleted.
+- HrHistory/MotionHistory删除无消费者的StateFlow元数据、两份State数据类及逐次copy发布；保留sessionId/frozen和真实记录列表。测试通过真实快照检查点数/时间，保留四小时边界、冻结、断段、暂停连接及新会话隔离。
+  Remove unobserved history metadata flows and their per-sample copies. Keep session identity, freeze flags and actual points; verify counts and times through snapshots, retaining bounds, freeze, gap, pause and session-isolation coverage.
+- Session指标卡直接调用SessionCard，移除纯转发MetricCard；summaryNumber固定现有零位小数，删去恒定参数及大字号分支内永远不可达的enlarged判断。不同页面实际布局不同，未强行合并。
+  Remove a forwarding metric-card wrapper, a constant formatting parameter and unreachable enlarged-label branches. Preserve distinct page layouts.
+- 删除未使用的kotlinx-coroutines-rx3直接依赖及版本目录条目；其他依赖有源码/测试或框架用途，保留。最低API33，现行anydpi自适应图标覆盖的10份密度位图删除，实际launcher_logo及两份自适应图标保留。用户原有AGP9.2.1修改保留。
+  Remove the unused direct coroutine RxJava adapter dependency and ten superseded density bitmap icons. Preserve current adaptive icons, logo and the user's AGP9.2.1 edit.
+- 旧速度/距离/RR残留核查：存储升级用途保留；不修改数据库版本、迁移、蓝牙生命周期、保存恢复和算法参数，不归档或压缩开发证据文档。
+  Retain migration-only legacy references, database schema/migrations, BLE lifecycle, save recovery, algorithm parameters and historical evidence.
+- 最终assembleDebug、270项testDebugUnitTest（0 failures/errors/skips）、compileDebugAndroidTestKotlin、lintDebug通过；lint0 errors/8 warnings（上一轮10）。首次测试编译出现夹具变量next在声明前引用，已改为当前source；保留失败日志build/deeper-cleanup-validation.log，最终日志build/deeper-cleanup-validation-final.log。git diff --check通过。未运行模拟器/仪器测试或真机，无commit/push。
+  Final debug build, all 270 unit tests, instrumentation source compilation and lint pass; zero lint errors/eight warnings. Corrected an initial test-fixture variable reference; preserve both initial and final logs. Diff whitespace check passes. No emulator, instrumentation execution, hardware validation, commit or push.

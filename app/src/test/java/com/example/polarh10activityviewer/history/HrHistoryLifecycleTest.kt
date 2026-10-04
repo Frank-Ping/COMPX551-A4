@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -103,7 +102,7 @@ class HrHistoryLifecycleTest {
         f.start(source); runCurrent()
         source.emit(batch()); source.emit(batch(0)); runCurrent()
         assertEquals(SessionStatus.STARTING, f.session.state.value.status)
-        assertEquals(0, f.history.state.value.pointCount)
+        assertEquals(0, f.history.snapshot().size)
         f.now = 5000
         source.emit(batch(100, 120, 0)); runCurrent()
         assertNull(f.history.snapshot().single().bpm)
@@ -111,7 +110,7 @@ class HrHistoryLifecycleTest {
         assertEquals(2L, f.hr.statistics.value.count)
         f.now = 5400
         source.emit(batch(130, 140)); runCurrent()
-        assertEquals(1, f.history.state.value.pointCount)
+        assertEquals(1, f.history.snapshot().size)
         assertEquals(140, f.history.snapshot().single().bpm)
         assertEquals(400L, f.history.snapshot().single().elapsedMs)
         assertTrue(f.history.snapshot().single().breakBefore)
@@ -152,7 +151,7 @@ class HrHistoryLifecycleTest {
             f.now = second * 1000L
             source.emit(batch(120)); runCurrent()
         }
-        assertEquals(376, f.history.state.value.pointCount)
+        assertEquals(376, f.history.snapshot().size)
         assertEquals(0L, f.history.snapshot().first().elapsedMs)
         assertEquals(375_000L, f.history.snapshot().last().elapsedMs)
         val live = f.charts.snapshot(ChartKind.HEART_RATE, 375_000)
@@ -177,13 +176,13 @@ class HrHistoryLifecycleTest {
         f.now = 1200; fail.complete(Unit); runCurrent()
         val before = f.history.snapshot()
         assertEquals(2, before.size)
-        assertFalse(f.history.state.value.frozen)
+        assertFalse(f.history.frozen)
         val source = MutableSharedFlow<PolarHrData>()
-        assertTrue(f.session.retry(HR, true) { f.hrStream(source) }); runCurrent()
+        assertTrue(f.hrStream(source)); runCurrent()
         assertEquals(before, f.history.snapshot())
         assertTrue(f.charts.snapshot(ChartKind.HEART_RATE, 1200).points.isEmpty())
         f.now = 1400; source.emit(batch(130)); runCurrent()
-        assertEquals(2, f.history.state.value.pointCount)
+        assertEquals(2, f.history.snapshot().size)
         assertEquals(1400L, f.history.snapshot().last().elapsedMs)
         assertTrue(f.history.snapshot().last().breakBefore)
         val afterRetry = f.history.snapshot()
@@ -210,12 +209,12 @@ class HrHistoryLifecycleTest {
             if (reason == null) { cleanup.complete(Unit); end.complete(Unit); runCurrent() }
             else { f.session.stop(reason); runCurrent() }
             val frozen = f.history.snapshot()
-            assertTrue(f.history.state.value.frozen)
+            assertTrue(f.history.frozen)
             assertEquals(listOf(0L, 1789L), frozen.map { it.elapsedMs })
             f.now = 99_000; f.tick(); f.stop()
             cleanup.complete(Unit); runCurrent()
             assertEquals(frozen, f.history.snapshot())
-            assertEquals(1789L, f.history.state.value.lastElapsedMs)
+            assertEquals(1789L, f.history.snapshot().lastOrNull()?.elapsedMs)
         }
     }
 
@@ -231,17 +230,17 @@ class HrHistoryLifecycleTest {
         }
         f.start(source); runCurrent()
         val generation = f.session.state.value.generation
-        val before = f.history.state.first()
+        val before = f.history.snapshot()
         assertFalse(f.start(source))
-        assertFalse(f.session.retry(HR, true) { error("Duplicate retry") })
-        // Rotation reattaches collectors to the retained manager, not a new history owner.
-        assertSame(before, f.history.state.first())
+        assertFalse(f.hrStream(source))
+        // Reusing the retained manager does not create a new history owner.
+        assertEquals(before, f.history.snapshot())
         f.stop(); runCurrent()
         val oldSnapshot = f.history.snapshot()
         val next = MutableSharedFlow<PolarHrData>()
         assertTrue(f.start(next)); runCurrent()
         assertTrue(f.history.snapshot().isEmpty())
-        assertNotEquals(before.sessionId, f.history.state.value.sessionId)
+        assertNotEquals(before.first().sessionId, f.history.sessionId)
         f.now = 10_000; next.emit(batch(140)); runCurrent()
         val fresh = f.history.snapshot()
         assertEquals(0L, fresh.single().elapsedMs)
@@ -265,7 +264,7 @@ class HrHistoryLifecycleTest {
         assertEquals(1L, f.hr.statistics.value.count)
         assertEquals(120.0, f.hr.statistics.value.average!!, 0.0)
         assertEquals(SessionStatus.STOPPED, f.session.state.value.status)
-        assertTrue(f.history.state.value.frozen)
+        assertTrue(f.history.frozen)
         assertEquals("TIME_LIMIT", f.session.state.value.endReason)
         f.stop()
     }
