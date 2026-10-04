@@ -22,16 +22,21 @@ internal class HrHistory {
     val state = mutableState.asStateFlow()
     private var previousElapsedMs: Long? = null
     private var breakBefore = true
+    private var continuingAfterPause = false
 
     fun reset(sessionId: String? = null) {
         points.clear()
         previousElapsedMs = null
         breakBefore = true
+        continuingAfterPause = false
         mutableState.value = HrHistoryState(sessionId = sessionId)
     }
 
     fun onSubscriptionState(status: SubscriptionStatus) {
-        if (!state.value.frozen && status != SubscriptionStatus.RECEIVING) breakBefore = true
+        if (state.value.frozen || status == SubscriptionStatus.RECEIVING) return
+        if (status == SubscriptionStatus.STARTING && continuingAfterPause) return
+        continuingAfterPause = false
+        breakBefore = true
     }
 
     fun receive(elapsedMs: Long, reading: HeartRateReading?) {
@@ -50,6 +55,7 @@ internal class HrHistory {
             breakBefore || gap || reading == null || replaced?.breakBefore == true)
         if (replaced == null) points.add(point) else points[points.lastIndex] = point
         previousElapsedMs = elapsedMs
+        continuingAfterPause = false
         breakBefore = reading == null
         // Publish metadata only; the UI never copies the growing history on every event.
         mutableState.value = current.copy(pointCount = points.size,
@@ -61,9 +67,9 @@ internal class HrHistory {
         if (state.value.sessionId != null) mutableState.value = state.value.copy(frozen = true)
     }
 
-    fun resume() {
-        breakBefore = true
-        previousElapsedMs = null
+    fun resume(connectPrevious: Boolean = true) {
+        continuingAfterPause = connectPrevious && !breakBefore && points.lastOrNull()?.bpm != null
+        breakBefore = !continuingAfterPause
         mutableState.value = state.value.copy(frozen = false)
     }
 

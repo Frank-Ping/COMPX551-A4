@@ -4,6 +4,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.polarh10activityviewer.ble.ConnectionDevice
 import com.example.polarh10activityviewer.ble.checkedDataTypes
+import com.example.polarh10activityviewer.ble.HeartRateReading
+import com.example.polarh10activityviewer.ble.SubscriptionStatus
+import com.example.polarh10activityviewer.chart.ChartPoint
+import com.example.polarh10activityviewer.chart.chartSegments
+import com.example.polarh10activityviewer.history.HrHistory
+import com.example.polarh10activityviewer.history.MotionHistory
+import com.example.polarh10activityviewer.motion.StepState
 import com.example.polarh10activityviewer.session.HrHistoryPoint
 import com.example.polarh10activityviewer.session.MotionHistoryPoint
 import com.example.polarh10activityviewer.session.SessionRecord
@@ -44,6 +51,41 @@ class SessionDatabaseTest {
 
     @Before fun open() { name = "step62-test-${UUID.randomUUID()}.db"; db = SessionDatabase(context, name) }
     @After fun close() { db.close(); context.deleteDatabase(name) }
+
+    @Test fun pauseConnectionsAndActualGapsSurviveSaveAndReopen() = runBlocking {
+        val base = databaseFixture()
+        val hr = HrHistory().apply { reset(base.record.id) }
+        val motion = MotionHistory().apply { reset(base.record.id); onSubscriptionState(SubscriptionStatus.RECEIVING) }
+        val steps = StepState(receivedAcc = true, cadence = 120.0, speed = 1.0)
+        for (time in listOf(0L, 1000L)) {
+            hr.receive(time, HeartRateReading(120, time))
+            motion.record(time, steps, false, 1)
+        }
+        hr.stop(); motion.stop()
+        hr.resume(); motion.resume()
+        hr.onSubscriptionState(SubscriptionStatus.STARTING)
+        motion.onSubscriptionState(SubscriptionStatus.STARTING, 2)
+        motion.onSubscriptionState(SubscriptionStatus.RECEIVING)
+        motion.record(2000, steps, true, 2)
+        hr.receive(3000, HeartRateReading(130, 3000))
+        motion.record(3000, steps, false, 2)
+        assertFalse(hr.snapshot().last().breakBefore)
+        assertFalse(motion.snapshot().last().breakBefore)
+        hr.receive(4000, null)
+        hr.receive(5000, HeartRateReading(140, 5000))
+        motion.record(5000, steps, false, 3)
+        val snapshot = base.copy(record = base.record.copy(durationMs = 5000,
+            endedAt = base.record.startedAt!! + 5000), hrPoints = hr.snapshot(), motionPoints = motion.snapshot())
+        db.save(snapshot)
+        withContext(Dispatchers.IO) { db.close() }
+        db = SessionDatabase(context, name)
+        val saved = db.detail(base.record.id)!!
+        assertEquals(snapshot, saved)
+        val heartSegments = chartSegments(saved.hrPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore) })
+        val motionSegments = chartSegments(saved.motionPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore) })
+        assertEquals(listOf(3, 1), heartSegments.map { it.size })
+        assertEquals(listOf(3, 1), motionSegments.map { it.size })
+    }
 
     @Test fun roundTripAfterCloseReopenPreservesEveryFieldNullZeroPrecisionAndBreak() = runBlocking {
         val snapshot = databaseFixture()

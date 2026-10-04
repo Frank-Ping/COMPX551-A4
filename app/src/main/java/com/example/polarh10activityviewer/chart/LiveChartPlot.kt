@@ -32,7 +32,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     modifier: Modifier = Modifier, scale: ChartScale = chartScale(snapshot.points, kind), height: Dp? = null,
     maximumTimeTicks: Int = if (snapshot.windowMs == 5000.0) 6 else 3,
     plainLine: Boolean = false,
-    axisWidth: Dp? = null) {
+    axisWidth: Dp? = null, smoothLine: Boolean = false) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
     val plotHeight = height ?: (((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f))
     Column {
@@ -95,12 +95,21 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                         strokeWidth = if (ecg) 0.5.dp.toPx() else 0f)
                 }
                 // Close each fill at its own endpoints; missing intervals never receive ink.
-                chartSegments(snapshot.points).forEach { segment ->
+                val displayPoints = if (smoothLine) smoothCadenceForDisplay(snapshot.points) else snapshot.points
+                chartSegments(displayPoints).forEach { segment ->
                     val path = Path()
                     val first = position(segment.first())
                     path.moveTo(first.x, first.y)
                     segment.forEachIndexed { index, point ->
-                        if (index > 0) position(point).let { path.lineTo(it.x, it.y) }
+                        if (index > 0) {
+                            val next = position(point)
+                            if (smoothLine) {
+                                val previous = position(segment[index - 1])
+                                val middleX = (previous.x + next.x) / 2f
+                                // Horizontal tangents join smoothly without overshooting either sample.
+                                path.cubicTo(middleX, previous.y, middleX, next.y, next.x, next.y)
+                            } else path.lineTo(next.x, next.y)
+                        }
                     }
                     if (!plainLine && kind != ChartKind.ELECTROCARDIOGRAM && segment.size > 1) {
                         val fill = Path().apply {

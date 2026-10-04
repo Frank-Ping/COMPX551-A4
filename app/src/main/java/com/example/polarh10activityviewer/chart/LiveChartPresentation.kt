@@ -1,6 +1,22 @@
 package com.example.polarh10activityviewer.chart
 
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
+import kotlin.math.exp
+
+// Display-only one-second low-pass filter. Restart at real gaps, preserving sample times.
+internal fun smoothCadenceForDisplay(points: List<ChartPoint>): List<ChartPoint> {
+    var previous: ChartPoint? = null
+    return points.map { point ->
+        val last = previous
+        val value = point.value
+        val displayed = if (value == null || point.breakBefore || last?.value == null) point else {
+            val weight = 1.0 - exp(-(point.elapsedMs - last.elapsedMs) / 1000.0)
+            point.copy(value = last.value + weight * (value - last.value))
+        }
+        previous = displayed
+        displayed
+    }
+}
 
 // Bounded drawing segments only; sample values and their original times remain unchanged.
 internal fun chartSegments(points: List<ChartPoint>): List<List<ChartPoint>> {

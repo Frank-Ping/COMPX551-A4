@@ -5,6 +5,7 @@ internal class StepSequence {
     private val pending = mutableListOf<StepCandidate>()
     private var lastAcceptedAt: Long? = null
     private var confirmed = false
+    val hasPending: Boolean get() = pending.isNotEmpty()
     var totalSteps = 0L
         private set
 

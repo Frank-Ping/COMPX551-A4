@@ -1,6 +1,7 @@
 package com.example.polarh10activityviewer.session
 
 import kotlin.math.sqrt
+import kotlin.math.roundToInt
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 
 internal data class ActivityMetrics(
@@ -16,6 +17,11 @@ internal data class ActivityMetrics(
 internal object ActivityMetricsCalculator {
     const val VERSION = 2
     const val MIN_CADENCE_POINTS = 30
+
+    // Presentation ratings; stored intensity and raw AU retain their original precision.
+    fun intensityRating(value: Double?): Int? = value?.let { (it * 2).roundToInt().coerceIn(0, 10) }
+    fun cardioLoadRating(rawLoad: Double?): Int? =
+        rawLoad?.let { (10.0 * (it / (it + 100.0))).roundToInt().coerceIn(0, 10) }
 
     fun calculate(snapshot: SessionSnapshot): ActivityMetrics {
         val record = snapshot.record

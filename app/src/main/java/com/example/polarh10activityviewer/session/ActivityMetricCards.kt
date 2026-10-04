@@ -6,6 +6,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,27 +19,38 @@ internal fun ColumnScope.ActivityMetricCards(record: SessionRecord, compact: Boo
     val metrics = record.summary.activityMetrics
     fun number(value: Double?) = value?.let { String.format(Locale.ENGLISH, "%.1f", it) }
     val titles = listOf("Intensity", "Cardio Load", "Cadence Stability")
-    val values = listOf(number(metrics.intensity)?.let { "$it / 5" } ?: "--",
-        number(metrics.cardioLoad)?.let { "$it AU" } ?: "--",
-        number(metrics.cadenceCvPercent)?.let { "CV $it%" } ?: "--")
+    val values = listOf(ActivityMetricsCalculator.intensityRating(metrics.intensity)?.toString() ?: "--",
+        ActivityMetricsCalculator.cardioLoadRating(metrics.cardioLoad)?.toString() ?: "--",
+        number(metrics.cadenceCvPercent)?.let { "$it%" } ?: "--")
     val cardHeight = with(LocalDensity.current) { 32.sp.toDp() + 30.sp.toDp() } + 10.dp
     if (compact) Row(Modifier.fillMaxWidth().height(cardHeight), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         titles.indices.forEach { index ->
-            ActivityMetricCard(titles[index], values[index], Modifier.weight(1f).fillMaxHeight())
+            ActivityMetricCard(titles[index], values[index], Modifier.weight(1f).fillMaxHeight(),
+                maximum = if (index < 2) 10 else null)
         }
     } else titles.indices.forEach { index ->
-        ActivityMetricCard(titles[index], values[index], Modifier.heightIn(min = cardHeight))
+        ActivityMetricCard(titles[index], values[index], Modifier.heightIn(min = cardHeight),
+            maximum = if (index < 2) 10 else null)
     }
-    ActivityMetricCard("Session Strain", number(metrics.sessionStrainScore)?.let { "$it / 100" } ?: "--",
-        if (compact) Modifier.height(cardHeight) else Modifier.heightIn(min = cardHeight))
+    ActivityMetricCard("Session Strain", number(metrics.sessionStrainScore) ?: "--",
+        if (compact) Modifier.height(cardHeight) else Modifier.heightIn(min = cardHeight), maximum = 100)
 }
 
 @Composable
-private fun ActivityMetricCard(title: String, value: String, modifier: Modifier) {
+private fun ActivityMetricCard(title: String, value: String, modifier: Modifier, maximum: Int? = null) {
+    val formatted = buildAnnotatedString {
+        append(value)
+        if (maximum != null && value != "--") {
+            append(" ")
+            withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) {
+                append("/ $maximum")
+            }
+        }
+    }
     SummaryCard(modifier) {
         Text(title, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
             style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-        Text(value, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+        Text(formatted, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
             fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
     }
 }

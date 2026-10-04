@@ -113,7 +113,8 @@ class SessionMetricsTest {
         visible("123"); visible("Max HR: 130 bpm"); visible("Max HR: 130 bpm"); visible("Mean HR: 120 bpm")
         visible("124"); visible("Mean: 121 steps/min");
         visible("Max: 168 steps/min")
-        visible("01:00"); visible("121"); visible("100.0")
+        visible("01:00"); visible("121")
+        compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         listOf("Min HR:", "Min cadence:", "Estimated speed", "Mean speed:", "Max speed:", "km/h").forEach {
             compose.onAllNodesWithText(it, substring = true).assertCountEquals(0)
         }
@@ -319,7 +320,9 @@ class SessionMetricsTest {
             noOverflow("123"); screenshot("$prefix-Heart-rate")
             noOverflow("124"); visible("steps/min")
             screenshot("$prefix-Motion")
-            noOverflow("100.0"); visible("m"); screenshot("$prefix-Activity-summary")
+            noOverflow("01:00"); noOverflow("121")
+            compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
+            screenshot("$prefix-Activity-summary")
             visible("Z5"); screenshot("$prefix-Heart-rate-zones")
         }
     }

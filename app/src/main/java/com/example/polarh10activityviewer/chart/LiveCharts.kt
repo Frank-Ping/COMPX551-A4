@@ -18,7 +18,8 @@ internal enum class ChartKind(val type: PolarDeviceDataType, val label: String, 
 
 internal data class ChartPoint(val elapsedMs: Double, val value: Double?, val breakBefore: Boolean)
 internal data class ChartSnapshot(
-    val points: List<ChartPoint>, val endMs: Double, val windowMs: Double, val status: SubscriptionStatus
+    val points: List<ChartPoint>, val endMs: Double, val windowMs: Double, val status: SubscriptionStatus,
+    val detectingSteps: Boolean = false
 ) {
     val startMs: Double get() = (endMs - windowMs).coerceAtLeast(0.0)
 }
@@ -33,6 +34,11 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
     private var previousHrTime: Long? = null
     private var hrBreak = true
     private var previousMotionSegment: Long? = null
+    private var motionBreak = false
+    private var continueHr = false
+    private var continueMotion = false
+    private var resumeMotionSegment: Long? = null
+    private var detectingSteps = false
     private var ecgSensorAnchor: Long? = null
     private var ecgSessionAnchor = 0L
     private var ecgSampleRate = 0
@@ -52,8 +58,8 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
 
     private fun clear(type: PolarDeviceDataType) {
         when (type) {
-            HR -> { hr.clear(); previousHrTime = null; hrBreak = true }
-            ACC -> { motion.clear(); previousMotionSegment = null }
+            HR -> { hr.clear(); previousHrTime = null; hrBreak = true; continueHr = false }
+            ACC -> { motion.clear(); previousMotionSegment = null; motionBreak = false; continueMotion = false; resumeMotionSegment = null; detectingSteps = false }
             ECG -> { ecgSensorAnchor = null; ecgSessionAnchor = 0; ecgSampleRate = 0 }
             else -> Unit
         }
@@ -68,10 +74,19 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
         }
     }
 
-    fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus, elapsedMs: Long) {
+    fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus, elapsedMs: Long,
+        motionSegment: Long? = null) {
         if (status == SubscriptionStatus.STARTING && !preserveOnStart.remove(type)) clear(type)
+        if (type == ACC && status == SubscriptionStatus.STARTING && continueMotion) resumeMotionSegment = motionSegment
         if (active(type) || status == SubscriptionStatus.STARTING) frozenEnds[type] = elapsedMs
-        if (type == HR && status != SubscriptionStatus.RECEIVING) hrBreak = true
+        if (type == HR && status != SubscriptionStatus.RECEIVING &&
+            !(status == SubscriptionStatus.STARTING && continueHr)) {
+            hrBreak = true
+            continueHr = false
+        }
+        if (type == ACC && status !in listOf(SubscriptionStatus.STARTING, SubscriptionStatus.RECEIVING)) {
+            continueMotion = false
+        }
         statuses[type] = status
         trim()
     }
@@ -82,11 +97,14 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
         }
     }
 
-    fun resume() {
+    fun resume(connectHr: Boolean = true, connectMotion: Boolean = true) {
         preserveOnStart.addAll(listOf(HR, ACC))
-        previousHrTime = null
-        hrBreak = true
-        previousMotionSegment = null
+        continueHr = connectHr && hr.lastOrNull()?.value != null
+        hrBreak = !continueHr
+        val last = motion.lastOrNull()
+        continueMotion = connectMotion && !motionBreak && last?.cadence != null && last.speed != null
+        resumeMotionSegment = null
+        if (!continueMotion) previousMotionSegment = null
     }
 
     fun receiveHr(elapsedMs: Long, reading: HeartRateReading?) {
@@ -98,6 +116,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
             (sameBucket != null && sameBucket.value == null)
         hr.addLast(ChartPoint(elapsedMs.toDouble(), reading?.bpm?.toDouble(), broken))
         previousHrTime = elapsedMs
+        continueHr = false
         hrBreak = reading == null
         frozenEnds[HR] = elapsedMs
         trim()
@@ -105,14 +124,28 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
 
     // Called only by the existing 250 ms calculation/refresh entry point.
     fun recordMotion(elapsedMs: Long, state: StepState, warmingUp: Boolean, segment: Long) {
-        if (!active(ACC) || motion.lastOrNull()?.let { elapsedMs - it.time < 250 } == true) return
+        detectingSteps = state.cadencePending
+        if (!active(ACC)) return
+        if (continueMotion) {
+            if (resumeMotionSegment == null) resumeMotionSegment = segment
+            if (resumeMotionSegment != segment) {
+                continueMotion = false
+            } else if (warmingUp || state.cadencePending) {
+                return
+            }
+        }
         val cadence = state.cadence.takeUnless { warmingUp }
         val speed = state.speed.takeUnless { warmingUp }
         val previous = motion.lastOrNull()
+        // Retain gaps observed between the 500 ms display samples.
+        motionBreak = motionBreak || (!continueMotion && previousMotionSegment != segment) ||
+            cadence == null || speed == null || previous?.cadence == null || previous.speed == null
+        if (previous != null && elapsedMs - previous.time < 500) return
         motion.addLast(MotionPoint(elapsedMs, cadence, speed,
-            previousMotionSegment != segment || cadence == null || speed == null ||
-                previous?.cadence == null || previous.speed == null))
+            motionBreak))
+        motionBreak = false
         previousMotionSegment = segment
+        continueMotion = false
         frozenEnds[ACC] = elapsedMs
         trim()
     }
@@ -136,7 +169,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
         val hrCutoff = frozenEnds.getValue(HR) - 300_000
         while (hr.isNotEmpty() && (hr.first().elapsedMs <= hrCutoff || hr.size > 301)) hr.removeFirst()
         val motionCutoff = frozenEnds.getValue(ACC) - 300_000
-        while (motion.isNotEmpty() && (motion.first().time <= motionCutoff || motion.size > 1201)) motion.removeFirst()
+        while (motion.isNotEmpty() && (motion.first().time <= motionCutoff || motion.size > 601)) motion.removeFirst()
     }
 
     fun snapshot(kind: ChartKind, elapsedMs: Long): ChartSnapshot {
@@ -161,6 +194,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
                 }
             }
         }
-        return ChartSnapshot(points, end, window, statuses.getValue(kind.type))
+        return ChartSnapshot(points, end, window, statuses.getValue(kind.type),
+            kind.type == ACC && active(ACC) && detectingSteps)
     }
 }

@@ -31,7 +31,7 @@ internal fun LiveChartCard(
     SessionCard(modifier = Modifier.testTag("live-chart-card")) {
             Row(Modifier.fillMaxWidth(if (LocalDensity.current.fontScale > 1.2f) 1f else 0.76f)
                 .align(Alignment.CenterHorizontally), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("HR" to ChartKind.HEART_RATE, "Motion" to ChartKind.CADENCE,
+                listOf("HR" to ChartKind.HEART_RATE, "Cadence" to ChartKind.CADENCE,
                     "ECG" to ChartKind.ELECTROCARDIOGRAM).forEach { (label, choice) ->
                     ChartChoice(label, kind.type == choice.type, Modifier.weight(1f)) { onSelect(choice) }
                 }
@@ -60,8 +60,8 @@ internal fun LiveChartCard(
                     SubscriptionStatus.STOPPED -> "Stopped · chart frozen"
                     SubscriptionStatus.FAILED -> "Failed · chart frozen"
                 }
-            } else null
-            LivePlot(snapshot, kind, sessionMean, statusLabel)
+            } else if (!paused && snapshot.detectingSteps) "Detecting steps" else null
+            LivePlot(snapshot, kind, sessionMean, statusLabel, smoothLine = kind == ChartKind.CADENCE)
     }
 }
 

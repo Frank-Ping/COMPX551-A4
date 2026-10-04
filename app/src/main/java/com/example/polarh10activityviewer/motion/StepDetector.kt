@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 internal data class StepState(
+    val cadencePending: Boolean = false,
     val totalSteps: Long? = null,
     val cadence: Double? = null,
     val message: String = "Not started.",
@@ -45,6 +46,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
     private var minimumCadence: Double? = null
     private var maximumSpeed: Double? = null
     private var incompleteAcc = false
+    private var cadenceReady = false
     val totalSteps: Long get() = sequence.totalSteps
     val isWarmingUp: Boolean get() = preprocessor.warmupEndedAt == null
     var segment: Long = 0
@@ -52,7 +54,8 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
     var latestCommitted: List<StepCandidate> = emptyList()
         private set
 
-    fun clearSegment() {
+    fun clearSegment(resetCadence: Boolean = true) {
+        if (resetCadence) cadenceReady = false
         segment++
         preprocessor.clear()
         candidates.clear()
@@ -84,7 +87,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         recovering = receivedAcc
         if (!collecting) incompleteAcc = true
         val current = if (collecting && !recovering) 0.0 else null
-        publishState(current, current,
+        publishState(null, current,
             if (collecting) "Warming up ACC." else error ?: "ACC ${status.name.lowercase()}."
         )
     }
@@ -115,14 +118,17 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
     private fun publish(sensorTime: Long) {
         val warmup = preprocessor.warmupEndedAt
         if (warmup != null) recovering = false
+        // A quiet zero needs a full window of arriving samples, not just a UI timer.
+        if (warmup != null && !sequence.hasPending &&
+            (preprocessor.latest?.timeStamp ?: warmup) - warmup >= 5_000_000_000L) cadenceReady = true
         publishState(
-            if (recovering) null else warmup?.let { motionWindow.value(sensorTime, it) } ?: 0.0,
+            if (warmup == null || !cadenceReady) null else motionWindow.value(sensorTime, warmup),
             if (recovering) null else warmup?.let { motionWindow.speed(sensorTime, it) } ?: 0.0,
             when {
                 recovering -> "Warming up after ACC interruption."
                 warmup == null -> "Warming up ACC."
-                latestCommitted.isEmpty() -> "Waiting for four consecutive steps."
-                else -> "Detecting steps."
+                !cadenceReady -> "Detecting steps."
+                else -> "Collecting ACC."
             })
     }
 
@@ -131,7 +137,8 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
             totalSteps = totalSteps.takeIf { receivedAcc }, cadence = cadence, message = message,
             distance = distance.takeIf { receivedAcc }, speed = speed,
             maximumCadence = maximumCadence, minimumCadence = minimumCadence, maximumSpeed = maximumSpeed,
-            receivedAcc = receivedAcc, incompleteAcc = incompleteAcc
+            receivedAcc = receivedAcc, incompleteAcc = incompleteAcc,
+            cadencePending = collecting && !isWarmingUp && !cadenceReady
         )
     }
 
@@ -142,7 +149,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
             recovering = true
             incompleteAcc = true
         } else if (sequence.expire(sample.timeStamp)) {
-            clearSegment()
+            clearSegment(resetCadence = false)
         }
         receivedAcc = true
         val prepared = preprocessor.receive(sample)
@@ -152,6 +159,7 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
         commitSteps(committed, sample.timeStamp)
         updateWindowExtrema(sample.timeStamp)
         if (committed.isNotEmpty()) {
+            cadenceReady = true
             latestCommitted = committed
             publish(sample.timeStamp)
         }

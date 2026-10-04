@@ -5,6 +5,20 @@ import org.junit.Test
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 
 class ActivityMetricsTest {
+    @Test fun tenPointPresentationKeepsRawMetricsAndDistinguishesMissingFromZero() {
+        val stored = ActivityMetrics(intensity = 17.0 / 6.0, cardioLoad = 85.0)
+        assertEquals(6, ActivityMetricsCalculator.intensityRating(stored.intensity))
+        assertEquals(5, ActivityMetricsCalculator.cardioLoadRating(stored.cardioLoad))
+        assertEquals(85.0, stored.cardioLoad!!, 0.0)
+        assertEquals(2, ActivityMetricsCalculator.intensityRating(1.0))
+        assertEquals(10, ActivityMetricsCalculator.intensityRating(5.0))
+        assertEquals(9, ActivityMetricsCalculator.cardioLoadRating(900.0))
+        assertEquals(10, ActivityMetricsCalculator.cardioLoadRating(1900.0))
+        assertEquals(0, ActivityMetricsCalculator.cardioLoadRating(0.0))
+        assertNull(ActivityMetricsCalculator.intensityRating(null))
+        assertNull(ActivityMetricsCalculator.cardioLoadRating(null))
+    }
+
     @Test fun loadScoreMatchesReferenceExamplesWithoutChangingRawLoad() {
         for ((raw, score) in listOf(25.0 to 20.0, 100.0 to 50.0, 300.0 to 75.0, 900.0 to 90.0)) {
             val metrics = ActivityMetrics(sessionStrain = raw, sessionStrainScore = ActivityMetricsCalculator.strainScore(raw))

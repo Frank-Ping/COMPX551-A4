@@ -113,18 +113,19 @@ internal fun HeartRateCard(
 
 @Composable
 internal fun MotionCard(steps: StepState, paused: Boolean = false) {
+    val displayed = rememberCadenceDisplay(steps, paused)
     MetricCard(null) {
         MetricColumns(
             current = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Cadence", Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.titleMedium)
-                    MetricValue(if (paused) "--" else cadence(steps.cadence), "steps/min")
+                    MetricValue(if (paused) "--" else cadence(displayed.cadence), "steps/min")
                 }
             },
             statistics = {
-                SessionStatistic("Mean", "${cadence(steps.meanCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
-                SessionStatistic("Max", "${cadence(steps.maximumCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
+                SessionStatistic("Mean", "${cadence(displayed.meanCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
+                SessionStatistic("Max", "${cadence(displayed.maximumCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
             }
         )
     }

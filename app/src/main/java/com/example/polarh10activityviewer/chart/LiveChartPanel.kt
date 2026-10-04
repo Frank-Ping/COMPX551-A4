@@ -5,6 +5,7 @@ import com.example.polarh10activityviewer.ble.DataReadiness
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import com.example.polarh10activityviewer.session.SessionStatus
+import com.example.polarh10activityviewer.session.rememberCadenceDisplay
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -36,29 +37,35 @@ internal fun LiveChartPanel(manager: PolarBleManager,
     val hrStatistics by manager.heartRateStatistics.collectAsState()
     val steps by manager.stepState.collectAsState()
     val session by manager.sessionState.collectAsState()
+    val paused = session.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED)
+    val displayedSteps = rememberCadenceDisplay(steps, paused)
     var snapshot by remember(manager, kind, session.generation) { mutableStateOf(manager.chartSnapshot(kind)) }
     // Only the selected chart takes display snapshots. Sampling remains independent.
     LaunchedEffect(manager, kind, session.generation) {
         while (true) {
             snapshot = manager.chartSnapshot(kind)
-            delay(if (kind == ChartKind.ELECTROCARDIOGRAM) 100 else 250)
+            delay(when (kind) {
+                ChartKind.ELECTROCARDIOGRAM -> 100L
+                ChartKind.CADENCE -> 500L
+                else -> 250L
+            })
         }
     }
     val mean = when (kind) {
         ChartKind.HEART_RATE -> hrStatistics.average
-        ChartKind.CADENCE -> steps.meanCadence
+        ChartKind.CADENCE -> displayedSteps.meanCadence
         ChartKind.SPEED -> steps.averageSpeed?.times(3.6)
         ChartKind.ELECTROCARDIOGRAM -> null
     }
     val maximum = when (kind) {
         ChartKind.HEART_RATE -> hrStatistics.max?.toDouble()
-        ChartKind.CADENCE -> steps.maximumCadence
+        ChartKind.CADENCE -> displayedSteps.maximumCadence
         ChartKind.SPEED -> steps.maximumSpeed?.times(3.6)
         ChartKind.ELECTROCARDIOGRAM -> null
     }
     LiveChartCard(kind, snapshot, mean, maximum, readiness,
         manager.liveCharts::select,
-        paused = session.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED))
+        paused = paused)
 }
 
 @Composable

@@ -33,12 +33,12 @@ class StepDetectorTest {
         })
     }
 
-    @Test fun normalWarmupAndConfirmationShowZeroThenCadenceUsesBackfilledPeaks() {
+    @Test fun normalWarmupAndConfirmationStayUnknownThenCadenceUsesConfirmedPeaks() {
         val detector = StepDetector { 0L }
         detector.reset()
         detector.onSubscriptionState(SubscriptionStatus.STARTING)
         assertTrue(detector.isWarmingUp)
-        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertNull(detector.state.value.cadence)
         assertTrue(detector.state.value.message.contains("Warming"))
         walking().take(103).forEach(detector::receive)
         assertTrue(detector.isWarmingUp)
@@ -46,12 +46,33 @@ class StepDetectorTest {
         assertFalse(detector.isWarmingUp)
         detector.receivedBatch(1_030_000_000L, 0)
         assertEquals(0L, detector.state.value.totalSteps)
-        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
-        assertTrue(detector.state.value.message.contains("four"))
+        assertNull(detector.state.value.cadence)
+        assertTrue(detector.state.value.cadencePending)
+        assertEquals("Detecting steps.", detector.state.value.message)
         walking().drop(104).forEach(detector::receive)
         detector.receivedBatch(3_030_000_000L, 0)
         assertEquals(4L, detector.state.value.totalSteps)
         assertEquals(120.0, detector.state.value.cadence!!, 1e-10)
+        assertFalse(detector.state.value.cadencePending)
+    }
+
+    @Test fun initialQuietZeroRequiresFiveSecondsOfRealPostWarmupSamples() {
+        var now = 0L
+        val detector = StepDetector { now }
+        detector.onSubscriptionState(SubscriptionStatus.STARTING)
+        (0..103).forEach { detector.receive(raw(it, 1000)) }
+        detector.receivedBatch(1_030_000_000L, now)
+        assertNull(detector.state.value.cadence)
+        now = 20_000; detector.refresh()
+        assertNull(detector.state.value.cadence)
+        (104..602).forEach { detector.receive(raw(it, 1000)) }
+        detector.receivedBatch(6_020_000_000L, now)
+        assertNull(detector.state.value.cadence)
+        detector.receive(raw(603, 1000))
+        detector.receivedBatch(6_030_000_000L, now)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertFalse(detector.state.value.cadencePending)
+        assertEquals(0L, detector.totalSteps)
     }
 
     @Test fun quarterSecondRefreshZerosCadenceWithoutResettingDetectorOrChangingPeaks() = runTest {
@@ -103,7 +124,7 @@ class StepDetectorTest {
         for (i in 309..411) detector.receive(raw(i, 1000))
         detector.receivedBatch(4_110_000_000L, now)
         assertFalse(detector.isWarmingUp)
-        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertNull(detector.state.value.cadence)
         detector.onSubscriptionState(SubscriptionStatus.FAILED, "ACC failed in test")
         detector.refresh()
         assertNull(detector.state.value.cadence)
@@ -142,7 +163,7 @@ class StepDetectorTest {
         assertNull(detector.state.value.totalSteps)
         assertEquals(0L, detector.totalSteps)
         detector.onSubscriptionState(SubscriptionStatus.STARTING)
-        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
+        assertNull(detector.state.value.cadence)
     }
 
     @Test fun sessionStopOverridesAccCleanupAndOldSessionTicksCannotChangeNewDisplay() = runTest {

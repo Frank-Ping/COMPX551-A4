@@ -138,6 +138,7 @@ class PolarBleManager(context: Context) {
     private var checkpointBucket = 0L
     private var checkpointAt = -1000L
     private var discardingRecording = false
+    private var pauseContinuations = emptySet<PolarDeviceDataType>()
     private val ecgBuffer = EcgBuffer()
     val ecgSamples = ecgBuffer.samples
     internal val liveCharts = LiveCharts { ecgBuffer.samples.value }
@@ -148,9 +149,7 @@ class PolarBleManager(context: Context) {
         val eventTime = SystemClock.elapsedRealtime()
         if (session.checkTimeLimit(eventTime)) return@DataSubscriptions
         if (type == PolarDeviceDataType.HR) hrHistory.onSubscriptionState(status)
-        if (type == PolarDeviceDataType.ACC) motionHistory.onSubscriptionState(status)
         if (type == PolarDeviceDataType.HR && status == SubscriptionStatus.STARTING) previousHrArrival = null
-        liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime))
         if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING && session.state.value.ongoing) {
             session.refresh(session.state.value.generation, eventTime)
             heartRateZones.clearCurrent(session.state.value.elapsedMs)
@@ -160,6 +159,8 @@ class PolarBleManager(context: Context) {
         if (type == PolarDeviceDataType.ACC && session.state.value.ongoing) {
             stepDetector.onSubscriptionState(status, dataSubscriptions.states.value.getValue(type).error)
         }
+        if (type == PolarDeviceDataType.ACC) motionHistory.onSubscriptionState(status, stepDetector.segment)
+        liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime), stepDetector.segment)
         if (status != SubscriptionStatus.RECEIVING) {
             if (type == PolarDeviceDataType.ECG) signals.endEcg(session.elapsedAt(eventTime))
         }
@@ -169,6 +170,7 @@ class PolarBleManager(context: Context) {
     internal val subscriptionStates = dataSubscriptions.states
     private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
         clearAllReadings = {
+            pauseContinuations = emptySet()
             signals = SignalBuffer()
             checkpointBucket = 0L; checkpointAt = -1000L
             hrHistory.reset(session.state.value.record?.id)
@@ -183,6 +185,12 @@ class PolarBleManager(context: Context) {
             ecgBuffer.clear()
         },
         clearHr = {
+            pauseContinuations = if (session.state.value.status == SessionStatus.PAUSING &&
+                !storage.recording.state.value.blocked) {
+                setOf(PolarDeviceDataType.HR, PolarDeviceDataType.ACC).filter {
+                    dataSubscriptions.states.value.getValue(it).status == SubscriptionStatus.RECEIVING
+                }.toSet()
+            } else emptySet()
             hrHistory.stop()
             motionHistory.stop()
             liveCharts.stop(session.state.value.elapsedMs)
@@ -203,7 +211,12 @@ class PolarBleManager(context: Context) {
             if (!discardingRecording) storage.saves.submit(snapshot)
         },
         canStart = { !storage.saves.state.value.blocksStart && !storage.recording.state.value.blocked },
-        onResume = { hrHistory.resume(); motionHistory.resume(); liveCharts.resume() },
+        onResume = {
+            val hr = PolarDeviceDataType.HR in pauseContinuations
+            val motion = PolarDeviceDataType.ACC in pauseContinuations
+            hrHistory.resume(hr); motionHistory.resume(motion); liveCharts.resume(hr, motion)
+            pauseContinuations = emptySet()
+        },
         onPaused = { record -> checkpointSignals(record, true) })
     init { storage.recording.onFailure = { session.pause() } }
     internal val sessionState = session.state
@@ -803,6 +816,7 @@ class PolarBleManager(context: Context) {
     }
 
     private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
+        pauseContinuations = emptySet()
         deviceBattery.clear()
         cleanupDataSubscriptions()
         readinessGeneration++

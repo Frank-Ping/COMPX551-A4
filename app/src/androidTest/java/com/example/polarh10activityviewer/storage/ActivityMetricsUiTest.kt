@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -34,11 +36,13 @@ class ActivityMetricsUiTest {
     private fun await(text: String) { compose.waitUntil(10000) {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     } }
-    private fun mount(archived: Boolean = false, missingAcc: Boolean = false, storedScore: Double? = null) {
+    private fun mount(archived: Boolean = false, missingAcc: Boolean = false, storedScore: Double? = null, fullScores: Boolean = false) {
         val s = metricsFixture().let { it.copy(record=it.record.copy(collectionIncomplete=archived, streams=it.record.streams + (PolarDeviceDataType.ACC to StreamObservation(true,missing=missingAcc)))) }.withActivityMetrics()
         runBlocking { db.save(s) }
         if (storedScore != null) db.writableDatabase.execSQL(
             "UPDATE sessions SET sessionStrainScore=? WHERE id='metrics'", arrayOf(storedScore))
+        if (fullScores) db.writableDatabase.execSQL(
+            "UPDATE sessions SET intensity=5,cardioLoad=1900,cadenceCvPercent=0,sessionStrainScore=100 WHERE id='metrics'")
         compose.setContent { PolarH10ActivityViewerTheme {
             Surface(Modifier.fillMaxSize()) {
                 Box(Modifier.safeDrawingPadding()) { HistoryPanel(db,null,{}) }
@@ -60,7 +64,16 @@ class ActivityMetricsUiTest {
     }
     @Test fun metricsVisibleWithoutDetailClickActions() {
         mount()
-        for (text in listOf("2.8 / 5","85.0 AU","CV 7.4%","73.6 / 100")) compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
+        for (text in listOf("6 / 10","5 / 10","7.4%","73.6 / 100")) compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
+        for (text in listOf("6 / 10", "5 / 10", "73.6 / 100")) {
+            val annotated = compose.onNodeWithText(text).fetchSemanticsNode().config[SemanticsProperties.Text].single()
+            val span = annotated.spanStyles.single()
+            assertEquals(text.indexOf('/'), span.start)
+            assertEquals(text.length, span.end)
+            assertEquals(if (context.resources.configuration.uiMode and 0x30 == 0x20)
+                Color(0xFF60A5FA) else Color(0xFF2563EB), span.item.color)
+        }
+        assertEquals(85.0, runBlocking { db.detail("metrics") }!!.record.summary.activityMetrics.cardioLoad!!, 0.0)
         compose.onNodeWithText("HR Recovery").assertDoesNotExist()
         capture("summary")
         for (title in listOf("Intensity", "Cardio Load", "Cadence Stability", "Session Strain")) {
@@ -82,11 +95,21 @@ class ActivityMetricsUiTest {
         assertEquals(before,runBlocking { db.detail("metrics") })
         compose.onNodeWithText("73.6 / 100").performScrollTo().assertIsDisplayed()
     }
+
+    @Test fun fullRatingsUseIntegerTensAndStabilityKeepsOneDecimalWithoutCvLabel() {
+        mount(fullScores = true)
+        compose.onAllNodesWithText("10 / 10").assertCountEquals(2)
+        compose.onNodeWithText("0.0%").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("100.0 / 100").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("CV", substring = true).assertCountEquals(0)
+        capture("full-ratings")
+        assertEquals(1900.0, runBlocking { db.detail("metrics") }!!.record.summary.activityMetrics.cardioLoad!!, 0.0)
+    }
     @Test fun incompleteAccHidesOnlyStrainWhileOtherMetricsRemainAvailable() {
         mount(missingAcc=true)
         compose.onAllNodesWithText("--").assertCountEquals(1)
-        compose.onNodeWithText("85.0 AU").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("CV 7.4%").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("5 / 10").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("7.4%").performScrollTo().assertIsDisplayed()
         assertNull(runBlocking { db.detail("metrics") }!!.record.summary.activityMetrics.sessionStrain)
     }
     @Test fun historyDisplaysStoredScoreWithoutRecalculatingFromRawLoad() {

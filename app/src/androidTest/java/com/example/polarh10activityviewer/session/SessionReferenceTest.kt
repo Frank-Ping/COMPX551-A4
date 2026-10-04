@@ -147,7 +147,7 @@ class SessionReferenceTest {
         compose.onNodeWithText("Data Streams").assertDoesNotExist()
         compose.onNodeWithContentDescription("Open Devices").assertIsDisplayed()
         for (label in listOf("Cadence", "Duration", "Total Steps", "HR Zone", "Z5")) {
-            val node = compose.onNodeWithText(label).assertIsDisplayed()
+            val node = compose.onNode(hasText(label) and !hasClickAction()).assertIsDisplayed()
             val bounds = node.getUnclippedBoundsInRoot()
             assertTrue("$label below footer: $bounds", bounds.bottom <= bottom)
             assertTrue("$label has no height", bounds.bottom > bounds.top)
@@ -160,7 +160,7 @@ class SessionReferenceTest {
 
     @Test fun normalPhoneShowsAllRegionsWithoutScrollingInAllThreeViews() {
         mount()
-        compose.onNodeWithText("Motion").performClick()
+        compose.onNode(hasText("Cadence") and hasClickAction()).performClick()
         val cardBounds = compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot()
         val plotHeight = compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot().height
         val lowerLabels = listOf("Duration", "Total Steps", "HR Zone", "Z5")
@@ -168,8 +168,8 @@ class SessionReferenceTest {
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
             val prefix = if (night) "dark" else "light"
-            for (label in listOf("HR", "Motion", "ECG")) {
-                compose.onNodeWithText(label).performClick().assertIsSelected()
+            for (label in listOf("HR", "Cadence", "ECG")) {
+                compose.onNode(hasText(label) and hasClickAction()).performClick().assertIsSelected()
                 capture("$prefix-$label")
                 singleScreen()
                 assertEquals(cardBounds, compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot())
@@ -191,8 +191,8 @@ class SessionReferenceTest {
         mount()
         compose.onNodeWithContentDescription("Pause").performClick()
         capture("paused"); singleScreen()
-        for (label in listOf("Motion", "ECG")) {
-            compose.onNodeWithText(label).performClick()
+        for (label in listOf("Cadence", "ECG")) {
+            compose.onNode(hasText(label) and hasClickAction()).performClick()
             compose.onNodeWithText("Paused · chart frozen").assertDoesNotExist()
             capture("paused-$label"); singleScreen()
         }

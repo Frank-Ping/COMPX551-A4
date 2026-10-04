@@ -23,19 +23,28 @@ internal class MotionHistory {
     private var status = SubscriptionStatus.IDLE
     private var previousSegment: Long? = null
     private var breakBefore = true
+    private var continuingAfterPause = false
+    private var resumeSegment: Long? = null
 
     fun reset(sessionId: String? = null) {
         points.clear()
         status = SubscriptionStatus.IDLE
         previousSegment = null
         breakBefore = true
+        continuingAfterPause = false
+        resumeSegment = null
         mutableState.value = MotionHistoryState(sessionId = sessionId)
     }
 
-    fun onSubscriptionState(status: SubscriptionStatus) {
+    fun onSubscriptionState(status: SubscriptionStatus, segment: Long? = null) {
         if (state.value.frozen) return
         this.status = status
-        if (status != SubscriptionStatus.RECEIVING) breakBefore = true
+        if (status == SubscriptionStatus.STARTING && continuingAfterPause) resumeSegment = segment
+        if (status != SubscriptionStatus.RECEIVING &&
+            !(status == SubscriptionStatus.STARTING && continuingAfterPause)) {
+            continuingAfterPause = false
+            breakBefore = true
+        }
     }
 
     fun record(elapsedMs: Long, motion: StepState, warmingUp: Boolean, segment: Long) {
@@ -46,6 +55,16 @@ internal class MotionHistory {
             mutableState.value = current.copy(limitReached = true)
             return
         }
+        if (continuingAfterPause) {
+            if (resumeSegment == null) resumeSegment = segment
+            if (resumeSegment != segment) {
+                continuingAfterPause = false
+                breakBefore = true
+            } else if (warmingUp || motion.cadencePending) {
+                // Resume warmup has no measurement to add to the activity-time chart.
+                return
+            }
+        }
         val bucket = elapsedMs / 1000
         val replaced = points.lastOrNull()?.takeIf { it.secondBucket == bucket }
         if (replaced == null && points.size == HrHistory.MAX_POINTS) return
@@ -54,9 +73,10 @@ internal class MotionHistory {
         val speed = motion.speed.takeIf { available }
         val missing = cadence == null || speed == null
         val point = MotionHistoryPoint(sessionId, bucket, elapsedMs, cadence, speed,
-            breakBefore || previousSegment != segment || missing || replaced?.breakBefore == true)
+            breakBefore || (!continuingAfterPause && previousSegment != segment) || missing || replaced?.breakBefore == true)
         if (replaced == null) points.add(point) else points[points.lastIndex] = point
         previousSegment = segment
+        continuingAfterPause = false
         breakBefore = missing
         mutableState.value = current.copy(pointCount = points.size,
             firstElapsedMs = points.first().elapsedMs, lastElapsedMs = elapsedMs,
@@ -67,9 +87,11 @@ internal class MotionHistory {
         if (state.value.sessionId != null) mutableState.value = state.value.copy(frozen = true)
     }
 
-    fun resume() {
-        breakBefore = true
-        previousSegment = null
+    fun resume(connectPrevious: Boolean = true) {
+        val last = points.lastOrNull()
+        continuingAfterPause = connectPrevious && !breakBefore && last?.cadence != null && last.speedMetresPerSecond != null
+        breakBefore = !continuingAfterPause
+        resumeSegment = null
         mutableState.value = state.value.copy(frozen = false)
     }
 

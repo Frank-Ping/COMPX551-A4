@@ -52,7 +52,7 @@ class LiveChartCardTest {
             mean.value, maximum.value,
             readiness.value, charts::select, paused.value)
     }
-    private fun mount(session: Boolean = false) = compose.setContent {
+    private fun mount(session: Boolean = false, connected: Boolean = false) = compose.setContent {
         val density = LocalDensity.current
         CompositionLocalProvider(LocalDensity provides (font.value?.let { Density(density.density, it) } ?: density)) {
             PolarH10ActivityViewerTheme(darkTheme = dark.value) {
@@ -61,7 +61,8 @@ class LiveChartCardTest {
                         Text("Controlled UI fixture — no H10 data")
                         SessionScreen(availability = BluetoothAvailability.READY, actionEnabled = true,
                             errorMessage = null, onBluetoothAction = {}, scanState = ScanState(),
-                            onStartScan = {}, onStopScan = {}, connectionState = ConnectionState(),
+                            onStartScan = {}, onStopScan = {}, connectionState = if (connected)
+                                ConnectionState(ConnectionStatus.CONNECTED, ConnectionDevice("Test H10", "test")) else ConnectionState(),
                             onConnect = {}, savedDevicesState = SavedDevicesState(loading = false),
                             onDisconnect = {}, onRetryDisconnect = {}, dataReadiness = readiness.value,
                             onRecheckData = {}, ecgSubscription = ecg.value, charts = { Card() })
@@ -98,13 +99,30 @@ class LiveChartCardTest {
         }
     }
 
-    @Test fun motionAlwaysSelectsCadenceWithoutSpeedSubchoices() {
+    @Test fun denseCadenceDisplayKeepsStatisticsAndRenamedTabReadable() {
+        points.value = (0..1200).map { i -> ChartPoint(i * 250.0,
+            110.0 + 25.0 * kotlin.math.sin(i / 80.0) + if (i % 2 == 0) -12.0 else 12.0, i == 0) }
+        end.value = 300_000.0
+        mean.value = 110.0; maximum.value = 147.0
+        mount(); click("Cadence")
+        compose.onNodeWithText("Cadence").assertIsSelected()
+        compose.onNodeWithText("Motion").assertDoesNotExist()
+        for (scale in listOf(1f, 2f)) for (night in listOf(false, true)) {
+            compose.runOnIdle { font.value = scale; dark.value = night }
+            noOverflow("Cadence")
+            noOverflow("Mean: 110 steps/min"); noOverflow("Max: 147 steps/min")
+            compose.onNodeWithTag("live-chart-plot").reveal()
+            capture("dense-cadence-$scale-${if (night) "dark" else "light"}")
+        }
+    }
+
+    @Test fun cadenceTabSelectsCadenceWithoutSpeedSubchoices() {
         mount(); compose.onNodeWithText("HR").assertIsSelected()
-        click("Motion"); compose.onNodeWithText("Motion").assertIsSelected()
+        click("Cadence"); compose.onNodeWithText("Cadence").assertIsSelected()
         assertEquals(ChartKind.CADENCE, charts.selection.value)
         compose.onAllNodesWithText("Speed", substring = true).assertCountEquals(0)
         compose.onAllNodesWithText("km/h", substring = true).assertCountEquals(0)
-        click("HR"); click("Motion")
+        click("HR"); click("Cadence")
         assertEquals(ChartKind.CADENCE, charts.selection.value)
         click("ECG"); visible("µV")
     }
@@ -150,9 +168,9 @@ class LiveChartCardTest {
     @Test fun configurationErrorsRemainAfterRawPanelsAreRemoved() {
         readiness.value = mapOf(PolarDeviceDataType.ACC to DataReadiness(error = "Controlled configuration error."),
             PolarDeviceDataType.ECG to DataReadiness(DataReadinessStatus.READY, configurationComplete = false))
-        mount(session = true); compose.onNodeWithContentDescription("Open Devices").performClick()
-        visible("ACC: Controlled configuration error.")
-        visible("Open Devices to confirm ECG configuration before starting.")
+        mount(session = true, connected = true); compose.onNodeWithContentDescription("Open Devices").performClick()
+        visible("Controlled configuration error.")
+        visible("Recheck")
     }
     @Test fun wholeSessionStatisticsAndDashedMeanDoNotExpandWindowScale() {
         mean.value = 85.0; maximum.value = 300.0; mount()
@@ -209,7 +227,7 @@ class LiveChartCardTest {
         compose.runOnIdle { status.value = SubscriptionStatus.FAILED }; visible("Failed · chart frozen"); sameSize()
         compose.runOnIdle { paused.value = true }; visible("Paused · chart frozen"); sameSize()
         compose.onNodeWithText("Stopped · chart frozen").assertDoesNotExist()
-        for (label in listOf("Motion", "ECG")) {
+        for (label in listOf("Cadence", "ECG")) {
             click(label)
             SubscriptionStatus.entries.forEach { state ->
                 compose.runOnIdle { status.value = state; paused.value = false }
@@ -271,7 +289,7 @@ class LiveChartCardTest {
             noOverflow("bpm")
             compose.onNodeWithTag("live-chart-plot").reveal(); capture("$prefix-${if(night) "dark" else "light"}-hr")
             noOverflow("Average HR: 85 bpm"); noOverflow("Max HR: 145 bpm")
-            click("Motion")
+            click("Cadence")
             compose.runOnIdle {
                 mean.value = 96.0; maximum.value = 144.0
                 points.value = listOf(ChartPoint(10_000.0, 108.0, true), ChartPoint(20_000.0, 0.0, false),
