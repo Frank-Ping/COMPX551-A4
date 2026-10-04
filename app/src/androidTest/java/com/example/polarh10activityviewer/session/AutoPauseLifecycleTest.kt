@@ -159,7 +159,14 @@ class AutoPauseLifecycleTest {
         assertEquals(SessionStatus.IDLE, manager.sessionState.value.status)
         assertEquals(record.id, manager.lastSnapshot.value!!.record.id)
         assertFalse(manager.lastSnapshot.value!!.record.interrupted)
-        assertEquals(manager.lastSnapshot.value, runBlocking { manager.storage.database.detail(record.id) })
+        val saved = runBlocking { manager.storage.database.detail(record.id) }!!
+        assertEquals(2, saved.record.summary.activityMetrics.algorithmVersion)
+        assertEquals(0, saved.record.summary.activityMetrics.cadencePointCount)
+        assertNull(saved.record.summary.activityMetrics.intensity)
+        assertNull(saved.record.summary.activityMetrics.sessionStrain)
+        assertEquals(manager.lastSnapshot.value, saved.copy(record = saved.record.copy(
+            summary = saved.record.summary.copy(activityMetrics = ActivityMetrics())
+        )))
     }
 
     @SuppressLint("MissingPermission")

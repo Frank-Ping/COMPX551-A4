@@ -1,9 +1,11 @@
 package com.example.polarh10activityviewer.storage
 
 import android.content.Context
+import com.example.polarh10activityviewer.session.withActivityMetrics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 
 internal class SessionStorage private constructor(context: Context) {
     val database = SessionDatabase(context.applicationContext)
@@ -11,7 +13,8 @@ internal class SessionStorage private constructor(context: Context) {
     val recording = SignalWriter(scope, database::recoverInterrupted, database::writeSignals, database::delete)
     val saves = SessionSaveController(scope) { snapshot ->
         recording.drain()
-        database.save(snapshot)
+        val finalized = withContext(Dispatchers.Default) { snapshot.withActivityMetrics() }
+        database.save(finalized)
     }.apply {
         beforeRetry = { recording.retry(); recording.drain() }
         discardPending = { id -> recording.discard(id) }

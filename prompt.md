@@ -1,4 +1,31 @@
+> 最新评分存储（2026-10-04，9.0b）：SQLite v5新增sessionStrainScore REAL，保存完整精度0–100评分，同时保留原始AU；旧记录按规则补算，History直接读已存评分。262单元、27项不同模拟器检查及深色字号2.0的5项UI重复检查通过；构建/lint通过（0 errors、23 warnings）。见5.48.8—5.48.9，覆盖下方仅展示换算规则；真机pending，无commit/push。
+> Latest score persistence (2026-10-04, 9.0b): SQLite v5 adds sessionStrainScore REAL for full-precision 0–100 scores alongside raw AU. Legacy scores are backfilled under the defined rules and History reads persisted scores. All 262 unit tests, 27 distinct emulator checks and five dark/font2.0 UI repeats pass; builds/lint pass (zero errors, 23 warnings). Sections 5.48.8–5.48.9 supersede display-only conversion; hardware pending, no commit/push.
+
+
+> 最新评分展示（2026-10-04，9.0b）：Session Strain 改为100×原始负荷/(原始负荷+100)，显示一位小数 / 100；SQLite保留原始AU，数据库v4/原始算法2不变。262单元、5项界面检查及深色字号2.0的5项重复检查通过，构建/lint通过（0 errors、23 warnings）。规则与结果见5.48.6—5.48.7；真机pending，无commit/push。
+> Latest score display (2026-10-04, 9.0b): Session Strain now shows 100×raw/(raw+100), with one decimal out of 100. SQLite retains raw AU; database v4/raw algorithm v2 are unchanged. All 262 unit tests, five UI checks and five dark/font2.0 repeats pass; builds/lint pass (zero errors, 23 warnings). See 5.48.6–5.48.7; hardware pending, no commit/push.
+
+
+> 最新修订（2026-10-04，9.0b）：Session Strain 已改为自动计算：70% 心率区间平方加权分钟 + 30% 步频等级平方×活动分钟；删除全部 RPE 输入和评分字段。SQLite v4/算法2 保留历史并重算旧 Strain。260 单元、40 项不同模拟器检查及15项主题/字号重复检查通过；构建/lint通过（0 errors、23 warnings）。规则/Prompt/验证见5.48.3—5.48.5，覆盖下方RPE方案；Samsung/H10 pending，无commit/push。
+> Latest revision (2026-10-04, 9.0b): Session Strain now automatically combines 70% zone-square-weighted heart minutes and 30% squared cadence level times active minutes. RPE input/columns are removed. SQLite v4/algorithm v2 preserves history and recalculates legacy Strain. All 260 unit tests, 40 distinct emulator checks and 15 theme/font repeats pass; builds/lint pass (zero errors, 23 warnings). Sections 5.48.3–5.48.5 supersede RPE rules below; Samsung/H10 pending, no commit/push.
+
+
+> 最新功能（2026-10-04，9.0b）：Activity Summary 已实现 Intensity、Cardio Load、Cadence Stability（替换 HR Recovery）及手动 RPE 的 Session Strain；SQLite v3 保留升级，旧记录不自动回算。255 单元、分轮 42 项不同模拟器检查通过；新增四项 UI 检查覆盖深浅主题及字号 1.0/2.0，构建/lint 通过（0 errors、23 warnings）。规则及验证见 5.48；Samsung/H10 pending，无 commit/push。
+> Latest feature (2026-10-04, 9.0b): Activity Summary implements Intensity, Cardio Load, Cadence Stability (replacing HR Recovery) and RPE-based Session Strain. SQLite v3 preserves existing data without backfilling old metrics. All 255 unit tests and 42 distinct emulator checks across runs pass; four new UI checks cover light/dark themes and font scales 1.0/2.0. Builds/lint pass (zero errors, 23 warnings). See 5.48; Samsung/H10 pending, no commit/push.
+
 > 最新 Session 调整（2026-10-04）：HR/Cadence 数值与单位使用 12 dp 间距并垂直居中；移除 Estimated Distance，Duration/Total Steps 放大并列、增加卡片间距。详见 5.41；独立的 Session 整页字号 2.0 与真机验收仍 pending。
+
+> 最新交互（2026-10-04，9.0a）：删除 Browse，ECG/RR 在绘图区左滑下一窗、右滑上一窗；保持五秒/六十条与四图固定布局。3 项检查在默认浅色及字号 2.0 深色均通过，构建/lint 通过（0 errors、23 warnings）。见 5.46.6，覆盖旧弹窗交互；真机 pending，无 commit/push。
+> Latest interaction (2026-10-04, 9.0a): Browse is removed. Swipe left/right in ECG/RR for the next/previous window, preserving five seconds/sixty records and fixed layout. Three checks pass in normal-font light and font-2.0 dark modes; builds/lint pass (zero errors, 23 warnings). See 5.46.6; previous dialog interaction is superseded, hardware pending, no commit/push.
+
+
+> 最新修正（2026-10-04，9.0a）：Summary 四图共用固定布局，切换 ECG/RR 不再重排上方卡片；窗口控制移至 Browse 弹窗。7 项相关检查及深色/字号 2.0 重复检查通过，构建/lint 通过（0 errors、23 warnings）。见 5.46.4，覆盖 5.46.3 的按图表切换布局方案；真机 pending，无 commit/push。
+> Latest fix (2026-10-04, 9.0a): Summary charts share one layout; ECG/RR no longer reflow the upper cards. Window controls move to Browse. Seven relevant checks plus dark/font-2.0 repeats and builds/lint pass (zero errors, 23 warnings). Section 5.46.4 supersedes chart-dependent layout in 5.46.3; hardware pending, no commit/push.
+
+
+> 最新进度（2026-10-04，9.0a）：ECG/RR 持久化、五秒/六十条窗口浏览、SQLite v2 保留升级及异常归档中央提示已实施。244 单元、分轮 39 项不同模拟器检查及字号 2.0 两项重复检查通过；构建/lint 通过（0 errors、23 warnings）。详见 5.46.3；Samsung/H10 pending，无 commit/push。下方“未持久化/未恢复”是历史状态。
+> Latest status (2026-10-04, 9.0a): ECG/RR persistence, five-second/sixty-record browsing, preserving SQLite v2 migration and centered interrupted-archive messages are implemented. All 244 unit tests, 39 distinct emulator checks and two font-2.0 repeats pass; builds/lint pass (zero errors, 23 warnings). See 5.46.3. Samsung/H10 remains pending; no commit/push. Earlier no-persistence/no-recovery statements are historical.
+
 > Latest Session update (2026-10-04): HR/cadence values and units use a 12 dp gap and vertical centering. Remove Estimated Distance and enlarge Duration/Total Steps in one row with wider card spacing. See 5.41; separate full-page Session font-2.0 and hardware acceptance remain pending.
 > 最新展示（2026-10-04）：Activity Summary 仅保留 Duration / Total Steps 两列占满首行；Estimated Distance 展示及点击日期/时间打开详情信息的功能已删除。日期时间仍显示，详见 5.40.1；此条覆盖旧的三项主指标/信息弹窗要求。
 > Latest presentation (2026-10-04): Activity Summary now has a full row shared by Duration / Total Steps. Remove Estimated Distance and the date/time information dialog; retain the displayed date/time. Section 5.40.1 supersedes the older three-metric/info-dialog requirements.
@@ -2750,3 +2777,449 @@ Implement the first Devices dialog redesign using ui/Devices-dialog.png. Remove 
   User prompt: Remove Unclassified below HR Zone on Session. Remove the Unclassified time row and its display condition from SessionHeartRateZonePanel.kt. Retain the five zones, duration calculations and stored fields; this supersedes the previous Session unclassified-duration display requirement.
 - 同步既有 SessionMetricsTest 的标记断言和截图定位；debug/测试 APK 构建通过（build/step86-compact/build-session-unclassified.txt）。未运行测试套件、lint 或视觉/真机验收；两对文档同步，无 commit/push。
   Update the existing SessionMetricsTest label assertion and capture target. Debug/test APK builds pass (build/step86-compact/build-session-unclassified.txt). Test suites, lint and visual/hardware checks were not run; both documentation pairs synchronized, no commit/push.
+
+### 5.46 增加功能：ECG、RR 图表持久化保存 / Additional feature: ECG and RR chart persistence（2026-10-04）
+
+- 实施步骤编号：**9.0a**（用户于 2026-10-04 指定）。5.46 为设计记录编号，5.46.1 与 5.46.2 为现行规则，编号分配不表示已实施。
+  Implementation step: **9.0a**, assigned by the user on 2026-10-04. Section 5.46 is the design record; 5.46.1 and 5.46.2 define current rules. Number assignment does not imply implementation.
+
+> 当前有效规则见 5.46.1 及修订 5.46.2；以下 5.46 草案保留为历史记录，待定项已被替代。 / See 5.46.1 and revision 5.46.2 for current rules; the following draft is historical and its open decisions are superseded.
+
+- 用户请求：把实现 ECG、RR 图表持久化保存的 prompt 写入文档，记录为增加功能。
+  User request: Save the implementation prompt for ECG/RR chart persistence in the documentation as an additional feature.
+- 状态：仅记录中英文实施草案，未授权本轮实施；待定规则仍需确认，不表示功能已完成。本轮不修改 App、数据库或测试代码，不运行构建、测试或真机验证，不 commit/push。
+  Status: Bilingual implementation draft only; implementation is not authorized in this turn. Open decisions remain unconfirmed. No App, database or test code changes, builds, tests, hardware validation, commit or push are part of this documentation update.
+- 当前基线：此前检查中 ECG 仅有实时短缓存，RR 未接入，History 的 ECG/RR 入口禁用。正式实施前重新核对现行源码，尤其会话生命周期和未提交改动，不用旧提示词覆盖后续调整。
+  Baseline: The preceding inspection found only a short live ECG buffer, no RR processing and disabled History ECG/RR choices. Recheck current source before implementation, especially lifecycle behavior and uncommitted changes; do not overwrite subsequent changes with this older draft.
+
+#### 中文实施 prompt（草案，待确认）
+
+```text
+请为当前 PolarH10ActivityViewer 增加 ECG、RR 本地持久化及 History 图表。先读取当前 AGENTS.md 和现行源码，只修改本功能必需的代码。沿用 Kotlin、Compose、SQLiteOpenHelper 和 Polar BLE SDK 8.3.0，不升级依赖，不进行无关重构。App 文案和代码注释使用英文。
+
+开始实施前先确认以下四项；以下建议不代表用户已经确认：
+1. 是否保存整场原始 ECG 和逐条 RR，而非只保存末尾片段。
+2. RR 横轴采用 Recorded interval number，还是另行定义近似会话时间。
+3. 已有数据库采用一次性保留数据升级，还是使用明确获准的新数据库方案。当前项目禁止擅自增加兼容路径，不得自动删除已有历史；保留数据升级需明确确认。
+4. 进程异常结束后，未完成记录的保留、展示或清理规则。
+
+1. 数据来源
+ECG 直接使用现有 startEcgStreaming 的原始样本，保留 SDK 纳秒时间戳和有符号 µV 电压。保留现有实时短缓存，持久化直接接收采集批次，不能在 Stop 时从短缓存补取整场数据。
+RR 从现有 HR 订阅的 rrsMs 提取，不增加独立 BLE 订阅。要求 rrAvailable、非空列表、正值，以及支持接触状态时接触有效。按顺序保留批内全部间期，不用 HR 推算 RR，不按相同数值去重，不新增 ECG R 峰检测或 HRV 算法。
+
+2. 数据模型与时间
+保存 sessionId、流内稳定序号、分段编号、必要时间锚点及实际 ECG 采样率。RR 另存批次接收时间和批内顺序。
+ECG 使用传感器时间保留样本间隔，会话时间映射注明近似对齐。明确首批样本、暂停边界和结束边界的归属，不能通过强行截成同一时间破坏样本顺序。
+RR 若使用序号横轴，不宣称精确时间对齐；若采用时间横轴，先定义和验证估计方法。SDK 的 HR 样本没有逐搏时间戳，接收时间不能作为精确搏动时间。
+
+3. 生命周期
+接入现行 Start/Pause/Continue/Stop、四小时 Running 上限和已确认的中断处理，不重写生命周期策略。实施前核对后台、锁屏与返回页面的最新行为，不依据旧记录恢复已被修改的行为。
+暂停不计入 Running 时长，Continue 保留同场数据，新 Start 使用新会话。流重启、缺口和时间戳异常形成分段，不跨段连线、不插值、不补零。结束后拒绝旧回调，UI 清空不能删除尚未提交的持久化数据。
+
+4. 存储
+使用 IO 线程和有界缓冲分批写入，避免主线程写库、整场 ECG 对象列表及逐样本刷新 UI。不能复用 HR 每秒一个点的保存方式，否则会丢失 ECG 波形细节。
+定义未完成记录和最终提交状态。结束后排空已接受的待写批次，再提交摘要与完成状态；全部成功后才显示 Saved。不得把 ECG/RR 大列表直接加入 SessionSnapshot 后继续一次性保存。
+写入失败必须明确报告，定义缓冲满时的行为，不允许静默丢点。重试不得重复写入，丢弃须清理对应未完成数据。保留现有 HR/Cadence 摘要与历史一致性。
+按已确认方案处理数据库版本、表结构、索引和事务。数据库升级或重新建库不能擅自删除已有数据。
+
+5. History 图表
+启用 ECG/RR 入口。建议 ECG 默认显示 5 秒窗口，提供前后切换或滑块浏览整场数据，纵轴为 µV。RR 纵轴为 ms，横轴采用已确认方案。
+详情不一次性读取整场 ECG；窗口查询使用索引，切换会话或窗口时取消旧查询并拒绝旧结果。绘图抽稀只用于显示，不覆盖保存的原始数据，不机械套用 HR/Cadence 的均值虚线。
+区分无数据和查询失败，记录缺口按图表断段处理。沿用 5.44/5.44.1 已删除 Incomplete 标记的展示要求，不自动恢复列表或详情完整性标签；新增持久化失败提示和未完成记录可见性按确认规则处理。
+删除活动时事务删除全部关联 ECG/RR 数据，并更新删除提示。
+
+6. 修改范围
+重点检查 ble/PolarBleManager.kt、sensor/EcgBuffer.kt、session/SessionRecord.kt、session/SessionState.kt、storage/SessionDatabase.kt、SessionSaveController.kt、SessionStorage.kt、history/HistoryPanel.kt、HistoryCharts.kt，以及必要的图表类型、刻度、绘图和详情布局代码。按职责增加最少的数据模型或写入组件，不引入通用框架。
+保留 HR/Cadence 历史、统计、计步、连接和分页行为。不增加 Trend 页面、Session 实时 RR 图、HRV、导出、云同步或后台采集功能；不撤销现有生命周期改动。
+
+7. 验证与记录
+验证多 RR 批次、相同 RR 值、无效接触、ECG 正负值、时间分段、暂停继续、迟到回调、写入失败、重试去重、最终提交、窗口查询及完整删除。
+使用生成数据验证四小时规模的存储和查询，记录时间与内存表现，明确不属于 H10 真机验证。检查深浅主题和字号 1.0/2.0。
+运行适当的单元测试、SQLite/Compose 检查、debug 构建和 lint。同步两份 AGENTS.md 和两份 prompt.md，准确区分代码实现、自动检查、模拟器结果及 Samsung/H10 待验收项。不要 commit 或 push。
+```
+
+#### English implementation prompt (draft; decisions pending)
+
+```text
+Add local ECG/RR persistence and History charts to the current PolarH10ActivityViewer. Read the current AGENTS.md and source first. Make only changes required for this feature. Keep Kotlin, Compose, SQLiteOpenHelper and Polar BLE SDK 8.3.0. Do not upgrade dependencies or perform unrelated refactoring. Use English UI text and code comments.
+
+Confirm these four decisions before implementation; the proposals below are not yet approved:
+1. Retain all raw ECG samples and individual RR intervals throughout the session, or only a final excerpt.
+2. Use Recorded interval number for the RR x-axis, or define an estimated session timeline separately.
+3. Use a one-time migration preserving existing history, or an explicitly approved fresh-database approach. Do not add compatibility paths or delete history without authorization; a preserving migration requires explicit confirmation under the current project rules.
+4. Define retention, visibility or cleanup of unfinished records after unexpected process termination.
+
+1. Sources
+Use original startEcgStreaming samples, preserving SDK nanosecond timestamps and signed microvolt values. Keep the live buffer and feed persistence directly from incoming batches; the short buffer cannot supply a whole session at Stop.
+Extract every rrsMs interval from the existing HR subscription without a separate BLE subscription. Require RR availability, a nonempty list, positive values and valid contact when supported. Preserve within-batch order. Do not derive RR from HR, deduplicate equal values, or add ECG R-peak detection or HRV algorithms.
+
+2. Models and timing
+Store the session ID, stable per-stream sequence, segment ID, required timing anchors and actual ECG sample rate. Also retain RR batch receipt time and within-batch order.
+Preserve ECG sample spacing using sensor timestamps and describe session alignment as approximate. Define initial-sample and pause/end boundary handling without collapsing samples onto identical timestamps.
+An interval-number RR axis must not imply precise time alignment. Define and validate estimation before using a time axis. SDK HR samples have no per-beat timestamp; receipt time is not an exact heartbeat timestamp.
+
+3. Lifecycle
+Integrate with the current Start/Pause/Continue/Stop behavior, four-hour Running limit and confirmed interruption handling without redesigning lifecycle policy. Recheck current background, lock-screen and return behavior; do not restore superseded behavior from older documentation.
+Exclude pauses from Running duration, retain earlier data on Continue, and use a new session for a new Start. Stream restarts, gaps and timestamp anomalies create segment boundaries. Do not connect across gaps, interpolate or insert zeros. Reject stale callbacks after finalization. UI reset must not delete pending persistence data.
+
+4. Storage
+Use bounded buffering and batched IO writes. Avoid main-thread database writes, whole-session ECG object lists and per-sample UI updates. Do not reuse HR's one-point-per-second storage rule for ECG.
+Define unfinished and finalized records. Drain accepted batches before committing the final summary and completion state. Show Saved only after all required writes succeed. Do not simply add large ECG/RR lists to SessionSnapshot and retain end-only saving.
+Report write failures and define buffer-full behavior without silent loss. Retries must not duplicate records; discarding must clean up associated unfinished data. Preserve consistency with existing HR/Cadence summaries and histories.
+Handle database versions, tables, indexes and transactions according to the confirmed approach. Never delete existing data implicitly during upgrade or recreation.
+
+5. History charts
+Enable ECG and RR. Propose a five-second ECG window with previous/next controls or a slider for browsing the session and a µV axis. Use ms for RR and the confirmed x-axis.
+Do not load all ECG when opening details. Use indexed window queries and cancel/reject stale queries and results when changing sessions or windows. Display reduction must not overwrite stored samples. Do not automatically reuse HR/Cadence mean reference lines.
+Distinguish absent data from query failure and display recording gaps as breaks. Preserve sections 5.44/5.44.1, which removed Incomplete labels; do not restore list/detail completeness labels automatically. Follow the confirmed policy for new persistence failures and unfinished-record visibility.
+Delete all associated ECG/RR data transactionally and update the deletion message.
+
+6. Scope
+Inspect ble/PolarBleManager.kt, sensor/EcgBuffer.kt, session/SessionRecord.kt, session/SessionState.kt, storage/SessionDatabase.kt, SessionSaveController.kt, SessionStorage.kt, history/HistoryPanel.kt, HistoryCharts.kt and necessary chart types, scales, rendering and detail layout. Add only the necessary models or writer components; avoid a generic framework.
+Preserve HR/Cadence history, statistics, step processing, connections and pagination. Do not add Trend, a live Session RR chart, HRV, export, cloud synchronization or background acquisition. Do not undo existing lifecycle changes.
+
+7. Validation and documentation
+Cover multiple RR intervals per batch, equal values, invalid contact, signed ECG values, segmentation, pause/resume, stale callbacks, write failure, retry deduplication, finalization, window queries and complete deletion.
+Use generated data to assess four-hour storage/query behavior and record timing and memory observations without presenting this as hardware validation. Check light/dark themes and font scales 1.0/2.0.
+Run appropriate unit tests, SQLite/Compose checks, debug build and lint. Synchronize both AGENTS.md files and both prompt.md files. Separate implementation, automated checks, emulator results and pending Samsung/H10 validation. Do not commit or push.
+```
+
+#### SDK 8.3.0 依据 / SDK 8.3.0 references
+
+- [PolarHrData: rrsMs, rrAvailable and contact status](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/model/PolarHrData.kt)
+- [PolarEcgData: sample timestamps and voltage](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/sources/Android/android-communications/library/src/sdk/java/com/polar/sdk/api/model/PolarEcgData.kt)
+- [Polar H10: ECG 130 Hz and supported data](https://github.com/polarofficial/polar-ble-sdk/blob/8.3.0/documentation/products/PolarH10.md)
+
+### 5.47 离开前台自动暂停 / Automatic pause on leaving Session（2026-10-04）
+
+- 用户原始请求：离开前台、切换 Activity、锁屏等行为要暂停活动，先给实施方案、不修改代码；随后确认“实现”。以下为采用方案的中英文整理，不是逐字原始提示词。
+  Original request: Pause the activity session when leaving the foreground, switching Activity or locking the screen; first provide a plan without editing code. The user then requested implementation. The following is an edited bilingual description of the accepted plan, not a verbatim prompt.
+- 中文实施描述：复用现有 Pause/Continue，在 onPause 和切换 History 时自动暂停，覆盖 Running/Starting，返回保持 Paused。停止三路订阅、排除暂停时间，保留同场 ID/统计/曲线，不提交最终保存。用应用级持有者替换 Activity ViewModel，支持返回欢迎页再进入。已有连接不主动断开；暂停期间断线或权限释放保留会话，重连原 H10 后手动 Continue，阻止切换设备混入同场。保留 Stop/四小时/运行中真实断线的结束规则，不新增后台采集或进程死亡恢复。检查迟到数据、重复暂停、生命周期、重连边界和保存，同步文档，不 commit/push。
+  English implementation description: Reuse Pause/Continue and automatically pause on Activity.onPause and History selection, including Running/Starting, with manual Continue on return. Stop the three subscriptions, exclude paused time and retain the session ID/statistics/charts without final saving. Replace Activity ViewModel ownership with application ownership so welcome navigation preserves the session. Keep established connections; preserve paused sessions through disconnect/permission release and require reconnection to the original H10 before Continue. Prevent another device from joining the same session. Retain Stop, four-hour and running-disconnect finalization. Add no background acquisition or process-death recovery. Validate stale events, repeat pauses, lifecycle, reconnect boundaries and saving; synchronize docs without commit/push.
+- 采用：上述方案已实施；最小改动使用既有状态机/订阅/存储，不改数据库结构或 SDK 配置。删除旧 SensorViewModel/leaveSession 路径；SDK资源释放与会话结束分开。验证与边界见 AGENTS.md 5.47：237 单元、7 项受控模拟器检查及构建/lint 通过；H10 未验证。
+  Adoption: Implemented using existing state/subscription/storage logic without schema or SDK-setting changes. Remove obsolete SensorViewModel/leaveSession paths and separate SDK cleanup from session finalization. See AGENTS.md 5.47: 237 unit tests, seven controlled emulator checks and builds/lint pass; H10 remains unverified.
+### 5.46.1 已确认规则：ECG/RR 持久化与窗口浏览 / Confirmed ECG/RR persistence and browsing rules（2026-10-04）
+
+- 用户确认：“好的，按你说的明确规则”。本节替代 5.46 中的待定方案和对应实施 prompt 条款；仅明确规则，代码未实施。其余验证与范围约束沿用 5.46。先前“不持久化 ECG/未接入 RR”仍是当前代码事实，不再是本功能的目标限制。
+  User confirmation: “Okay, clarify the rules as you recommended.” This section supersedes the open proposals and corresponding prompt clauses in 5.46. Rules only; code is not implemented. Other scope and validation requirements in 5.46 remain. Earlier no-ECG-persistence/no-RR statements describe current code, not the target scope.
+
+#### 1. 保存内容与组织 / Content and organization
+
+- 保存整场已接受的原始 ECG 和每条有效 RR，不取平均、不固定抽点、不进行有损压缩。保留 SDK 8.3.0、实际设置查询及现有实时 ECG 短缓存。历史数据直接来自采集批次，不从屏幕缓存或图形反推。
+  Save all accepted raw ECG samples and every valid RR interval for the session without averaging, fixed-step point removal or lossy compression. Keep SDK 8.3.0, actual settings queries and the existing live ECG buffer. Feed history from acquisition batches, not from the viewport or rendered chart.
+- ECG 使用约一秒一个二进制数据块（SQLite BLOB），正常 130 Hz 时约 130 点；按原始传感器时间划分半开一秒桶，桶内逐点保留纳秒时间戳和有符号 µV 值，另存 sessionId、segmentId、chunkIndex、格式版本、实际采样率及会话时间锚点。不按一个 SDK 回调等于一秒处理。暂停、缺口、重启、结束立即封闭不足一秒的块，不跨分段合并；块序号在会话内唯一。可采用固定字节序的 Long/Int 编码，不需要额外压缩库。
+  Store ECG in approximately one-second binary SQLite BLOB chunks, about 130 points at 130 Hz. Use half-open one-second buckets based on original sensor time; preserve each nanosecond timestamp and signed µV value. Store sessionId, segmentId, chunkIndex, format version, actual sample rate and session-time anchor. An SDK callback is not a one-second bucket. Close partial chunks at pause, gap, restart and end without crossing segments; chunk indexes are unique within the session. Fixed-endian Long/Int encoding is sufficient; no compression library is required.
+- RR 复用现有 HR 订阅的 rrsMs；rrAvailable 为 true、列表非空、值 > 0，支持接触状态时要求有效接触。不额外要求 HR 数值有效才接收本身有效的 RR。按批次/样本/间期原顺序逐条保存 sessionId、recordIndex、segmentId、rrMs、批次接收时间、接收时会话时间、批内顺序。recordIndex 从 1 开始，只对接受的 RR 递增，同值不去重。RR 不是独立 BLE 流，不增加 HRV 或 ECG R 峰检测。
+  Extract rrsMs from the existing HR subscription with rrAvailable, a nonempty list, positive values and valid contact when supported. Do not require a valid HR number as an additional gate for otherwise valid RR. Preserve batch/sample/interval order and store sessionId, recordIndex, segmentId, rrMs, batch receipt time, session elapsed time at receipt and within-batch order. Start recordIndex at 1 and increment for accepted RR; equal values remain distinct. RR is not a separate BLE stream; add no HRV or ECG R-peak detection.
+- RR 可独立满足收到有效数据/保存资格，但不得伪造有效 HR 或改变 HR 均值、区间。空 RR 批次或无效间期不插入零值，下一有效间期从新段开始。
+  Valid RR may independently establish valid reception/save eligibility without inventing valid HR or changing HR means/zones. Empty RR batches and invalid intervals insert no zero; the next valid interval starts a new segment.
+
+#### 2. 时间与缺口 / Timing and gaps
+
+- ECG 每次启动/继续/重试建立新段，以首批最后样本的传感器时间和该批手机接收时的 Running elapsed 为锚点，映射 t = anchorElapsed + (sensorTime - anchorSensorTime) / 1,000,000；原始纳秒时间戳完整保留。这是含传输延迟的近似对齐，不是精确手机/传感器同步。
+  Start a new ECG segment on start/resume/retry. Anchor the final sensor timestamp of the first batch to Running elapsed at its phone receipt; map t = anchorElapsed + (sensorTime - anchorSensorTime) / 1,000,000. Preserve original timestamps. Alignment includes transport delay and is approximate.
+- 相邻 ECG 时间差 > 3 个实际采样周期时断段；重复或倒退时间戳也断段并重新建立锚点，保留原始值和接收顺序，不按时间戳键覆盖。映射到 0 之前、所属 Running 段之外或最终 Duration 之后的点保留原始记录，但不画到活动时间范围内、不强行夹到边界。查询/绘图同时按段处理，不能跨暂停或缺口连线。
+  Break ECG segments for a gap greater than three actual sample periods or a repeated/backward timestamp; re-anchor and retain original values/reception order without timestamp-key replacement. Keep raw points mapped before zero, outside their Running segment or beyond final Duration, but do not draw them inside the activity interval or clamp them onto a boundary. Query/render by segment and never bridge pauses or gaps.
+- RR 横轴确定为 Recorded interval number，不反推逐搏时间。HR 批次接收间隔 > 3 秒、无效/空 RR、暂停继续、订阅重启或失败形成断段。多个 RR 共用批次接收时间是允许的，序号负责稳定排序。该图不能与 ECG 宣称逐搏精确对齐。
+  The RR x-axis is Recorded interval number; do not reconstruct beat timestamps. Break after HR batch gaps above three seconds, empty/invalid RR, pause/resume, subscription restart or failure. Multiple intervals may share a batch receipt time; indexes define stable order. Do not claim beat-exact ECG alignment.
+
+#### 3. 图表交互 / Chart interaction
+
+- ECG 默认显示起始五秒 [0, 5s)，不足五秒显示实际活动范围；原始点连线，不逐点画圆点、不填充、不加均值虚线。图下时间滑块选择窗口起点，拖动时只更新时间标签，松手后查询；Previous/Next 每次前后五秒。起点限制在 0 至 max(0, Duration - 5s)，最后窗口按实际时长对齐。无数据的窗口显示 No ECG data in this interval。
+  ECG starts with [0, 5s), or the actual duration when shorter. Connect raw samples without point markers, fill or mean reference. A time slider updates its label while dragging and queries on release; Previous/Next moves five seconds. Clamp the start to 0..max(0, Duration - 5s) and align the final window to the actual duration. Empty windows show No ECG data in this interval.
+- RR 默认显示第 1—60 条有效记录，不足 60 条全部显示；纵轴 ms、横轴记录序号，用简单折线，断段不连线。滑块按整数序号定位，松手后查询；Previous/Next 每次移动 60 条，末窗口最多 60 条且首尾按钮禁用。不采用 60 秒窗口。无记录显示 No recorded RR data。
+  RR initially shows records 1–60, or all records when fewer exist. Use ms vertically and interval index horizontally with a simple segmented line. The slider selects an integer index and queries on release; Previous/Next moves 60 records, with at most 60 in the final window and disabled boundary buttons. Do not use a 60-second window. Empty sessions show No recorded RR data.
+- 不直接拖动波形，不加缩放或整场概览。按选中会话/图种/窗口查询，取消并拒绝过期结果，不一次性加载整场 ECG/RR。ECG 窗口边界可读取同段相邻点用于裁剪连线，但不跨段连线。查询失败提供 Retry；保留现有深浅主题及大字号滚动。
+  Add no direct waveform dragging, zoom or whole-session overview. Query by session/chart/window, cancel/reject stale results and never load whole-session ECG/RR. ECG may read adjacent same-segment points to clip lines at viewport boundaries, never across segments. Query failures offer Retry; retain themes and large-font scrolling.
+
+#### 4. 写入、失败与最终提交 / Writes, failures and final commit
+
+- 使用一个应用级 IO 写入者和有界队列。封闭的 ECG 块及时入队；RR 按最多一秒或 128 条（先到者）形成写入批次。每次事务最多处理 5 个已就绪批次，不为凑满批次额外等待。活动尾部、暂停和正常结束刷新不足批次。队列中编码负载总量最多 1 MiB，包含当前写入/失败待重试项；当前正在收集的部分块另行保持一秒/采样率边界。该上限不等于整个进程内存上限。
+  Use one application-owned IO writer and a bounded queue. Enqueue closed ECG chunks promptly; batch RR for up to one second or 128 intervals, whichever comes first. Each transaction processes at most five ready batches without waiting to fill the batch. Flush partial batches on pause and normal finalization. Bound queued encoded payload, including in-flight/failed retry items, to 1 MiB; separately bound the open partial chunk by one second/sample rate. This is not a bound on total process memory.
+- 写入失败或队列满时停止继续接受持久化数据并自动暂停当前会话，报告 Recording storage failed。失败事务回滚，保留已经接受但未提交的有界批次及已提交的暂存块，禁止静默丢弃最旧数据。无法入队的输入不计为已接受，记录发生了截断/缺口；不会声称可以找回该输入。提供 Retry save / Discard；重试先处理待写数据，不自动继续采集。成功后保持 Paused，由用户 Continue 或 Stop。若原本已在结束，则成功重试后继续最终提交。
+  On write failure or queue saturation, stop accepting persistence data, automatically pause the session and report Recording storage failed. Roll back failed transactions; retain bounded accepted pending batches and committed staging chunks without dropping oldest data silently. Unqueueable input is not accepted; record a truncation/gap and never claim it is recoverable. Offer Retry save / Discard. Retry drains pending data without automatically resuming acquisition; success leaves Paused for manual Continue or Stop, or completes finalization if already ending.
+- 用 sessionId + chunkIndex / recordIndex 唯一键实现事务重试去重，不按电压、RR 值或时间戳去重。Discard 结束当前会话并清理其暂存内容，不影响其他已保存活动；清理失败保留错误并允许重试。
+  Deduplicate transactional retries by sessionId plus chunkIndex/recordIndex, not voltage, RR value or timestamp. Discard ends the current session and removes its staging data without touching other saved activities; report cleanup failure and allow retry.
+- 暂存会话不进入 History 列表；正常 Stop/四小时/Running 中真实断线等既有结束触发后，拒绝迟到数据、封闭尾块、排空队列，再将摘要、既有 HR/Motion 历史和提交标记在最终事务中完成。最终成功前不得显示 Saved；此前已写入块不代表活动完成。存储错误使用局部错误提示，不恢复已删除的 Incomplete 标签。
+  Hide staging sessions from History. For existing finalization triggers (Stop, four-hour limit, real disconnect while Running), reject late data, close tail chunks, drain the queue and atomically finalize the summary, existing HR/Motion histories and commit marker. Do not show Saved earlier; written chunks alone do not mean a completed activity. Use local storage errors without restoring removed Incomplete labels.
+
+#### 5. 生命周期、升级和清理 / Lifecycle, upgrade and cleanup
+
+- 严格沿用 5.47：离开前台/锁屏/切换 History 自动暂停、返回不自动继续；暂停保留同场数据，可以刷新暂存块但不能最终提交。暂停时断线仍保留会话，重连原设备后手动 Continue。不得恢复旧的 onStop 结束/断开规则，不增加后台采集。
+  Follow 5.47: background/lock/History navigation pauses automatically with no automatic resume. Preserve the session and optionally flush staging chunks without finalizing. Paused disconnect preserves the session for manual Continue after reconnection to the original device. Do not restore old onStop end/disconnect behavior or add background acquisition.
+- 允许本功能所需的一次性 SQLite v1→v2 保留数据升级，作为“严禁向后兼容”的本次明确例外；只做该必要升级，不维护双写/双格式旧路径。旧活动视为已提交，保留摘要/HR/Motion，ECG/RR 显示无记录；升级事务失败回滚并报告，不清库。实施时若实际版本已变，先核对，不盲目重复 v1→v2。
+  Authorize the required one-time preserving SQLite v1→v2 migration as an explicit exception to the no-backward-compatibility rule. Add only this migration, not dual-write or dual-format legacy paths. Treat existing activities as finalized and retain summaries/HR/Motion; ECG/RR have no records. Roll back/report migration failures without clearing the database. Recheck the actual version at implementation time.
+- 进程异常结束处理已由 5.46.2 覆盖：保留有已提交数据的未完成会话，启动时归档并提供 History/Activity Summary 查询；图表中央显示 Data collection incomplete，不自动删除这些部分记录。只清理没有已提交有效采集数据的暂存空会话，不恢复旧会话继续采集。
+  Superseded by 5.46.2: retain unfinished sessions with committed data, archive them at startup for History/Activity Summary, and show Data collection incomplete centered in their charts. Do not automatically delete these partial records. Clean up only empty staging sessions without committed valid acquisition data; do not resume old acquisition.
+
+#### 6. 验收与本轮结果 / Acceptance and this update
+
+- 增加验证：BLOB 编解码逐点一致、跨秒/尾块、130 Hz 长记录、有界队列及溢出/磁盘失败、失败时暂停、重试唯一性、后台自动暂停后 Continue、旧库升级不丢数据、重启保留并归档部分记录及中央提示（5.46.2）、5 秒 ECG/60 条 RR 浏览、快速滑块松手查询过期隔离及删除事务。四小时生成数据性能与真实 H10 多流测试分开记录。
+  Add checks for lossless BLOB round trips, second boundaries/tail chunks, long 130 Hz records, queue bounds/overflow/disk failure, failure-induced pause, retry uniqueness, automatic pause/Continue, preserving migration, startup retention/archiving and centered messages for partial records (5.46.2), five-second ECG/60-record RR browsing, stale query isolation and deletion transactions. Separate four-hour generated-data performance from real H10 multi-stream validation.
+- 本轮仅更新并核对两对文档；未修改应用/数据库/测试源码，未运行构建、测试、模拟器或真机验证，无 commit/push。上述容量/批量参数为已选工程起点，未声称通过性能验收；实施验收发现不满足时需记录证据及必要调整。
+  This update only edits/verifies both documentation pairs. No App/database/test source changes, builds, tests, emulator/hardware checks, commit or push. Capacity/batch parameters are chosen engineering starting points, not verified performance results; document evidence and necessary changes if acceptance fails.
+
+### 5.46.2 修订：异常结束保留记录与图表提示 / Revision: interrupted-record retention and chart message（2026-10-04）
+
+- 用户要求：进程异常结束后，在 Activity Summary 图表中间显示“数据采集未完成”，样式类似当前心率图的 No recorded heart rate data。本节覆盖 5.46.1 的启动删除未完成记录规则；仅更新规划和 prompt，未实施代码。
+  User request: After unexpected process termination, show a centered incomplete-collection message in the Activity Summary chart, styled like the current No recorded heart rate data message. This supersedes startup deletion of unfinished records in 5.46.1. Documentation/prompt update only; code is not implemented.
+- 下次进程启动时，在 IO 事务中将有已提交采集数据但没有最终提交标记的会话归档为采集中断，并保留已落盘数据，使其可从 History 列表打开 Activity Summary。不恢复旧会话继续采集；新 Start 创建新会话。重复启动不得重复归档或产生重复活动。完全没有已提交有效采集数据的暂存空会话可清理；正在本进程内正常暂停的会话不归档。
+  On the next process start, use an IO transaction to archive sessions with committed acquisition data but no final commit marker as interrupted, retaining durable data and making them accessible from History. Do not resume acquisition for the old session; new Start creates a new session. Repeated startup must not duplicate records or rearchive them. Empty staging sessions without committed valid acquisition data may be cleaned up; ordinary pauses in the live process are not archived.
+- 持久化会话身份、开始时间、设备与可恢复的最近检查点。分批写入时同时提交对应进度/必要摘要检查点，保证恢复出来的摘要不超前于其已提交数据；不能依赖仅在内存中的最终 SessionSnapshot。HR/Motion 没有落盘的数据不伪造、不从 ECG/RR 反算。不知道的指标显示 --，Duration 最多采用最后持久化的 Running 时长，不能拿下次启动时间当运动结束时间，也不把暂停时间算入。检查点是部分结果，不宣称最终完整摘要。
+  Persist session identity, start time, device and a recoverable checkpoint. Commit corresponding progress/necessary summary checkpoints with batched data so recovered summaries do not run ahead of their committed data; do not depend solely on an in-memory final SessionSnapshot. Do not invent unpersisted HR/Motion data or reconstruct it from ECG/RR. Unknown metrics show --; Duration uses at most the last persisted Running duration, never the next launch time or paused duration. A checkpoint is partial, not a complete final summary.
+- Activity Summary 的 HR/Cadence/ECG/RR 当前选中图表均显示 Data collection incomplete，位置为图表绘图区中央，沿用 HistoryCharts.kt 现有 Modifier.align(Alignment.Center) 和 MaterialTheme.typography.bodySmall 及主题文字颜色；不用红色警告条、不增加弹窗，不恢复日期下方或列表中的 Incomplete 标签。
+  For an interrupted session, each selected HR/Cadence/ECG/RR chart in Activity Summary shows Data collection incomplete centered in the plot area, reusing HistoryCharts.kt's Modifier.align(Alignment.Center), MaterialTheme.typography.bodySmall and theme text color. Add no red warning banner or dialog and do not restore date-area/list Incomplete labels.
+- 保留并显示可用的部分曲线和窗口浏览，中间文字作为覆盖提示；不存在的点不补零、不跨缺口连线。该提示优先于 No recorded .../No ECG data in this interval，同一绘图区不叠加两条空态文字；查询失败时仍优先展示实际查询错误及 Retry。只有异常归档记录使用该提示，正常完成但某流无数据仍使用原无数据提示。不要直接用旧 record.incomplete 字段触发，需区分进程中断归档、普通数据缺失和存储失败。
+  Keep available partial curves and browsing, with the centered message as an overlay. Do not insert zeros or bridge gaps. The message takes precedence over No recorded .../No ECG data in this interval, avoiding duplicate empty-state text; actual query errors and Retry retain priority. Apply it only to interrupted archives, not every completed activity missing a stream. Do not drive it directly from the old record.incomplete flag; distinguish interrupted archives, ordinary missing data and storage failure.
+- 仅能恢复已成功提交的数据；进程结束时的内存队列和未提交尾块可能丢失，不能承诺补回。正常活动最终提交和 Saved 规则不变；异常归档不伪装为正常完成。用户删除该活动时事务删除所有关联数据。启动归档失败应报告并支持重试，不通过清库恢复。
+  Only committed data is recoverable; in-memory queues and uncommitted tail chunks may be lost and must not be promised back. Preserve normal finalization/Saved rules without treating an interrupted archive as normal completion. Delete all associated data transactionally on user deletion. Report startup archiving failures with retry; never recover by clearing history.
+- 后续验收增加：真实杀进程/重启恢复、尾块丢失边界、无空记录、重复启动幂等、部分摘要与曲线一致性、四种图表中央提示/空态优先级、深浅主题与字号 1.0/2.0，以及普通暂停/正常完成不误显示提示。本轮未运行这些检查，未修改应用代码、数据库或测试，无 commit/push。
+  Add future checks for process kill/relaunch, tail loss, absence of empty records, idempotent startup, partial-summary/data consistency, centered messages/empty-state priority across four charts, light/dark and font scales 1.0/2.0, and no false message for normal pause/completion. None ran in this documentation turn; no App/database/test changes, commit or push.
+
+### 9.0a ECG、RR 图表持久化保存 / ECG and RR chart persistence（2026-10-04）
+
+- 状态：9.0a 已实施，验证及待真机项目见 5.46.3。设计记录见 5.46；执行 5.46.1 的已确认规则，并以 5.46.2 覆盖异常结束处理。5.46 中早期草案保留为历史，不再按其待定项或清理部分记录的旧方案实施。
+  Status: Step 9.0a is implemented; validation and hardware limits are in 5.46.3. See design record 5.46. Apply confirmed rules in 5.46.1 with interrupted-record handling superseded by 5.46.2. The original draft is historical; do not implement its superseded open decisions or partial-record deletion policy.
+
+#### 中文执行 prompt
+
+请只实施步骤 9.0a：ECG、RR 图表持久化保存。严格执行本文 5.46.1 和 5.46.2：ECG 整场原始数据按约一秒分块保存、五秒窗口浏览；RR 逐条保存，以记录序号为横轴，每次显示六十条；使用滑块和前后按钮。沿用 5.47 自动暂停与手动 Continue，落实有界写入、失败重试、最终提交及保留已有历史的数据库升级。进程异常结束后保留已提交的部分记录，Activity Summary 图表中央按现有空态样式显示 Data collection incomplete，不恢复旧会话采集，不恢复列表 Incomplete 标签。遵循对应规则的时间、分段、检查点、查询、删除及验收要求；同步两对中英文文档，分别报告实现与验证结果，不自动推进其他步骤，不 commit/push。
+
+#### English execution prompt
+
+Implement only step 9.0a: ECG and RR chart persistence. Follow sections 5.46.1 and 5.46.2: store full-session raw ECG in approximately one-second chunks and browse five-second windows; preserve individual RR intervals with a recorded-interval-number axis and sixty records per window, using a slider and previous/next buttons. Preserve automatic pause and manual Continue under 5.47. Implement bounded writes, failure retry, final commit and a database migration preserving existing history. After unexpected process termination, retain committed partial records and center Data collection incomplete in Activity Summary charts using the existing empty-state style. Do not resume old acquisition or restore list Incomplete labels. Follow the specified timing, segmentation, checkpoints, queries, deletion and acceptance rules. Synchronize both bilingual documentation pairs and distinguish implementation from validation. Do not proceed to other steps, commit or push.
+
+- 编号分配轮仅更新文档；用户随后要求“实现9.0a”，实施及验证记录如下。
+  The number-assignment turn changed documentation only. The user subsequently requested implementation; results follow.
+
+### 5.46.3 步骤 9.0a 实施与验证 / Implementation and validation（2026-10-04）
+
+- 用户明确要求“实现9.0a”，本节更新当前实现状态；5.46—5.46.2 的“未实施”保留为当轮历史记录，当前以本节为准。仅实施 ECG/RR 持久化及必要的恢复、查询、展示与检查；保留 5.47 自动暂停和手动 Continue，不新增 Trend、HRV 或四项摘要指标算法。
+  The user explicitly requested implementation of 9.0a. Earlier unimplemented statuses describe their documentation turns; this section records the current result. Scope covers ECG/RR persistence and required recovery, querying, display and validation. Preserve 5.47 automatic pause/manual Continue; add no Trend, HRV or algorithms for the four summary placeholders.
+- 新增 SignalHistory.kt、SignalWriter.kt、RecordingPanel.kt；接入 PolarBleManager、SessionController、SessionStorage/SaveController、SQLite 和 History 图表。ECG 保留原始纳秒时间及有符号 µV，以版本 1、小端序、每点 12 字节的 BLOB 按传感器秒及段边界分块，不均值合并或抽点。RR 独立按 rrAvailable、接触有效性、非空和正值筛选；相同值保留，保存序号、接收时间、Running elapsed、批次/批内顺序和断段。
+  Added SignalHistory.kt, SignalWriter.kt and RecordingPanel.kt, integrated with acquisition/session ownership, storage, SQLite and History. ECG retains nanosecond timestamps and signed microvolts in version-1 little-endian BLOBs (12 bytes per point), chunked at sensor-second/segment boundaries without averaging or decimation. RR validity is independent of HR validity; equal intervals and sequence/arrival/elapsed/batch/segment metadata are retained.
+- 应用级队列按编码数据及元数据估算限制为 1 MiB，包含正在写入的批次；约一秒检查点，RR 每批最多 128 条，IO 事务每组最多五批。超限/写入失败暂停采集，保留待重试批次；界面提供 Retry save 和确认后 Discard。成功重试后仍需手动 Continue。停止时提交尾块，排空队列后最终事务才显示 Saved。1 MiB 是队列计费上限，不是整个进程堆内存承诺。
+  The application queue uses a 1 MiB encoded-data/metadata budget including in-flight writes. Checkpoints occur about once per second, RR batches contain at most 128 intervals and IO transactions group at most five batches. Capacity/write failures pause recording and retain pending batches for explicit retry or confirmed discard. Retry does not resume acquisition. Stop flushes tails and drains writes before finalization/Saved. The queue budget is not a total process-heap limit.
+- SQLite 升级为 v2：一次保留数据的 v1→v2 升级保留已有摘要/HR/Motion；新增 ECG 段/块、RR、暂存/完成/异常归档状态及独立 collectionIncomplete。增量 HR/Motion 与摘要检查点同事务；欢迎页或直接进入 Session 时由唯一存储持有者初始化归档。正常暂停不归档；异常重启只恢复已提交内容，以检查点时长为准，不恢复旧会话采集。删除活动连同全部曲线级联删除。
+  SQLite v2 preserves existing summaries/HR/Motion through the authorized v1→v2 migration. It adds ECG segments/chunks, RR records, staging/final/archive states and collectionIncomplete. Incremental HR/Motion and summary checkpoints share transactions. The single storage owner initializes archiving from welcome or direct Session entry. Normal pauses remain open; interrupted sessions retain only committed checkpoints and never resume acquisition. Activity deletion cascades to all chart data.
+- Activity Summary 已启用 ECG/RR：ECG 五秒，RR 六十条且横轴为记录序号、纵轴 ms；滑块松手查询，Previous/Next 切窗，旧查询取消后不能覆盖新窗口。仅加载所需原始窗口。HR/Cadence 保留整场曲线。异常归档四种图表中央使用 bodySmall 显示 Data collection incomplete，保留部分曲线，覆盖无数据文案；查询错误及 Retry 优先，无列表/日期 Incomplete 标签。
+  Activity Summary enables five-second ECG and sixty-record RR windows (record-number axis, milliseconds), querying on slider release or Previous/Next and rejecting obsolete results. Raw queries load only the requested window. HR/Cadence retain whole-session charts. Interrupted archives show the centered bodySmall message over available curves on all four tabs, replacing empty text; query errors/retry take priority. List/date Incomplete labels remain removed.
+- 视觉检查发现原紧凑布局加入窗口控制后会压缩绘图区，已修正：选择 ECG/RR 时详情纵向滚动，图表卡使用 400 dp × fontScale；HR/Cadence 保留原紧凑规则。浅/深主题、实际系统字号 1.0/2.0 的受控波形、中央提示及可滚动到达的按钮均已检查。截图中数据均为专用模拟器合成测试数据，不是 H10 实测。
+  Visual inspection found the old compact layout squeezed plots after adding window controls. ECG/RR now use scrolling detail with a 400 dp × fontScale chart card; HR/Cadence retain compact rules. Controlled plots, centered text and reachable controls were checked in light/dark themes at actual system font scales 1.0/2.0. All captured data is synthetic emulator test data, not H10 measurements.
+- 验证：244 项单元测试通过（新增 7 项，0 failures/errors/skips）；分轮 39 项不同 SQLite/Compose/生命周期/进程恢复检查全部通过，另有字号 2.0 的两项重复检查。覆盖无损编码、分段/尾块、相同 RR、队列失败/容量/重试、事务回滚、升级保留、删除、正常/异常记录区别、窗口翻页、空态优先级、图表高度及既有自动暂停/History 回归。初次旧删除文案断言失败，更新为包含全部曲线后的最终复跑通过。
+  All 244 unit tests pass (seven added; zero failures/errors/skips). Across runs, 39 distinct SQLite/Compose/lifecycle/process-recovery checks pass, with two additional font-2.0 repeats. Coverage includes lossless encoding, segments/tails, equal RR values, queue failure/capacity/retry, transaction rollback, preserving migration, deletion, normal versus interrupted records, paging, message priority, plot height and existing automatic-pause/History behavior. One stale deletion-copy assertion failed initially and passed after updating it to cover all charts.
+- 独立 emulator-5590 上先写入 20 秒未最终提交的合成记录，再 adb force-stop 并冷启动欢迎页；应用自行归档，验证 Duration 仍为 20 秒、RR 180 条、五秒 ECG 窗口约 650 点且记录唯一。SignalRecoveryTest 仅通过显式 recoveryPhase=seed/verify 启用两阶段检查，默认测试不向应用主库注入该夹具。
+  On isolated emulator-5590, seeded a synthetic 20-second unfinished record, force-stopped the process and cold-launched welcome. The app archived it automatically; verification retained the 20-second duration, 180 RR records, approximately 650 ECG points per five-second window and one activity. SignalRecoveryTest requires explicit recoveryPhase=seed/verify arguments; ordinary test runs do not inject this fixture into the main database.
+- 四小时合成规模检查：1,872,000 个 ECG 点、14,400 块、28,800 条 RR；批量构建/写入约 23.861 秒，末尾窗口查询约 9 ms，数据库 31,657,984 字节，采样到的进程 Java 堆峰值 37,753,536 字节。该结果是单次受控模拟器测量，写入时间包含测试数据构造，堆值是整个测试进程；不是持续四小时真机功耗/蓝牙吞吐/帧率承诺。
+  The four-hour synthetic scale check stores 1,872,000 ECG samples in 14,400 chunks plus 28,800 RR intervals. Construction/batch writing took about 23.861 seconds; an end-window query took about 9 ms. Database size was 31,657,984 bytes and sampled process Java heap peaked at 37,753,536 bytes. This single controlled emulator measurement includes fixture construction and whole-process heap, not a four-hour hardware power/throughput/frame-rate guarantee.
+- debug/测试 APK 构建通过；lint 为 0 errors、23 warnings。证据：build/step90a-validation/final-build2.txt、recovery-test-build.txt、signals-instrumentation2.txt、regression.txt（保留初次失败）、final-regression.txt、layout-regression.txt、font2-regression.txt、process-seed-final.txt、process-recovered-final.txt、performance.txt 及标注为合成数据的截图；单元 XML 和 lint 报告在 app/build。ecg-light-1.png 是修正前截图，以 ecg-light-1-fixed.png 为准。
+  Debug/test APK builds pass; lint reports zero errors and 23 warnings. Evidence is under build/step90a-validation in the named build, instrumentation, recovery, performance and synthetic-image artifacts; unit XML/lint reports remain under app/build. The initial ECG capture is superseded by ecg-light-1-fixed.png.
+- Samsung/H10 未安装或操作：真实三流并发、接触失效/重连、长期存储与滚动性能、实际磁盘空间不足以及采集途中系统杀进程仍待真机验收。受控异常注入及 force-stop 测试不等于这些硬件场景已通过。两对中英文文档同步，无 commit/push。
+  No Samsung/H10 installation or interaction occurred. Real simultaneous streams, contact loss/reconnection, long-run storage/scrolling, actual disk exhaustion and system termination during hardware acquisition remain pending. Fault injection and force-stop do not establish those hardware outcomes. Both bilingual documentation pairs are synchronized; no commit/push.
+
+### 5.46.4 Summary 四图固定布局修正 / Fixed Summary chart layout（2026-10-04）
+
+- 用户反馈切换 ECG/RR 后上方卡片重新排列，要求四图大小和位置一致。本节覆盖 5.46.3 按图表类型切换整页布局的决定；仅修正展示，不改变持久化、查询窗口和采集规则。
+  The user reported summary-card reflow when selecting ECG/RR and requested equal chart size/position. This supersedes the chart-dependent whole-page layout in 5.46.3; persistence, query windows and acquisition rules stay unchanged.
+- 移除 HistoryDetailLayout 的 windowedChart 状态及回调；四种图共用原 HR/Cadence 的 compact 条件、相同图表权重和位置。大字号/小屏仍使用同一纵向滚动规则，选择图表不再改变卡片布局。Summary 固定纵轴留白为 48 dp × fontScale，使 Canvas 横向位置及宽度也不因单位/刻度宽度改变；Session 实时图沿用原默认逻辑。
+  Removed chart-dependent page state/callbacks. All four charts share the existing HR/Cadence compact conditions, chart weight and position. Large text/small screens keep the same scrolling rules regardless of selection. A shared 48 dp × fontScale axis gutter also stabilizes the Summary plot's horizontal position/width; live Session defaults are preserved.
+- ECG/RR 在图表单位行右侧显示 Browse；点击打开窗口选择弹窗，保留滑块松手查询、Previous/Next 和五秒/六十条窗口，Done 返回图表。窗口控制不再占用图表底部空间，也不挤压绘图区。异常归档中央提示保留。
+  ECG/RR provide Browse on the existing unit row. Its dialog retains slider-release querying, Previous/Next and five-second/sixty-record windows, with Done returning to the plot. Controls consume no plot/footer space and no longer change layout. Centered interrupted-record messages remain.
+- debug/测试 APK 与 lint 通过（0 errors、23 warnings）；本轮 7 项 SignalChartTest/HistoryPresentationTest 通过，固定布局检查在深色默认字号及实际系统字号 2.0 分别复跑通过。断言逐图比较六个摘要标签、图表卡及 Canvas 的完整坐标/尺寸，覆盖 Browse 打开关闭、翻页及既有 History 展示。修正了大字号测试只滚动到第一排标签的定位问题，截图改为系统截图以避免 Compose 截图线程冲突；相关初次失败日志保留。
+  Debug/test APK builds and lint pass (zero errors, 23 warnings). Seven SignalChartTest/HistoryPresentationTest checks pass, with fixed-layout repeats in dark mode at normal and actual 2.0 font scale. Assertions compare six summary labels, chart-card and Canvas bounds across tabs, plus Browse open/close, paging and existing History presentation. Fixed test scrolling to expose the full card at large font and used system screenshots to avoid a Compose capture-thread conflict; initial failure logs remain.
+- 证据在 build/step90a-validation/fixed-layout-build.txt、fixed-layout-test-build.txt、fixed-layout-tests.txt、fixed-layout-dark.txt、fixed-layout-font2-verified.txt 与 fixed-layout-*-captures。受控截图为合成数据；本轮未重跑全部单元测试、未操作 Samsung/H10。两对中英文文档同步，无 commit/push。
+  Evidence is under build/step90a-validation in fixed-layout build/test/theme/font logs and capture folders. Controlled images use synthetic data. The full unit suite was not rerun and Samsung/H10 was not operated. Both bilingual documentation pairs are synchronized; no commit/push.
+
+### 5.46.5 ECG 零参考线与纵轴标注 / ECG zero reference and axis label（2026-10-04）
+
+- 用户要求：无数据时隐藏，有数据时用浅色细线显示，在左侧纵轴加 0。已修改共用 LiveChartPlot，适用于 Session 与 Summary 的 ECG：无有效点时不绘制零参考线，也跳过重合的零网格线；有有效点时用主题 outline 的 25% 透明度、0.5 dp 线宽绘制，并在纵轴对应位置显示 0。保留无数据 -- 和原空态文案。
+  The user requested hiding the zero reference without data, showing a light thin line with data and adding a left-axis zero label. Shared LiveChartPlot now applies this to Session and Summary ECG: no zero reference or coincident zero grid line without valid points; otherwise use theme outline at 25% opacity and 0.5 dp width with a zero axis label. Existing empty placeholders/messages remain.
+- 零刻度只显示一次，移除与 0 文字垂直距离不足的相邻刻度文字，避免重叠；原始数据、纵轴范围、窗口浏览与四图固定布局规则不变。HR/Cadence/RR 零线沿用原逻辑。
+  Show the zero label once and omit neighboring tick labels that would overlap it. Raw data, scale bounds, browsing and fixed chart layout remain unchanged. HR/Cadence/RR zero-line behavior is preserved.
+- debug 构建与 lint 通过（0 errors、23 warnings），日志 build/step90a-validation/ecg-zero-build.txt。本轮未新增/运行测试套件或模拟器/真机视觉检查；不将构建成功当作真机验证。两对中英文文档同步，无 commit/push。
+  Debug build and lint pass (zero errors, 23 warnings), logged in build/step90a-validation/ecg-zero-build.txt. No test suites or emulator/hardware visual checks were added/run this turn. Both bilingual documentation pairs are synchronized; no commit/push.
+
+### 5.46.6 ECG/RR 图内左右滑动 / In-chart ECG/RR swiping（2026-10-04）
+
+- 用户要求删除 Browse，只用左右滑动浏览全程，单画面保持目前设置。本节覆盖 5.46.4 的 Browse 弹窗及 5.46.1 的滑块/按钮交互。已删除按钮、弹窗、滑块、Previous/Next/Done 和无用的弹窗状态/绘图标题动作入口。
+  The user requested removing Browse and using horizontal swipes while preserving the current viewport. This supersedes Browse in 5.46.4 and the slider/button interaction in 5.46.1. Removed the button, dialog, slider, Previous/Next/Done and unused dialog/header-action state.
+- ECG/RR 绘图区左滑后移一个窗口，右滑前移一个窗口；ECG 步进五秒、单屏最多五秒，RR 步进六十条、单屏最多六十条。首尾夹紧；末尾不足完整步进时停在最后一个窗口，允许与前一窗口重叠。超过绘图区宽度 10% 的水平拖动在松手后切窗，取消或短拖动不切窗；不增加惯性或缩放。HR/Cadence 整场展示不变。
+  Swipe left for the next window and right for the previous: five seconds for ECG and sixty records for RR. Clamp at both ends; the last window may overlap the previous one when less than a full step remains. A horizontal drag exceeding 10% of plot width changes the window on release; cancelled/short drags do not. No fling or zoom; HR/Cadence retain whole-session display.
+- 手势仅放在绘图区，垂直手势交给页面滚动；窗口查询继续在 IO 执行并取消过期结果。保持四图固定大小/位置、五秒/六十条窗口、ECG 浅色零线与 0 标注、异常归档中央提示。无障碍提供前后窗口动作，无额外可见控件。
+  Gestures apply only to the plot and vertical gestures remain available to page scrolling. IO window queries and stale-result cancellation remain. Preserve fixed layout, viewport sizes, ECG zero styling/label and interrupted-record text. Accessibility exposes previous/next-window actions without visible controls.
+- debug/测试 APK 与 lint 通过（0 errors、23 warnings）。既有 SignalChartTest 的 3 项检查更新后在默认字号浅色通过，并在系统字号 2.0 深色全部复跑通过：真实注入左右滑动、RR/ECG 首尾与窗口步进、无 Browse/按钮、固定布局、异常提示；大字号额外确认图内上滑使整页滚动但不改变窗口。未新增测试类，未重跑全量单元/其他仪器套件，未操作 Samsung/H10。
+  Debug/test APK builds and lint pass (zero errors, 23 warnings). The three updated SignalChartTest checks pass at normal font/light theme and all repeat at actual font 2.0/dark theme, covering injected swipes, boundaries/steps, removed controls, fixed layout and interrupted messages. The enlarged-font check also verifies vertical plot swipes scroll the page without changing the window. No new test class, full-suite rerun or Samsung/H10 interaction.
+- 证据：build/step90a-validation/swipe-build-final.txt、swipe-test-build.txt、swipe-tests.txt、swipe-font2-tests.txt、swipe-captures（合成夹具）。两对中英文文档同步；真机手感与实际信号浏览仍待验证，无 commit/push。
+  Evidence: build/step90a-validation/swipe-build-final.txt, swipe-test-build.txt, swipe-tests.txt, swipe-font2-tests.txt and swipe-captures (synthetic fixtures). Both bilingual documentation pairs are synchronized. Hardware gesture feel and real-signal browsing remain pending; no commit/push.
+
+## 5.48 步骤 9.0b：Activity Summary 高层指标 / Activity Summary metrics（2026-10-04）
+
+### 5.48.1 已确定规则 / Agreed rules
+
+- 本节覆盖旧的“四项指标仅占位、不计算、不存储”规则。保留 Intensity、Cardio Load、Session Strain；HR Recovery 改为 Cadence Stability。沿用 9.0a 四图固定布局、ECG 五秒/RR 六十条及左右滑动，以及 5.47 自动暂停/手动 Continue；不增加 Trend 页面、原始 ACC 存储或额外实时传感器处理。
+  This supersedes the four-placeholder/no-computation/no-storage rule. Retain Intensity, Cardio Load and Session Strain; replace HR Recovery with Cadence Stability. Preserve 9.0a fixed chart layout, five-second ECG/sixty-record RR swiping and 5.47 automatic pause/manual Continue. No Trend page, raw ACC persistence or additional live sensor processing.
+
+| 指标 / Metric | 算法与展示 / Algorithm and display |
+|---|---|
+| Intensity | 五区间有效时长 d1…d5（毫秒），D=Σdi，W=Σ(i×di)。D>0 时 W/D，否则 NULL；显示一位小数，例如 2.8 / 5。Time-weighted zone score W/D, or NULL without classified time; one decimal. |
+| Cardio Load | D>0 时 W/60000，单位 AU，否则 NULL。Zone-weighted minutes in arbitrary units; no rounding before persistence. |
+| Cadence Stability | 有效步频 c 的总体标准差 σ=sqrt(Σ(c−mean(c))²/n)，CV=100×σ/mean(c)。至少 30 个有效秒记录才输出，显示 CV 7.4%；不足为 NULL。Population CV over at least 30 selected per-second observations. |
+| Session Strain | 用户主动选择整数 RPE 0…10 × durationMs/60000，单位 AU。未评分或有效时长≤0 为 NULL；正时长且 RPE=0 为有效 0。User-selected RPE multiplied by active minutes; no default rating. |
+
+- 心率沿用固定区间 <110、110–124、125–139、140–154、≥155 bpm，权重依次 1…5。只使用既有区间累计值；暂停、Unclassified 与缺失时长不补值，不按整场时长扩大负荷，也不重新分类 HR。Intensity 是本 App 的区间均值，Cardio Load 是简化区间负荷，不宣称 Polar 官方指标、个体最大心率百分比或 TRIMP。
+  Reuse the existing fixed HR zones and accumulated durations. Exclude pauses/unclassified/missing time without imputation or extrapolation. These are app-specific scores, not Polar metrics, individualized maximum-HR percentages or TRIMP.
+- 步频使用结束冻结的每秒末条 motion_points 对应数据；限同一 sessionId 且 elapsedMs 在 0…durationMs。先按 secondBucket 保留最后一条，再排除 null、非有限、≤0 的 cadence；末条无效时不能回退到同秒较早的有效值。breakBefore 只表示断段，不排除其有效新点。暂停没有采集点；缺口、停止的零值不插补。均值与方差均使用同一有效集合，不复用旧 meanCadence；用 Welford 总体方差，分母 n，不用 n−1。
+  Use the frozen final-per-second motion observations from the same session and final active-time bounds. Deduplicate before filtering invalid/nonpositive cadence; do not revive an earlier value when a bucket ends missing. A valid breakBefore observation remains valid. Use the selected population for both mean and variance, with no padding or interpolation.
+- CV 越低表示本场有效步频越稳定；恒定步频显示 CV 0.0%，不得用 100−CV、不得夹紧到 100%。走跑切换和间歇会增大 CV。30 点是本 App 的显示门槛，不是医学阈值；该指标是每秒步频变化，不是逐步步态变异或健康评分。
+  Lower CV means steadier recorded cadence; constant cadence is valid zero. Never invert or cap CV at 100%. Intervals/transitions affect it. Thirty observations are a product threshold, not a medical cutoff or stride-level gait/health assessment.
+- 正常结束并保存时计算前三项；等信号写入 drain，再在 Dispatchers.Default 计算，和最终摘要一起在数据库 IO 事务保存。History 直接读已存结果，不在重组、打开详情或切换图表时扫描重算。单独缺失 HR/ACC 只影响相应指标；collectionIncomplete 的进程异常归档全部为 NULL 且不能评分。
+  Calculate the first three metrics during final saving, after signal writes drain, on Dispatchers.Default; persist with the final summary through database IO. History reads stored results. A missing stream affects only its related metric; process-interrupted collectionIncomplete archives have no metrics or rating.
+- 点击 Session Strain 打开英文 Rate session effort 弹窗；新记录没有默认选项，选择前不能保存。允许稍后评分/编辑、取消不写入；保存 sessionRpe、ratedAt（手机 UTC epoch 毫秒）、sessionStrain 和算法版本。使用数据库已存 active duration，保留毫秒精度再换算分钟，排除暂停。保存失败保留旧结果与选中值，显示 Retry save；成功提交后再刷新详情。
+  Open an English rating dialog from Session Strain. Unrated records start unselected; permit later edits, and cancel without writing. Store RPE, UTC epoch-millisecond rating time, strain and algorithm version using the persisted active duration. Retain the old result/selection on failure and refresh only after commit.
+- Session Strain 是单场主观负荷，不是 Polar 七日 Strain；不得从 HR、Intensity、Cardio Load 或步频猜测 RPE。帮助说明提供各指标定义与局限；数值一位小数，单位 AU/CV% 明确，缺失显示 --，零值显示 0.0。默认三卡加整宽 Strain，大字号纵向排布并滚动。
+  Session Strain is perceived single-session load, not Polar seven-day Strain. Never infer RPE from sensors. Explain the definitions/limitations; display one decimal and explicit units, missing values as -- and measured zeros as 0.0. Preserve compact cards with stacked scrolling at large font.
+- SQLite 升级到 v3，在 sessions 添加 8 个可空字段：intensity、cardioLoad、cadenceCvPercent、cadencePointCount、metricsVersion、sessionRpe、ratedAt、sessionStrain；算法版本 1。v2→v3 仅添加列，v1→v3 沿用已有信号表升级后加列，不删库。旧记录新字段 NULL，不自动回算前三项；完整旧记录可主动补 RPE 并仅计算 Strain。暂存记录和异常归档不能评分；重复保存已提交 UUID 不覆盖后来评分；删除沿用原事务与级联。
+  SQLite v3 adds eight nullable session columns and algorithm version 1. Preserve v2 data and the existing v1 signal-table upgrade; never reset the database. Do not backfill old computed metrics. Complete older records may receive a rating/strain only. Reject staging/archive ratings, preserve later ratings on duplicate final saves and retain transactional cascade deletion.
+
+### 5.48.2 实施与验证 / Implementation and validation
+
+- 新增 ActivityMetrics.kt（纯计算/结果）、ActivityMetricCards.kt（指标及说明）、SessionRatingDialog.kt（评分）；接入 SessionRecord、SessionStorage、SessionDatabase、SessionSummaryPanel、HistoryPanel 与 HistoryDetailLayout。没有更改 HR/ACC/ECG/RR SDK 订阅、步伐检测或实时计时逻辑。
+  Added the metrics calculator/result, metric cards/help and rating dialog; integrated existing summary, storage and History owners without changing SDK subscriptions, step detection or live timing.
+- 数学示例：Z2=10 分钟、Z3=15 分钟、Z4=5 分钟，则 W=85 加权分钟，Intensity=85/30≈2.8333，Cardio Load=85 AU。30 个 100/110/120 循环点的 CV≈7.422696%；30 分钟且 RPE=6 时 Strain=180 AU。持久化完整精度，仅 UI 四舍五入。
+  Examples: ten Z2 minutes, fifteen Z3 and five Z4 yield 85/30 intensity and 85 AU load. Thirty repeating 100/110/120 cadence records yield CV about 7.422696%; RPE 6 over thirty active minutes yields 180 AU. Round only for display.
+- 全部 255 项单元测试通过（新增 11 项）。debug/测试 APK 构建通过，lint 0 errors、23 warnings。模拟器 emulator-5590 分轮共 42 项不同检查通过：新增数据库 5、指标 UI 4，原 SessionDatabase 6、SignalDatabase 6、HistoryDetail 9、HistoryPresentation 4、固定图表布局 1、AutoPauseLifecycle 7。
+  All 255 unit tests pass, including eleven new tests. Debug/test APK builds and lint pass (zero errors, 23 warnings). Across runs, 42 distinct emulator checks pass: five new database and four UI checks, six SessionDatabase, six SignalDatabase, nine HistoryDetail, four HistoryPresentation, one fixed-chart-layout and seven AutoPauseLifecycle checks.
+- 新增 UI 四项分别在浅/深主题及实际系统字号 1.0/2.0 复查；验证说明、无默认 RPE、取消、保存、改为 0、失败重试及异常归档禁用。固定四图布局在浅色默认及深色 2.0 通过；数据库验证升级保留、重开读取、旧记录 NULL、评分事务回滚、重复保存与删除。既有四小时合成信号写入测试通过，不等于真实 H10 性能。
+  Repeat the four UI checks in all four theme/font combinations. Verify help, unselected ratings, cancellation, saving/editing zero, retry and archive restrictions. Fixed charts pass normal/light and 2.0/dark checks. Database coverage includes preserving migration, reopen, old nulls, rollback, idempotency and deletion. Existing four-hour synthetic persistence coverage passes; real H10 performance remains unverified.
+- 首轮 UI 检查发现 Strain 卡片高度被撑大和 0 节点选择歧义，分别修正紧凑卡片高度与测试定位后复跑通过。自动暂停旧断言因新增算法元数据失败，改为检查 version=1/count=0/缺失值，并比较其余完整快照，7 项复跑通过。截图测试补充主题 Surface、安全边距和系统弹窗动画等待；早期失败/过渡截图保留为过程证据。
+  Initial UI failures exposed expanded compact Strain height and an ambiguous zero test selector; both were corrected and rerun. Updated the lifecycle assertion to check new metadata while comparing the unchanged snapshot; all seven pass. Screenshot tests now include the theme surface, safe insets and settled system-dialog transitions; retain initial failures/transient captures as development evidence.
+- 证据：build/step90b-validation/ 中的 build-layout-fix.txt、test-final-build.txt、capture-test-build.txt、metrics-light1-final.txt、metrics-dark2.txt、metrics-light2.txt、regression-dark1.txt、lifecycle-final.txt、visual-*-final.txt、passed-tests.txt 和 captures-final/files/metrics-*.png。42 为去重后的通过项，主题/字号复跑不重复计数；旧混合失败日志不能单独称为整轮通过。
+  Evidence is in build/step90b-validation. The distinct-test list deduplicates theme/font repetitions; mixed initial logs are not all-pass runs. Captures use controlled synthetic fixtures and verify the new metric cards/dialog, not real signals.
+- 两对 AGENTS.md/prompt.md 同步；代码与上述软件检查已完成。没有操作连接的 Samsung 或 H10；真实运动准确性、设备端评分体验和实际采集端到端仍 pending。没有 commit/push，也未将 Trend 或后续步骤提前实施。
+  Both documentation pairs are synchronized. Code and the listed software checks are complete; Samsung/H10 runtime, real-activity accuracy and physical-device end-to-end behavior remain pending. No commit/push or later-step implementation.
+
+## 9.0b 中英文实施 Prompt / Bilingual implementation prompt（2026-10-04）
+
+### 中文 Prompt
+
+请只实施 9.0b：将 Activity Summary 的四张占位卡接入真实计算和 SQLite 持久化，保留 Intensity、Cardio Load、Session Strain，将 HR Recovery 改为 Cadence Stability。实施前读取当前 AGENTS.md 和相关源码，遵循本文件 5.48 的完整算法、缺失值、归档、升级和验证规则；使用当前 Kotlin/Compose 架构和最小必要代码，不新增依赖，不修改 SDK 采集、步伐检测、原始 ACC 保存方式、9.0a 图表浏览及 5.47 生命周期。
+
+1. 增加可测试的纯算法。用五个现有 HR 区间的有效时长计算 Intensity=Σ(i×di)/Σdi、Cardio Load=Σ(i×di)/60000；无有效区间时长为 null，不补缺失时间。
+2. 从同场结束快照的每秒最终 cadence 取有限正值，先按秒去重后过滤，不排除有效 breakBefore 点，不插值；n≥30 才计算总体 CV=100×sqrt(Σ(c−mean)²/n)/mean，保存有效点数。不得用摘要 meanCadence、100−CV 或封顶；输出含义为步频稳定性而非健康等级。
+3. 最终信号 drain 后在后台计算，与摘要一起事务保存；History 只读取持久化结果。SQLite v3 保留原记录并增加八个可空列和版本1，旧记录不自动回算，进程异常归档保持 null。
+4. 点击 Session Strain 可选填整数 RPE 0–10，无默认值；Strain=RPE×已存活动分钟数，保存评分时间，允许后改、取消及失败重试。零评分有效；无评分/非正时长不伪造0。事务失败不刷新旧值，未提交/异常归档禁止评分，重复最终保存不覆盖评分。
+5. 全英文 UI，前三卡及整宽 Strain 沿用布局、深浅主题和大字号滚动；各数值一位小数，缺失为 --。提供定义说明，明确 Cardio Load 是 App 简化估算，Session Strain 不是 Polar 七日指标；保留四图固定尺寸及 ECG/RR 图内左右滑动。
+6. 补充数学边界、29/30点、过滤与重复秒、缺失/有效零、RPE0/10、SQLite保留升级与重开、事务失败重试和历史/生命周期回归。构建 debug/测试 APK、运行单元测试/lint以及可用模拟器检查；区分合成数据、真实数据库、模拟器视觉和 Samsung/H10。同步两对中英文文档，记录失败与修复，不 commit/push。
+
+### English Prompt
+
+Implement only step 9.0b: replace the four Activity Summary placeholders with computed, persisted metrics. Keep Intensity, Cardio Load and Session Strain; rename HR Recovery to Cadence Stability. Read current AGENTS.md and source first and follow all formulas, missing-data, archive, migration and verification rules in section 5.48. Use the existing Kotlin/Compose architecture and minimal necessary changes, without new dependencies or changes to SDK acquisition, step detection, raw ACC storage, 9.0a browsing or 5.47 lifecycle behavior.
+
+1. Add a pure testable calculator. From existing five-zone durations in milliseconds, compute Intensity=Σ(i×di)/Σdi and Cardio Load=Σ(i×di)/60000. Return null without classified duration; do not estimate missing time.
+2. Use the frozen same-session final-per-second cadence observations. Deduplicate seconds before filtering finite positive values; retain valid breakBefore points and do not interpolate. Require at least thirty observations for population CV=100×sqrt(Σ(c−mean)²/n)/mean and persist the count. Do not use summary meanCadence, invert CV or cap it; describe cadence variability without health grades.
+3. After signal writes drain, compute off the main thread and persist with the final summary transaction. History reads saved results. Upgrade to SQLite v3 preserving existing data and adding eight nullable columns with algorithm version 1. Do not backfill old metrics; interrupted archives remain null.
+4. Open an optional 0–10 integer RPE dialog from Session Strain with no default. Multiply RPE by persisted active minutes and save the rating timestamp. Support later edits, cancellation and retry. Zero is valid; an unset rating or nonpositive duration has null strain. Failed writes retain the old summary; reject staging/archive ratings and preserve ratings on duplicate final saves.
+5. Use English UI, one decimal, explicit units and -- for missing values. Preserve compact cards, light/dark themes, large-font scrolling, fixed chart geometry and in-plot ECG/RR swiping. Explain that Cardio Load is an app estimate and Session Strain is not Polar seven-day Strain.
+6. Test numerical boundaries, 29/30 observations, filtering/deduplication, null/zero, RPE limits, preserving migration/reopen, transactional failures/retry and History/lifecycle regression. Build debug/test APKs, run unit tests/lint and available emulator checks. Distinguish synthetic fixtures, actual SQLite, emulator visuals and Samsung/H10 validation. Synchronize both bilingual documentation pairs, record failures/fixes and do not commit or push.
+
+执行结果 / Outcome: 见本文件 5.48.2；软件实施与列明检查已完成，真机 pending。See section 5.48.2 for completed software work and checks; hardware remains pending.
+
+
+### 5.48.3 9.0b 修订：自动综合 Session Strain / Automatic composite Session Strain（2026-10-04）
+
+本节按用户“参考步频、运动总时长且不获取用户输入”的确认实施，覆盖 5.48.1/5.48.2 及原 9.0b prompt 中所有 RPE 算法、评分界面、评分字段与旧 Strain 不回算要求。原记录保留为历史证据；Intensity、Cardio Load 和 Cadence Stability 的算法不变。
+This user-authorized revision supersedes the RPE formula, rating UI/fields and no-Strain-backfill rules in 5.48.1/5.48.2 and the original 9.0b prompt. Earlier entries remain historical. Intensity, Cardio Load and Cadence Stability formulas are unchanged.
+
+- 设 ti=zoneDurationsMs[i−1]/60000，T=durationMs/60000，c=meanCadence：
+  H=Σ(ti×i²)，i=1…5；C=5×clamp(c/180,0,1)；M=T×C²；Session Strain=0.7×H+0.3×M，单位 AU。使用 Double 保留精度，显示一位小数。70%/30% 和 180 是固定 App 参数，不是医学阈值或推荐步频；指标不等同于 Polar Strain，也不宣称经验证的疲劳测量。
+  With zone minutes ti, active minutes T and mean cadence c, compute H=sum(ti×i²), C=5×clamp(c/180,0,1), M=T×C² and Strain=0.7H+0.3M in AU. Persist full precision and display one decimal. The weights and cadence reference are app parameters, not medical thresholds, recommended cadence, Polar Strain or validated fatigue.
+- 时长使用已冻结的累计 Running 时间，排除 Pause，不用 endedAt−startedAt。平均步频沿用 Summary 的总步数/活动分钟数，包含静止时间；不再次加入总步数权重，不加入 Cadence Stability 或其他用户参数，不新增 ACC/ECG/RR 实时处理。
+  Use persisted active Running duration, excluding pauses, rather than wall-clock end minus start. Existing mean cadence includes stationary time through total steps divided by active minutes. Do not add a second step-count weight, cadence CV, user parameters or additional live processing.
+- durationMs≤0、没有已分类 HR 时长、meanCadence 缺失/非有限/负值、ACC 未收到/标记 missing 或 failed、collectionIncomplete 任一成立时，Strain=NULL，UI 显示 --。ACC 有效且平均步频为 0 时 M=0，心率部分仍有效。不因为 ECG/RR 缺失而禁用。HR 缺口只是不贡献 H，不外推或将缺失时长补到完整时长，因此可能低估负荷。
+  Return null for nonpositive duration, no classified HR time, invalid/missing mean cadence, absent/missing/failed ACC or collectionIncomplete archives. Valid zero cadence contributes zero motion but retains the heart component. Missing ECG/RR alone does not disqualify the score. Do not extrapolate missing HR time; partial HR can underestimate load.
+- 计算仍在最终信号 drain 后的 Dispatchers.Default 执行，摘要与历史一起事务保存；History 只读已保存结果。删除 SessionRatingDialog.kt、评分状态/回调、rateSession、sessionRpe/ratedAt 模型和数据库字段；Strain 卡片点击仅打开可滚动英文说明，没有输入、默认值、Edit 或 Tap to rate。
+  Continue calculating after signal drain on Dispatchers.Default and saving with the final snapshot transaction. History reads saved values. Remove the rating dialog/state/callbacks/database update API and RPE/time fields. The card opens scrollable English help only.
+- SQLite 升级为 v4，算法版本为 2。v3 摘要表在 SQLiteOpenHelper 升级事务中重建，去除两个评分字段；只复制摘要，不复制/删除大体积信号表。迁移前在 onConfigure 关闭外键级联，校验 foreign_key_check 后完成事务，再于 onOpen 恢复外键；因此不会因替换父表而删除 HR/步频/ECG/RR 子记录。迁移失败回滚 schema、数据和版本。实现依据 [SQLite ALTER TABLE](https://www.sqlite.org/lang_altertable.html) 与 [Android SQLiteOpenHelper](https://developer.android.com/reference/android/database/sqlite/SQLiteOpenHelper) 的事务与配置顺序。
+  SQLite v4/algorithm v2 rebuilds only the v3 session table within the helper's upgrade transaction, removing rating columns while preserving signal/history tables. Configure foreign keys before migration, check integrity and restore enforcement after opening. Roll back schema, data and version on failure; follow the linked SQLite/Android migration guidance.
+- v1/v2 保留原有升级路径并添加当前六个指标字段；v1/v2/v3 已提交且非异常归档的旧记录，按当前 Summary 和上述有效性规则重算 Strain，覆盖旧 RPE 分数并记录算法版本2。其他三项及有效步频点数原样保留，不补算；旧记录其他指标可仍为 NULL。未提交/异常归档 Strain 为 NULL，不能混用旧分数。相同 UUID 的重复最终保存仍幂等。
+  Preserve existing v1/v2 upgrade paths. Recompute only Strain for committed non-archive legacy records, replacing RPE scores using saved summaries and recording version 2. Preserve the other three metrics/count, including existing nulls. Staging/archive Strain is null; duplicate final saves remain idempotent.
+- 示例：全程 Z3，30分钟/90步每分钟→245.25 AU，30分钟/120步每分钟→289 AU，60分钟/120步每分钟→578 AU。30分钟且 Z2/Z3/Z4 为10/15/5分钟、平均120步每分钟→278.5 AU。相同全程Z3例子的180与240步每分钟均为414 AU（步频部分封顶），0步每分钟为189 AU。
+  Examples: all-Z3 sessions yield 245.25 AU at 30 minutes/90 cadence, 289 at 30/120 and 578 at 60/120. Ten/fifteen/five Z2/Z3/Z4 minutes and mean cadence 120 yield 278.5 AU. Cadence 180 and 240 both yield 414 AU for the thirty-minute Z3 example; zero cadence yields 189 AU.
+
+### 5.48.4 修订实施 Prompt / Revision implementation prompt
+
+中文：只修订9.0b的Session Strain。按5.48.3，以已存心率区间平方加权分钟、整场平均步频及排除暂停的活动时长，计算70%心率+30%步频负荷。删除所有RPE输入及保存路径，卡片点击仅显示可滚动算法说明。无有效HR、ACC不完整或异常归档等情况按规则显示--。升级SQLite至v4、算法至2，安全删除评分字段、保留全部历史与信号，在迁移时仅重算旧Strain，不改变其他指标。补充公式、边界、缺失、迁移失败回滚、旧分数替换、信号保留与级联删除测试，回归History、自动暂停及ECG/RR固定窗口与滑动，核对深浅主题/字号1.0和2.0。同步两对文档，区分模拟数据、模拟器和真机结果，不commit/push，不实施后续步骤。
+
+English: Revise only Session Strain in 9.0b. Follow 5.48.3 to combine 70% zone-square-weighted heart minutes and 30% cadence load from the saved mean cadence and pause-excluded active duration. Remove all RPE input/persistence paths; tapping the card opens scrollable help only. Apply the specified null rules for absent HR, incomplete ACC and archives. Upgrade to SQLite v4/algorithm v2, remove rating columns safely, preserve all historical/signal data and recalculate only legacy Strain. Test formulas, boundaries, missing data, migration rollback, replacement of old scores, signal preservation and cascades; regress History, automatic pause and fixed ECG/RR swiping. Check light/dark and font 1.0/2.0, synchronize both documentation pairs, distinguish fixtures/emulator/hardware and do not commit, push or advance later steps.
+
+
+
+### 5.48.5 修订验证结果 / Revision validation results（2026-10-04）
+
+- 本轮修改并移除旧 RPE 实现；ActivityMetricsTest 由11项调整为16项，覆盖245.25/289/578示例、180归一化封顶、有效静止、非有限与缺失输入、ACC质量、异常归档、非ACC流缺失、HR不外推、毫秒精度、排除暂停的活动时长及不重复累计步数。全量260项单元测试通过，debug/测试APK构建成功；lint为0 errors、23 warnings。
+  Replaced the RPE implementation; the metrics unit class now has sixteen tests, previously eleven, covering the agreed examples, cadence cap, stationary periods, invalid/missing data, ACC quality, archives, unrelated streams, no HR extrapolation, fractional minutes, active-time boundaries and no duplicate step weighting. All 260 unit tests pass, with successful debug/test APK builds and lint (zero errors, 23 warnings).
+- 14项第一轮检查通过：修订后的ActivityMetricsDatabaseTest 6项、ActivityMetricsUiTest 4项、v1迁移1项、SignalChartTest 3项。数据库验证实际SQLite新建/重开、v1/v2/v3升级、仅Strain回算、旧RPE字段删除、原摘要与HR/步频/ECG/RR保留、外键恢复及级联删除、升级失败整体回滚后重试、暂存和异常归档NULL、最终保存失败回滚和重试幂等。
+  All fourteen initial emulator checks pass: six metrics database, four metrics UI, one v1 migration and three signal-chart checks. Actual SQLite tests cover create/reopen, preserving v1/v2/v3 upgrades, Strain-only recalculation, removal of rating columns, all history/signal tables, restored foreign keys/cascades, migration rollback/retry, staging/archive nulls and final-save failure/retry/idempotency.
+- 26项回归通过：SessionDatabase 6、HistoryPresentation 4、HistoryDetail 9、AutoPauseLifecycle 7。与首轮合计40项不同检查，不重复计数；本轮没有重跑四小时信号压力测试或全部仪器套件。
+  All twenty-six regression checks pass: six SessionDatabase, four HistoryPresentation, nine HistoryDetail and seven AutoPauseLifecycle. Combined with the initial run, this is forty distinct checks. The four-hour signal stress test and complete instrumentation suite were not rerun.
+- 深色/字号2.0重复7项（4指标UI+3图表），深色/字号1.0重复4项UI，浅色/字号2.0重复4项UI，全部通过。新增指标UI共覆盖深浅主题及真实系统字号1.0/2.0；无RPE入口、自动值/缺失值、只读说明、固定四图与左右滑动保持通过。默认浅色整页及深色大字号说明已视觉核对；大字号说明正文可滚动，Close固定可见。截图为受控合成数据。
+  All fifteen repeats pass: seven at dark/font2.0, four UI checks at dark/font1.0 and four at light/font2.0. Metric UI covers all four combinations, including no rating input, automatic/null values and read-only help; fixed charts/swiping remain verified. Normal/light full-page and enlarged/dark help captures were visually checked. Large-font help scrolls with a visible Close action. Captures use synthetic fixtures.
+- 证据在build/step90b-strain-validation/：build.txt、metrics-light1.txt、regression.txt、metrics-dark2.txt、metrics-dark1.txt、metrics-light2.txt、passed-tests.txt、captures-final/strain-*.png。260单元结果在app/build/test-results/testDebugUnitTest，lint在app/build/reports/lint-results-debug.xml。本轮软件测试首轮即通过。
+  Evidence is under build/step90b-strain-validation, with unit XML and lint reports in the standard app/build locations. This revision's software test runs passed on their first attempts.
+- 两对AGENTS.md/prompt.md已同步。仅操作为本轮启动的emulator-5590；未安装或操作连接的Samsung/H10。真实活动准确性和设备端端到端体验仍待验证；本轮不commit/push、不推进后续步骤。9.0a/5.47采集与生命周期业务代码未修改。
+  Both documentation pairs are synchronized. Only the task-started emulator-5590 was used; the connected Samsung/H10 was not operated or installed to. Real-activity accuracy and physical-device end-to-end behavior remain pending. No commit/push or later steps; 9.0a/5.47 acquisition/lifecycle business code is unchanged.
+
+### 5.48.6 9.0b 百分制展示 / Session Strain score out of 100（2026-10-04）
+
+- 用户确认将Session Strain改为0–100活动负荷评分。本节只覆盖5.48.3—5.48.5的卡片AU展示；底层70%心率+30%步频/时长的原始负荷算法与有效性规则保持不变。
+  The user approved a 0–100 activity load score. This supersedes only the card's AU display in 5.48.3–5.48.5; the underlying heart/cadence/duration load and validity rules remain unchanged.
+- score = 100 × rawStrain / (rawStrain + 100)。采用100 AU作为固定参考值，对应50分；参数是App展示规则，不是医学阈值。原始负荷越高，分数越高并逐渐趋近100；不使用硬截断将所有高负荷直接归为100。高分表示累计负荷更大，不代表运动表现更好；短活动低分是正常的。
+  Score = 100 × rawStrain / (rawStrain + 100). The fixed 100 AU reference maps to fifty points; it is an app parameter, not a medical threshold. The monotonic mapping approaches 100 without early hard saturation. Higher means greater accumulated load, not better performance; short activities usually score lower.
+- Session Strain标题保持，显示一位小数和“/ 100”，不显示AU或百分号，不新增好坏等级。缺失仍显示--，有效原始零值显示0.0 / 100。示例：1.8 AU→1.8 / 100（未四舍五入约1.76817）；25→20.0；100→50.0；300→75.0；900→90.0；受控夹具278.5 AU→73.6 / 100。
+  Keep the title, display one decimal followed by / 100, and do not label it AU, a percentage or a performance grade. Missing values remain -- and valid zero becomes 0.0 / 100. The listed examples define expected display rounding.
+- ActivityMetrics新增只读派生属性sessionStrainScore；ActivityMetricCards使用该属性并更新英文说明，将原始负荷定义和评分换算区分开。SQLite继续只保存sessionStrain原始AU；没有数据迁移、批量重算或评分写回，数据库v4和原始算法版本2不变。历史记录读取时直接换算，点击说明前后数据库快照相同。
+  Add the read-only derived sessionStrainScore property and use it in ActivityMetricCards with revised English help distinguishing raw load and display score. SQLite still stores raw AU only. No migration, backfill or score writes; database v4/raw algorithm v2 remain unchanged. Existing saved loads use the mapping when displayed.
+- 中文Prompt：只更新9.0b的Session Strain展示，按100×raw/(raw+100)换算为0–100负荷评分，显示一位小数 / 100，保留缺失占位和原始AU存储，明确高分不等于表现好。更新英文说明、数值及只读测试，验证缺失/零值/单调性/参考示例和默认/大字号布局，同步两对文档，不改采集、底层负荷或数据库版本，不commit/push。
+  English prompt: Update only the 9.0b Session Strain display to 100×raw/(raw+100), showing one decimal out of 100. Preserve missing placeholders and stored raw AU; explain that higher load is not better performance. Update help and numeric/read-only checks, verify null/zero/monotonicity/reference examples and normal/large-font layout, synchronize both documentation pairs and do not change acquisition, raw-load calculation or database version, commit or push.
+
+### 5.48.7 百分制实施验证 / Score display validation（2026-10-04）
+
+- 新增2项单元测试，覆盖参考换算、保留原始AU、缺失/有效零及递增且不提前封顶。全量262项单元测试通过；debug/测试APK构建通过，lint 0 errors、23 warnings。
+  Added two unit tests covering reference mappings, unchanged raw AU, null/valid zero and monotonic scores without early saturation. All 262 unit tests and debug/test builds pass; lint reports zero errors and 23 warnings.
+- ActivityMetricsUiTest的4项及SignalChartTest固定布局1项在默认浅色通过，随后在实际字号2.0深色全部复跑通过，合计5项不同检查+5项重复。验证73.6 / 100显示、原始278.5 AU数据库值未改变、缺失占位、无RPE输入、只读说明以及四图切换布局。两种配置的截图已视觉核对；正常字号整页布局保持，大字号说明可滚动且Close可见。使用合成夹具，不是真实活动数据。
+  Four metrics UI checks and one fixed-chart-layout check pass in normal/light and repeat in actual font2.0/dark, totaling five distinct checks plus five repeats. Verify score display, unchanged stored raw value, missing placeholders, no RPE input, read-only help and fixed charts. Screenshots were visually inspected; fixtures are synthetic.
+- 本轮未改数据库、采集与生命周期代码，未重复上轮迁移/完整History/自动暂停仪器套件。证据：build/step90b-score-validation/build.txt、score-light1.txt、score-dark2.txt、captures-final/strain-score-*.png；单元与lint结果沿用标准app/build报告路径。
+  Database/acquisition/lifecycle code is unchanged. Previous migration/full History/automatic-pause instrumentation suites were not rerun. Evidence is in build/step90b-score-validation, with unit/lint reports under standard app/build paths.
+- 两对AGENTS.md/prompt.md同步；只操作本轮启动的emulator-5590，Samsung/H10未安装或验证。无commit/push，未推进后续功能。
+  Both documentation pairs are synchronized. Only the task-started emulator-5590 was used; Samsung/H10 installation/validation remains pending. No commit/push or later features.
+
+### 5.48.8 9.0b 评分持久化 / Persisting the Session Strain score（2026-10-04）
+
+- 用户要求百分制评分也保存到SQLite。本节覆盖5.48.6—5.48.7“只保存原始AU、读取时即时换算、不迁移”的规则；展示与评分公式不变，Session Strain仍显示一位小数 / 100，缺失显示--。
+  The user requested storing the score in SQLite as well. This supersedes the raw-only storage/display-time conversion/no-migration rules in 5.48.6–5.48.7. The formula and one-decimal / 100 display remain unchanged, with -- for missing data.
+- ActivityMetrics.sessionStrainScore改为可空的已保存字段。结束冻结后，ActivityMetricsCalculator先计算原始sessionStrain，再计算score=100×raw/(raw+100)；两个值与其他摘要/历史在同一最终保存事务中写入。评分按0–100范围保存（不是0–1），不提前四舍五入；原始AU保留。History直接读取数据库字段，不在重组或打开详情时从原始AU重新计算。
+  Make sessionStrainScore a nullable stored field. During finalization calculate raw Strain and its score, then persist both with the summary/history in the same transaction. Store the full-precision 0–100 value, not a 0–1 fraction or rounded display value. Preserve raw AU. History reads the stored score without display-time recalculation.
+- SQLite升级到v5，sessions新增sessionStrainScore REAL（可空）。v4→v5仅加列并用已存sessionStrain补算评分，不改原始AU、其他指标、算法版本或信号历史。只有commitState=1且非collectionIncomplete的记录可补算；raw=NULL则score=NULL，raw=0则score=0。未提交/异常归档不补评分。
+  SQLite v5 adds nullable sessionStrainScore REAL. Upgrade v4 by adding the column and backfilling from saved raw Strain, without modifying raw load, other metrics, algorithm version or signal history. Only committed non-archive records are eligible. Preserve null versus zero; leave staging/archive scores null.
+- v1/v2/v3先沿用既有保留升级和原始Strain修订规则，再生成评分，避免把旧RPE分数当作新负荷。升级事务失败时列、数据和user_version一起回滚，可重试。新建、最终保存、分页/详情查询、重开与重复UUID幂等路径均接入评分字段；未增加第二套评分写入入口。
+  Retain the existing preserving migrations/raw-load revision for v1/v2/v3 before generating scores, avoiding conversion of obsolete RPE values. Roll back column/data/version together on upgrade failure. Integrate score serialization and reading into existing creation, final save, list/detail, reopen and idempotent UUID paths.
+- 数据库schema版本为5；原始负荷/评分公式没有变化，metricsVersion仍为2。例：原始278.5 AU与评分约73.57992073976222同时保存，UI显示73.6 / 100。无新的传感器、用户输入或采集/生命周期修改。
+  Database schema version is 5; unchanged formulas retain metricsVersion 2. For example, raw 278.5 AU and score about 73.57992073976222 are both stored, while the UI shows 73.6 / 100. No additional sensors, user input or acquisition/lifecycle changes.
+
+中文Prompt：只为9.0b补充Session Strain百分制评分持久化。将sessionStrainScore从显示派生属性改为可空存储字段，在会话结束时按既定公式与原始AU一起计算并事务保存。SQLite升级v5，保留数据，从v4已存原始负荷补算旧记录评分；旧v1/v2/v3继续先完成已定义的负荷升级。保留缺失、零值、异常归档与重复保存语义，History只读已存评分。测试实际SQL列与精度、升级回滚、重启恢复、旧版本迁移、界面不重算及最终保存回归；同步两对中英文文档，不commit/push。
+English prompt: Add persisted Session Strain scores to 9.0b only. Replace the display-derived property with a nullable stored field, calculate it with raw AU at finalization and save both atomically. Upgrade SQLite to v5 preserving data and backfill v4 scores from saved raw loads; retain the defined prior raw-load migrations for v1/v2/v3. Preserve null/zero/archive/idempotency semantics and make History read saved scores. Verify actual SQL precision, upgrade rollback, reopen, earlier migrations, no UI recalculation and final-save regression. Synchronize both bilingual documentation pairs without commit/push.
+
+### 5.48.9 评分存储验证 / Stored-score validation（2026-10-04）
+
+- 全量262项单元测试、debug/测试APK构建通过，lint 0 errors、23 warnings。调整现有评分单元测试适配显式计算/存储字段，最终冻结测试同时确认原始289 AU和评分约74.293059125964。
+  All 262 unit tests and debug/test APK builds pass; lint has zero errors and 23 warnings. Existing score tests now exercise explicit calculation/storage, and finalization asserts both raw AU and its score.
+- 默认浅色27项不同仪器检查通过：ActivityMetricsDatabaseTest 8、ActivityMetricsUiTest 5、SignalDatabase v1迁移1、SessionDatabase 6、AutoPauseLifecycle 7。评分数据库测试新增v4→v5补算及失败回滚两项，保留v1/v2/v3升级、信号保留、级联删除、最终保存重试及幂等验证。
+  Twenty-seven distinct checks pass in normal/light: eight metrics database, five metrics UI, one v1 signal migration, six SessionDatabase and seven AutoPauseLifecycle. Added v4 score-backfill and rollback/retry tests alongside earlier migration, signal retention, cascade, final-save retry and idempotency coverage.
+- 实际SQL列验证原始278.5 AU和评分约73.57992073976222同时保留；重开后精度不变。旧raw为NULL/0/1.8/100/900分别正确补算，原始值与其他摘要/HR/步频保持不变，异常归档不补评分。故障注入确认新增列与user_version回滚，去除故障后可升级成功。
+  Actual SQL verifies stored raw AU and full-precision score together, surviving reopen. Legacy null/zero/reference loads map correctly without changing raw/other history values; archives remain unscored. Fault injection verifies column/version rollback and successful retry.
+- 新增UI检查通过显式注入12.5评分且保留原始278.5 AU，确认History显示12.5 / 100而不是重新换算成73.6。该测试仅用于证明读取路径，测试库不进入生产数据。5项UI在深色、实际字号2.0复跑均通过；默认浅色及深色大字号指标截图已核对，使用合成数据。
+  A new UI test injects score 12.5 while retaining raw 278.5 AU and confirms History displays the stored 12.5 rather than recomputing 73.6. This controlled test database is not production data. All five UI checks repeat successfully in dark/font2.0; normal/light and large/dark captures were inspected.
+- 证据：build/step90b-score-storage-validation/build.txt、storage-light1.txt、storage-dark2.txt、passed-tests.txt、captures/stored-score-*.png；单元/lint报告在标准app/build路径。本轮未重跑全量仪器、四小时压力或独立四图布局套件；界面布局、传感器采集和生命周期业务代码未改。
+  Evidence is under build/step90b-score-storage-validation with standard unit/lint reports. The complete instrumentation, four-hour stress and separate chart-layout suites were not rerun; layout/acquisition/lifecycle business code is unchanged.
+- 两对AGENTS.md/prompt.md已同步。只操作本轮启动的emulator-5590，Samsung/H10真机未安装或验证。无commit/push，不推进后续步骤。
+  Both documentation pairs are synchronized. Only task-started emulator-5590 was used; Samsung/H10 installation/validation remains pending. No commit/push or later steps.

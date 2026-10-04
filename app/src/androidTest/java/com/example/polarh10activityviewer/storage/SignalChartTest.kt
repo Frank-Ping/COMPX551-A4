@@ -91,7 +91,7 @@ class SignalChartTest {
         compose.onNodeWithTag("history-chart-card").performScrollTo()
         val card = compose.onNodeWithTag("history-chart-card").getUnclippedBoundsInRoot()
         val plot = compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot()
-        val titles = listOf("Duration", "Total Steps", "Intensity", "Cardio Load", "HR Recovery", "Session Strain")
+        val titles = listOf("Duration", "Total Steps", "Intensity", "Cardio Load", "Cadence Stability", "Session Strain")
         val summaries = titles.map { compose.onNodeWithText(it).getUnclippedBoundsInRoot() }
         for (choice in listOf("Cadence", "ECG", "RR", "HR")) {
             compose.onNode(hasText(choice) and hasClickAction()).performClick()

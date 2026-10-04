@@ -62,14 +62,14 @@ class HistoryPresentationTest {
     private fun show(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
     private fun selectCadence() = compose.onNode(hasText("Cadence") and hasClickAction()).performScrollTo().performClick()
 
-    @Test fun summaryUsesStoredValuesAndKeepsFourUndefinedMetricsAndEnabledChoices() {
+    @Test fun summaryUsesStoredValuesAndKeepsUncomputedMetricsEmptyAndEnabledChoices() {
         mount()
         for (value in listOf("1920", "125", "70–160", "96", "144")) show(value)
         compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         compose.onNodeWithContentDescription("Session details").assertDoesNotExist()
         compose.onNodeWithText("10:10").assertHasNoClickAction()
         compose.onAllNodesWithText("--").assertCountEquals(4)
-        for (title in listOf("Intensity", "Cardio Load", "HR Recovery", "Session Strain")) show(title)
+        for (title in listOf("Intensity", "Cardio Load", "Cadence Stability", "Session Strain")) show(title)
         for (title in listOf("Overview", "Activity charts", "Unclassified")) compose.onNodeWithText(title).assertDoesNotExist()
         compose.onAllNodesWithText("Duration").assertCountEquals(1)
         for (choice in listOf("ECG", "RR")) {

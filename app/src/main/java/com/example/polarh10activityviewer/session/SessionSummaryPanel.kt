@@ -47,16 +47,7 @@ internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boo
             ))
         }
     }
-    val placeholderHeight = with(LocalDensity.current) { 16.sp.toDp() + 30.sp.toDp() } + 12.dp
-    if (compact) Row(Modifier.fillMaxWidth().height(placeholderHeight), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Intensity", "Cardio Load", "HR Recovery").forEach {
-            PlaceholderCard(it, Modifier.weight(1f).fillMaxHeight(), compact = true)
-        }
-    } else listOf("Intensity", "Cardio Load", "HR Recovery").forEach {
-        PlaceholderCard(it, Modifier.heightIn(min = placeholderHeight), compact = false)
-    }
-    PlaceholderCard("Session Strain", if (compact) Modifier.height(placeholderHeight)
-        else Modifier.heightIn(min = placeholderHeight), compact)
+    ActivityMetricCards(record, compact)
 }
 
 private data class SummaryValue(val label: String, val value: String, val unit: String? = null)
@@ -104,21 +95,6 @@ private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun PlaceholderCard(title: String, modifier: Modifier, compact: Boolean) {
-    SummaryCard(modifier) {
-        Text(title, Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-        val valueArea = if (compact) Modifier.weight(1f) else Modifier.heightIn(
-            min = with(LocalDensity.current) { 30.sp.toDp() })
-        Box(Modifier.fillMaxWidth().then(valueArea), contentAlignment = Alignment.Center) {
-            Text("--", textAlign = TextAlign.Center,
-                fontSize = 26.sp, lineHeight = 30.sp, letterSpacing = 3.sp, fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

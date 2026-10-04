@@ -3,6 +3,7 @@ package com.example.polarh10activityviewer.storage
 import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.polarh10activityviewer.session.ActivityMetrics
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.polarh10activityviewer.session.SessionRecord
 import com.example.polarh10activityviewer.session.SessionSnapshot
@@ -81,12 +82,12 @@ class SignalDatabaseTest {
         db.save(old)
         val sql = db.writableDatabase
         for (table in listOf("rr_points", "ecg_chunks", "ecg_segments")) sql.execSQL("DROP TABLE $table")
-        for (column in listOf("commitState", "collectionIncomplete", "receivedRr")) sql.execSQL("ALTER TABLE sessions DROP COLUMN $column")
+        for (column in listOf("commitState", "collectionIncomplete", "receivedRr", "intensity", "cardioLoad", "cadenceCvPercent", "cadencePointCount", "metricsVersion", "sessionStrain", "sessionStrainScore")) sql.execSQL("ALTER TABLE sessions DROP COLUMN $column")
         sql.version = 1
         db.close(); db = SessionDatabase(context, name)
         db.recoverInterrupted()
-        assertEquals(2, db.readableDatabase.version)
-        assertEquals(old, db.detail(old.record.id))
+        assertEquals(5, db.readableDatabase.version)
+        assertEquals(old.copy(record = old.record.copy(summary = old.record.summary.copy(activityMetrics = ActivityMetrics(algorithmVersion = 2)))), db.detail(old.record.id))
         assertTrue(db.ecgWindow(old.record.id, 0, 5000).isEmpty())
         assertEquals(0L, db.rrCount(old.record.id))
     }

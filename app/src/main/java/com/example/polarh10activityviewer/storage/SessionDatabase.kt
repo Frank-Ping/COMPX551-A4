@@ -13,6 +13,8 @@ import com.example.polarh10activityviewer.session.SessionRecord
 import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.session.SessionSummary
 import com.example.polarh10activityviewer.session.StreamObservation
+import com.example.polarh10activityviewer.session.ActivityMetrics
+import com.example.polarh10activityviewer.session.ActivityMetricsCalculator
 import com.example.polarh10activityviewer.chart.ChartPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,16 +22,22 @@ import kotlinx.coroutines.withContext
 internal const val HISTORY_PAGE_SIZE = 10
 
 internal class SessionDatabase(context: Context, name: String = NAME) :
-    SQLiteOpenHelper(context.applicationContext, name, null, 2) {
+    SQLiteOpenHelper(context.applicationContext, name, null, 5) {
     override fun onConfigure(db: SQLiteDatabase) {
+        // Rebuilding the v3 parent table must not cascade-delete signal/history rows.
+        // onConfigure precedes SQLiteOpenHelper's migration transaction.
+        db.setForeignKeyConstraintsEnabled(db.version != 3)
+    }
+
+    override fun onOpen(db: SQLiteDatabase) {
         db.setForeignKeyConstraintsEnabled(true)
     }
 
-    override fun onCreate(db: SQLiteDatabase) {
+    private fun createSessions(db: SQLiteDatabase, table: String = "sessions") {
         val observations = checkedDataTypes.joinToString(",") { type ->
             "${type}_received INTEGER NOT NULL, ${type}_missing INTEGER NOT NULL, ${type}_failed INTEGER NOT NULL"
         }
-        db.execSQL("""CREATE TABLE sessions (
+        db.execSQL("""CREATE TABLE $table (
             id TEXT PRIMARY KEY NOT NULL, startRequestedAt INTEGER NOT NULL,
             startedAt INTEGER NOT NULL, endedAt INTEGER NOT NULL, durationMs INTEGER NOT NULL,
             deviceName TEXT, deviceId TEXT, endReason TEXT, interrupted INTEGER NOT NULL,
@@ -40,6 +48,10 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             totalSteps INTEGER, meanCadence REAL, maximumCadence REAL, minimumCadence REAL,
             distanceMetres REAL, meanSpeedMetresPerSecond REAL, maximumSpeedMetresPerSecond REAL,
             $observations)""")
+    }
+
+    override fun onCreate(db: SQLiteDatabase) {
+        createSessions(db)
         db.execSQL("CREATE INDEX sessions_started ON sessions(startedAt DESC, id DESC)")
         db.execSQL("""CREATE TABLE hr_points (
             sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -51,6 +63,8 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             speedMetresPerSecond REAL, breakBefore INTEGER NOT NULL,
             PRIMARY KEY(sessionId, secondBucket))""")
         createSignalTables(db)
+        addActivityMetrics(db)
+        addStrainScore(db)
     }
 
     private fun createSignalTables(db: SQLiteDatabase) {
@@ -72,10 +86,55 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        check(oldVersion == 1 && newVersion == 2)
-        createSignalTables(db)
+        check(oldVersion in 1..4 && newVersion == 5)
+        if (oldVersion == 1) createSignalTables(db)
+        if (oldVersion < 3) addActivityMetrics(db)
+        if (oldVersion == 3) {
+            // Copy only the session table; large ECG/RR/history tables stay in place.
+            createSessions(db, "sessions_v4")
+            db.execSQL("ALTER TABLE sessions_v4 ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE sessions_v4 ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE sessions_v4 ADD COLUMN receivedRr INTEGER NOT NULL DEFAULT 0")
+            addActivityMetrics(db, "sessions_v4")
+            val columns = db.rawQuery("PRAGMA table_info(sessions_v4)", null).use { c ->
+                buildList { while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
+            }.joinToString(",")
+            db.execSQL("INSERT INTO sessions_v4 ($columns) SELECT $columns FROM sessions")
+            db.execSQL("DROP TABLE sessions")
+            db.execSQL("ALTER TABLE sessions_v4 RENAME TO sessions")
+            db.execSQL("CREATE INDEX sessions_started ON sessions(startedAt DESC, id DESC)")
+        }
+        addStrainScore(db)
+        // Pre-v4 records need the raw-load migration; v4 loads remain unchanged.
+        db.rawQuery("SELECT * FROM sessions", null).use { c ->
+            while (c.moveToNext()) {
+                val record = c.record()
+                val finalized = c.long("commitState") == 1L && !record.collectionIncomplete
+                val rawStrain = if (oldVersion < 4) {
+                    if (finalized) ActivityMetricsCalculator.strain(record) else null
+                } else record.summary.activityMetrics.sessionStrain
+                db.update("sessions", ContentValues().apply {
+                    if (oldVersion < 4) {
+                        put("sessionStrain", rawStrain)
+                        put("metricsVersion", if (finalized) ActivityMetricsCalculator.VERSION else null)
+                    }
+                    put("sessionStrainScore", if (finalized) ActivityMetricsCalculator.strainScore(rawStrain) else null)
+                }, "id = ?", arrayOf(record.id))
+            }
+        }
+        db.rawQuery("PRAGMA foreign_key_check", null).use { check(!it.moveToFirst()) }
     }
 
+    private fun addActivityMetrics(db: SQLiteDatabase, table: String = "sessions") {
+        listOf("intensity REAL", "cardioLoad REAL", "cadenceCvPercent REAL", "cadencePointCount INTEGER",
+            "metricsVersion INTEGER", "sessionStrain REAL").forEach {
+            db.execSQL("ALTER TABLE $table ADD COLUMN $it")
+        }
+    }
+
+    private fun addStrainScore(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE sessions ADD COLUMN sessionStrainScore REAL")
+    }
     suspend fun save(snapshot: SessionSnapshot) = withContext(Dispatchers.IO) {
         val record = snapshot.record
         require(record.eligibleForSaving && record.endedAt != null)
@@ -281,6 +340,12 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             put("meanCadence", meanCadence); put("maximumCadence", maximumCadence); put("minimumCadence", minimumCadence)
             put("distanceMetres", distanceMetres); put("meanSpeedMetresPerSecond", meanSpeedMetresPerSecond)
             put("maximumSpeedMetresPerSecond", maximumSpeedMetresPerSecond)
+            with(activityMetrics) {
+                put("intensity", intensity); put("cardioLoad", cardioLoad); put("cadenceCvPercent", cadenceCvPercent)
+                put("cadencePointCount", cadencePointCount); put("metricsVersion", algorithmVersion)
+                put("sessionStrain", sessionStrain)
+                put("sessionStrainScore", sessionStrainScore)
+            }
         }
         streams.forEach { (type, observation) ->
             put("${type}_received", observation.received); put("${type}_missing", observation.missing)
@@ -298,7 +363,10 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             zoneDurationsMs = List(5) { long("zone${it}Ms") }, unclassifiedMs = long("unclassifiedMs"),
             totalSteps = nullableLong("totalSteps"), meanCadence = number("meanCadence"), maximumCadence = number("maximumCadence"),
             minimumCadence = number("minimumCadence"), distanceMetres = number("distanceMetres"),
-            meanSpeedMetresPerSecond = number("meanSpeedMetresPerSecond"), maximumSpeedMetresPerSecond = number("maximumSpeedMetresPerSecond")),
+            meanSpeedMetresPerSecond = number("meanSpeedMetresPerSecond"), maximumSpeedMetresPerSecond = number("maximumSpeedMetresPerSecond"),
+            activityMetrics = ActivityMetrics(number("intensity"), number("cardioLoad"), number("cadenceCvPercent"),
+                nullableLong("cadencePointCount")?.toInt(), nullableLong("metricsVersion")?.toInt(),
+                number("sessionStrain"), number("sessionStrainScore"))),
         streams = checkedDataTypes.associateWith { type ->
             StreamObservation(bool("${type}_received"), bool("${type}_missing"), bool("${type}_failed"))
         }

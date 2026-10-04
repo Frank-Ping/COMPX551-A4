@@ -27,7 +27,8 @@ internal data class SessionSummary(
     val minimumCadence: Double? = null,
     val distanceMetres: Double? = null,
     val meanSpeedMetresPerSecond: Double? = null,
-    val maximumSpeedMetresPerSecond: Double? = null
+    val maximumSpeedMetresPerSecond: Double? = null,
+    val activityMetrics: ActivityMetrics = ActivityMetrics()
 ) {
     val receivedValidHr: Boolean get() = validHrCount > 0
 
