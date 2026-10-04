@@ -35,12 +35,12 @@ import java.util.UUID
 internal fun databaseFixture(id: String = UUID.randomUUID().toString(), started: Long = 1000) = SessionSnapshot(
     SessionRecord(id, started - 100, ConnectionDevice("Test H10", "test-device"), started, started + 2500, 2500,
         "Stopped by user.", summary = SessionSummary(80, 140, 110.123456789, 9,
-            listOf(100, 200, 300, 400, 500), 1000, 0, 0.0, 120.25, 0.0, 0.0, 0.0, 1.23456789),
+            listOf(100, 200, 300, 400, 500), 1000, 0, 0.0, 120.25),
         streams = checkedDataTypes.associateWith { StreamObservation(true, missing = true, failed = false) }),
     listOf(HrHistoryPoint(id, 0, 750, 120, true), HrHistoryPoint(id, 1, 1750, null, true),
         HrHistoryPoint(id, 2, 2345, 140, true)),
-    listOf(MotionHistoryPoint(id, 0, 500, null, null, true), MotionHistoryPoint(id, 1, 1500, 0.0, 0.0, true),
-        MotionHistoryPoint(id, 2, 2499, 123.456789, 1.23456789, false))
+    listOf(MotionHistoryPoint(id, 0, 500, null, true), MotionHistoryPoint(id, 1, 1500, 0.0, true),
+        MotionHistoryPoint(id, 2, 2499, 123.456789, false))
 )
 
 @RunWith(AndroidJUnit4::class)
@@ -56,7 +56,7 @@ class SessionDatabaseTest {
         val base = databaseFixture()
         val hr = HrHistory().apply { reset(base.record.id) }
         val motion = MotionHistory().apply { reset(base.record.id); onSubscriptionState(SubscriptionStatus.RECEIVING) }
-        val steps = StepState(receivedAcc = true, cadence = 120.0, speed = 1.0)
+        val steps = StepState(receivedAcc = true, cadence = 120.0)
         for (time in listOf(0L, 1000L)) {
             hr.receive(time, HeartRateReading(120, time))
             motion.record(time, steps, false, 1)
@@ -124,7 +124,7 @@ class SessionDatabaseTest {
         val empty = valid.copy(record = SessionRecord("empty", 1, null, endedAt = 2), hrPoints = emptyList(), motionPoints = emptyList())
         assertTrue(runCatching { db.save(empty) }.isFailure)
         val acc = valid.copy(record = valid.record.copy(durationMs = 0, endedAt = valid.record.startedAt,
-            summary = SessionSummary(totalSteps = 0, distanceMetres = 0.0)), hrPoints = emptyList(), motionPoints = emptyList())
+            summary = SessionSummary(totalSteps = 0)), hrPoints = emptyList(), motionPoints = emptyList())
         db.save(acc)
         assertEquals(acc, db.detail(acc.record.id))
         assertNull(db.detail("empty"))

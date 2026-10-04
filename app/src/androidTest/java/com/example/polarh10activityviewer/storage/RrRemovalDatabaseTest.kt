@@ -25,7 +25,7 @@ class RrRemovalDatabaseTest {
     @After fun close() { db.close(); context.deleteDatabase(name) }
     private fun reopen() { db.close(); db = SessionDatabase(context, name) }
     private fun assertNoRr(sql: SQLiteDatabase) {
-        assertEquals(6, sql.version)
+        assertEquals(7, sql.version)
         sql.rawQuery("SELECT name FROM sqlite_master WHERE name='rr_points'", null).use { assertFalse(it.moveToFirst()) }
         sql.rawQuery("PRAGMA table_info(sessions)", null).use { c ->
             while (c.moveToNext()) assertNotEquals("receivedRr", c.getString(c.getColumnIndexOrThrow("name")))

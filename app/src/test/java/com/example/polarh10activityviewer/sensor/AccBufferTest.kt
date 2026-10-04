@@ -30,35 +30,19 @@ class AccBufferTest {
         current: () -> Boolean = { true }) = start(ACC, { true }, current,
         { source.filter { it.samples.isNotEmpty() } }, buffer::receive)
 
-    @Test fun retainsEveryRawSampleAndMarksOnlyGapsStrictlyAbove30msAcrossBatches() {
-        val buffer = AccBuffer()
+    @Test fun forwardsEveryRawSampleAndMarksOnlyGapsStrictlyAbove30msAcrossBatches() {
+        val samples = mutableListOf<AccSample>()
+        val buffer = AccBuffer { samples.add(it) }
         buffer.receive(batch(0, 10_000_000, 40_000_000))
         buffer.receive(batch(70_000_001, 80_000_001))
-        val samples = buffer.samples.value
         assertEquals(listOf(0L, 10_000_000L, 40_000_000L, 70_000_001L, 80_000_001L), samples.map { it.timeStamp })
         assertEquals(listOf(null, null, null, 30_000_001L, null), samples.map { it.gapBeforeNs })
         samples.forEach { assertEquals(Triple(-123, 456, 1000), Triple(it.x, it.y, it.z)) }
     }
 
-    @Test fun timeWindowExcludesLeftEndpointAndLongGapExpiresOldSamples() {
-        val buffer = AccBuffer()
-        buffer.receive(batch(0, 1, 10_000_000_000))
-        assertEquals(listOf(1L, 10_000_000_000L), buffer.samples.value.map { it.timeStamp })
-        buffer.receive(batch(20_000_000_001))
-        assertEquals(1, buffer.samples.value.size)
-        assertEquals(10_000_000_001L, buffer.samples.value.single().gapBeforeNs)
-    }
-
-    @Test fun countLimitRemovesOldestEvenInsideTimeWindow() {
-        val buffer = AccBuffer()
-        buffer.receive(batch(*(0L..1_100L).map { it * 1_000_000 }.toLongArray()))
-        assertEquals(1_000, buffer.samples.value.size)
-        assertEquals(101_000_000L, buffer.samples.value.first().timeStamp)
-        assertEquals(1_100_000_000L, buffer.samples.value.last().timeStamp)
-    }
-
     @Test fun emptyBatchDoesNotMarkReceiving() = runTest {
-        val buffer = AccBuffer()
+        val samples = mutableListOf<AccSample>()
+        val buffer = AccBuffer { samples.add(it) }
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
         val source = MutableSharedFlow<PolarAccelerometerData>()
         subscriptions.startAcc(buffer, source)
@@ -66,15 +50,16 @@ class AccBufferTest {
         source.emit(batch())
         runCurrent()
         assertEquals(SubscriptionStatus.STARTING, subscriptions.states.value.getValue(ACC).status)
-        assertTrue(buffer.samples.value.isEmpty())
+        assertTrue(samples.isEmpty())
         source.emit(batch(1))
         runCurrent()
         assertEquals(SubscriptionStatus.RECEIVING, subscriptions.states.value.getValue(ACC).status)
         subscriptions.stopAll()
     }
 
-    @Test fun duplicateAndStoppingPreserveSnapshotAndRestartResetsGapTracking() = runTest {
-        val buffer = AccBuffer()
+    @Test fun duplicateAndStoppingDoNotForwardExtraSamplesAndRestartResetsGapTracking() = runTest {
+        val samples = mutableListOf<AccSample>()
+        val buffer = AccBuffer { samples.add(it) }
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
         val cleanup = CompletableDeferred<Unit>()
         val source = flow {
@@ -83,42 +68,46 @@ class AccBufferTest {
         }
         assertTrue(subscriptions.startAcc(buffer, source))
         runCurrent()
-        val snapshot = buffer.samples.value
+        val snapshot = samples.toList()
         assertFalse(subscriptions.startAcc(buffer, source))
-        assertEquals(snapshot, buffer.samples.value)
+        assertEquals(snapshot, samples)
         subscriptions.stop(ACC)
         runCurrent()
         assertFalse(subscriptions.startAcc(buffer, source))
-        assertEquals(snapshot, buffer.samples.value)
+        assertEquals(snapshot, samples)
         cleanup.complete(Unit)
         runCurrent()
         assertEquals(SubscriptionStatus.STOPPED, subscriptions.states.value.getValue(ACC).status)
-        assertEquals(snapshot, buffer.samples.value)
+        assertEquals(snapshot, samples)
         val next = MutableSharedFlow<PolarAccelerometerData>()
+        samples.clear()
         assertTrue(subscriptions.startAcc(buffer, next))
-        assertTrue(buffer.samples.value.isEmpty())
+        assertTrue(samples.isEmpty())
         runCurrent()
         next.emit(batch(1_000_000_000))
         runCurrent()
-        assertNull(buffer.samples.value.single().gapBeforeNs)
+        assertNull(samples.single().gapBeforeNs)
         subscriptions.stopAll()
     }
 
-    @Test fun completionFailureAndConnectionCleanupRetainDataAndLeaveHrIndependent() = runTest {
-        val buffer = AccBuffer()
+    @Test fun completionFailureAndConnectionCleanupLeaveHrIndependent() = runTest {
+        val samples = mutableListOf<AccSample>()
+        val buffer = AccBuffer { samples.add(it) }
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
         subscriptions.start(HR, { true }, { true }, { flow { emit(80); awaitCancellation() } }, {})
         for (fails in listOf(false, true)) {
+            samples.clear()
             subscriptions.startAcc(buffer, flow {
                 emit(batch(10))
                 if (fails) error("controlled ACC failure")
             })
             runCurrent()
-            assertEquals(10L, buffer.samples.value.single().timeStamp)
+            assertEquals(10L, samples.single().timeStamp)
             assertEquals(if (fails) SubscriptionStatus.FAILED else SubscriptionStatus.STOPPED,
                 subscriptions.states.value.getValue(ACC).status)
             assertEquals(SubscriptionStatus.RECEIVING, subscriptions.states.value.getValue(HR).status)
         }
+        samples.clear()
         var connected = true
         subscriptions.startAcc(buffer, flow { emit(batch(20)); awaitCancellation() }, { connected })
         runCurrent()
@@ -128,12 +117,13 @@ class AccBufferTest {
         runCurrent()
         connected = true
         runCurrent()
-        assertEquals(20L, buffer.samples.value.single().timeStamp)
+        assertEquals(20L, samples.single().timeStamp)
         assertEquals(SubscriptionStatus.STOPPED, subscriptions.states.value.getValue(ACC).status)
     }
 
     @Test fun settingsTaskPreventsDuplicatesAndIsCancelledBeforeRetry() = runTest {
-        val buffer = AccBuffer()
+        val samples = mutableListOf<AccSample>()
+        val buffer = AccBuffer { samples.add(it) }
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
         val query = CompletableDeferred<Unit>()
         var queries = 0
@@ -162,8 +152,9 @@ class AccBufferTest {
         subscriptions.stopAll()
     }
 
-    @Test fun oldConnectionAndOldTaskCannotAppendToNewBuffer() = runTest {
-        val buffer = AccBuffer()
+    @Test fun oldConnectionAndOldTaskCannotForwardSamples() = runTest {
+        val samples = mutableListOf<AccSample>()
+        val buffer = AccBuffer { samples.add(it) }
         val subscriptions = DataSubscriptions(this, buffer::onSubscriptionState)
         lateinit var oldCollector: FlowCollector<PolarAccelerometerData>
         val oldSource = object : Flow<PolarAccelerometerData> {
@@ -176,6 +167,7 @@ class AccBufferTest {
         runCurrent()
         var current = true
         val source = MutableSharedFlow<PolarAccelerometerData>()
+        samples.clear()
         subscriptions.startAcc(buffer, source, { current })
         runCurrent()
         source.emit(batch(2))
@@ -184,7 +176,7 @@ class AccBufferTest {
         current = false
         source.emit(batch(4))
         runCurrent()
-        assertEquals(listOf(2L), buffer.samples.value.map { it.timeStamp })
+        assertEquals(listOf(2L), samples.map { it.timeStamp })
         subscriptions.stopAll()
     }
 }

@@ -22,11 +22,11 @@ import kotlinx.coroutines.withContext
 internal const val HISTORY_PAGE_SIZE = 10
 
 internal class SessionDatabase(context: Context, name: String = NAME) :
-    SQLiteOpenHelper(context.applicationContext, name, null, 6) {
+    SQLiteOpenHelper(context.applicationContext, name, null, 7) {
     override fun onConfigure(db: SQLiteDatabase) {
         // Rebuilding the parent table must not cascade-delete ECG/history rows.
         // onConfigure precedes SQLiteOpenHelper's migration transaction.
-        db.setForeignKeyConstraintsEnabled(db.version !in 2..5)
+        db.setForeignKeyConstraintsEnabled(db.version !in 1..6)
     }
 
     override fun onOpen(db: SQLiteDatabase) {
@@ -45,8 +45,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             minimumHr INTEGER, maximumHr INTEGER, meanHr REAL, validHrCount INTEGER NOT NULL,
             zone0Ms INTEGER NOT NULL, zone1Ms INTEGER NOT NULL, zone2Ms INTEGER NOT NULL,
             zone3Ms INTEGER NOT NULL, zone4Ms INTEGER NOT NULL, unclassifiedMs INTEGER NOT NULL,
-            totalSteps INTEGER, meanCadence REAL, maximumCadence REAL, minimumCadence REAL,
-            distanceMetres REAL, meanSpeedMetresPerSecond REAL, maximumSpeedMetresPerSecond REAL,
+            totalSteps INTEGER, meanCadence REAL, maximumCadence REAL,
             $observations)""")
     }
 
@@ -57,14 +56,17 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
             secondBucket INTEGER NOT NULL, elapsedMs INTEGER NOT NULL, bpm INTEGER,
             breakBefore INTEGER NOT NULL, PRIMARY KEY(sessionId, secondBucket))""")
-        db.execSQL("""CREATE TABLE motion_points (
-            sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-            secondBucket INTEGER NOT NULL, elapsedMs INTEGER NOT NULL, cadence REAL,
-            speedMetresPerSecond REAL, breakBefore INTEGER NOT NULL,
-            PRIMARY KEY(sessionId, secondBucket))""")
+        createMotionTable(db)
         createSignalTables(db)
         addActivityMetrics(db)
         addStrainScore(db)
+    }
+
+    private fun createMotionTable(db: SQLiteDatabase, table: String = "motion_points") {
+        db.execSQL("""CREATE TABLE $table (
+            sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            secondBucket INTEGER NOT NULL, elapsedMs INTEGER NOT NULL, cadence REAL,
+            breakBefore INTEGER NOT NULL, PRIMARY KEY(sessionId, secondBucket))""")
     }
 
     private fun createSignalTables(db: SQLiteDatabase) {
@@ -81,7 +83,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        check(oldVersion in 1..5 && newVersion == 6)
+        check(oldVersion in 1..6 && newVersion == 7)
         if (oldVersion == 1) createSignalTables(db)
         if (oldVersion < 3) addActivityMetrics(db)
         if (oldVersion == 3) rebuildSessions(db, includeScore = false)
@@ -105,24 +107,30 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
                 }
             }
         }
-        if (oldVersion in 2..5 && oldVersion != 3) rebuildSessions(db, includeScore = true)
+        if (oldVersion != 3) rebuildSessions(db, includeScore = true)
+        // Drop retired motion columns while retaining every cadence point and gap marker.
+        createMotionTable(db, "motion_points_v7")
+        db.execSQL("""INSERT INTO motion_points_v7 (sessionId, secondBucket, elapsedMs, cadence, breakBefore)
+            SELECT sessionId, secondBucket, elapsedMs, cadence, breakBefore FROM motion_points""")
+        db.execSQL("DROP TABLE motion_points")
+        db.execSQL("ALTER TABLE motion_points_v7 RENAME TO motion_points")
         db.execSQL("DROP TABLE IF EXISTS rr_points")
         db.rawQuery("PRAGMA foreign_key_check", null).use { check(!it.moveToFirst()) }
     }
 
     // Copy only retained summary columns. Android 13 SQLite cannot DROP COLUMN.
     private fun rebuildSessions(db: SQLiteDatabase, includeScore: Boolean) {
-        createSessions(db, "sessions_v6")
-        db.execSQL("ALTER TABLE sessions_v6 ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
-        db.execSQL("ALTER TABLE sessions_v6 ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
-        addActivityMetrics(db, "sessions_v6")
-        if (includeScore) db.execSQL("ALTER TABLE sessions_v6 ADD COLUMN sessionStrainScore REAL")
-        val columns = db.rawQuery("PRAGMA table_info(sessions_v6)", null).use { c ->
+        createSessions(db, "sessions_v7")
+        db.execSQL("ALTER TABLE sessions_v7 ADD COLUMN commitState INTEGER NOT NULL DEFAULT 1")
+        db.execSQL("ALTER TABLE sessions_v7 ADD COLUMN collectionIncomplete INTEGER NOT NULL DEFAULT 0")
+        addActivityMetrics(db, "sessions_v7")
+        if (includeScore) db.execSQL("ALTER TABLE sessions_v7 ADD COLUMN sessionStrainScore REAL")
+        val columns = db.rawQuery("PRAGMA table_info(sessions_v7)", null).use { c ->
             buildList { while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
         }.joinToString(",")
-        db.execSQL("INSERT INTO sessions_v6 ($columns) SELECT $columns FROM sessions")
+        db.execSQL("INSERT INTO sessions_v7 ($columns) SELECT $columns FROM sessions")
         db.execSQL("DROP TABLE sessions")
-        db.execSQL("ALTER TABLE sessions_v6 RENAME TO sessions")
+        db.execSQL("ALTER TABLE sessions_v7 RENAME TO sessions")
         db.execSQL("CREATE INDEX sessions_started ON sessions(startedAt DESC, id DESC)")
     }
     private fun addActivityMetrics(db: SQLiteDatabase, table: String = "sessions") {
@@ -159,7 +167,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
                     db.insertOrThrow("motion_points", null, ContentValues().apply {
                         put("sessionId", point.sessionId); put("secondBucket", point.secondBucket)
                         put("elapsedMs", point.elapsedMs); put("cadence", point.cadence)
-                        put("speedMetresPerSecond", point.speedMetresPerSecond); put("breakBefore", point.breakBefore)
+                        put("breakBefore", point.breakBefore)
                     })
                 }
             }
@@ -192,7 +200,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
                 }
                 val motion = db.rawQuery("SELECT * FROM motion_points WHERE sessionId = ? ORDER BY elapsedMs", arrayOf(id)).use { c ->
                     buildList { while (c.moveToNext()) add(MotionHistoryPoint(id, c.long("secondBucket"), c.long("elapsedMs"),
-                        c.number("cadence"), c.number("speedMetresPerSecond"), c.bool("breakBefore"))) }
+                        c.number("cadence"), c.bool("breakBefore"))) }
                 }
                 SessionSnapshot(record, hr, motion)
             }
@@ -266,7 +274,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
                 }) }
                 batch.motion.forEach { p -> db.replaceOrThrow("motion_points", null, ContentValues().apply {
                     put("sessionId", record.id); put("secondBucket", p.secondBucket); put("elapsedMs", p.elapsedMs)
-                    put("cadence", p.cadence); put("speedMetresPerSecond", p.speedMetresPerSecond); put("breakBefore", p.breakBefore)
+                    put("cadence", p.cadence); put("breakBefore", p.breakBefore)
                 }) }
             }
             db.setTransactionSuccessful()
@@ -311,9 +319,7 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             put("validHrCount", validHrCount)
             zoneDurationsMs.forEachIndexed { index, ms -> put("zone${index}Ms", ms) }
             put("unclassifiedMs", unclassifiedMs); put("totalSteps", totalSteps)
-            put("meanCadence", meanCadence); put("maximumCadence", maximumCadence); put("minimumCadence", minimumCadence)
-            put("distanceMetres", distanceMetres); put("meanSpeedMetresPerSecond", meanSpeedMetresPerSecond)
-            put("maximumSpeedMetresPerSecond", maximumSpeedMetresPerSecond)
+            put("meanCadence", meanCadence); put("maximumCadence", maximumCadence)
             with(activityMetrics) {
                 put("intensity", intensity); put("cardioLoad", cardioLoad); put("cadenceCvPercent", cadenceCvPercent)
                 put("cadencePointCount", cadencePointCount); put("metricsVersion", algorithmVersion)
@@ -336,8 +342,6 @@ internal class SessionDatabase(context: Context, name: String = NAME) :
             meanHr = number("meanHr"), validHrCount = long("validHrCount"),
             zoneDurationsMs = List(5) { long("zone${it}Ms") }, unclassifiedMs = long("unclassifiedMs"),
             totalSteps = nullableLong("totalSteps"), meanCadence = number("meanCadence"), maximumCadence = number("maximumCadence"),
-            minimumCadence = number("minimumCadence"), distanceMetres = number("distanceMetres"),
-            meanSpeedMetresPerSecond = number("meanSpeedMetresPerSecond"), maximumSpeedMetresPerSecond = number("maximumSpeedMetresPerSecond"),
             activityMetrics = ActivityMetrics(number("intensity"), number("cardioLoad"), number("cadenceCvPercent"),
                 nullableLong("cadencePointCount")?.toInt(), nullableLong("metricsVersion")?.toInt(),
                 number("sessionStrain"), number("sessionStrainScore"))),

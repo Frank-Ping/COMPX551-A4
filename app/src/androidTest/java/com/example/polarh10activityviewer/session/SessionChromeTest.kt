@@ -338,7 +338,6 @@ class SessionChromeTest {
     }
 }
 
-
 private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
     var ancestor = fetchSemanticsNode().parent
     while (ancestor != null) {

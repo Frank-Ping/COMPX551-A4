@@ -39,7 +39,6 @@ class StepDetectorTest {
         detector.onSubscriptionState(SubscriptionStatus.STARTING)
         assertTrue(detector.isWarmingUp)
         assertNull(detector.state.value.cadence)
-        assertTrue(detector.state.value.message.contains("Warming"))
         walking().take(103).forEach(detector::receive)
         assertTrue(detector.isWarmingUp)
         detector.receive(walking()[103])
@@ -48,7 +47,6 @@ class StepDetectorTest {
         assertEquals(0L, detector.state.value.totalSteps)
         assertNull(detector.state.value.cadence)
         assertTrue(detector.state.value.cadencePending)
-        assertEquals("Detecting steps.", detector.state.value.message)
         walking().drop(104).forEach(detector::receive)
         detector.receivedBatch(3_030_000_000L, 0)
         assertEquals(4L, detector.state.value.totalSteps)
@@ -80,7 +78,6 @@ class StepDetectorTest {
         detector.onSubscriptionState(SubscriptionStatus.STARTING)
         walking().forEach(detector::receive)
         detector.receivedBatch(3_030_000_000L, 0)
-        val committed = detector.latestCommitted
         val segment = detector.segment
         assertFalse(detector.isWarmingUp)
         var ticks = 0
@@ -96,7 +93,6 @@ class StepDetectorTest {
         runCurrent()
         assertEquals(0.0, detector.state.value.cadence!!, 0.0)
         assertEquals(4L, detector.totalSteps)
-        assertEquals(committed, detector.latestCommitted)
         assertEquals(segment, detector.segment)
         assertFalse(detector.isWarmingUp)
         // A new batch reanchors display time without losing peaks to the earlier estimate.
@@ -116,7 +112,6 @@ class StepDetectorTest {
         detector.receivedBatch(3_080_000_000L, now)
         assertTrue(detector.isWarmingUp)
         assertNull(detector.state.value.cadence)
-        assertTrue(detector.state.value.message.contains("interruption"))
         now = 50_000
         detector.refresh()
         assertNull(detector.state.value.cadence)
@@ -125,10 +120,9 @@ class StepDetectorTest {
         detector.receivedBatch(4_110_000_000L, now)
         assertFalse(detector.isWarmingUp)
         assertNull(detector.state.value.cadence)
-        detector.onSubscriptionState(SubscriptionStatus.FAILED, "ACC failed in test")
+        detector.onSubscriptionState(SubscriptionStatus.FAILED)
         detector.refresh()
         assertNull(detector.state.value.cadence)
-        assertEquals("ACC failed in test", detector.state.value.message)
         detector.onSubscriptionState(SubscriptionStatus.STARTING)
         detector.refresh()
         assertTrue(detector.isWarmingUp)
@@ -144,9 +138,8 @@ class StepDetectorTest {
     @Test fun stoppedWithNoAccRemainsMissingButObservedSessionShowsZeroAndNewStartResets() {
         val detector = StepDetector { 0L }
         detector.reset()
-        detector.onSubscriptionState(SubscriptionStatus.IDLE, "ACC unavailable")
+        detector.onSubscriptionState(SubscriptionStatus.IDLE)
         assertNull(detector.state.value.cadence)
-        assertEquals("ACC unavailable", detector.state.value.message)
         detector.stop()
         assertNull(detector.state.value.cadence)
         assertNull(detector.state.value.totalSteps)
@@ -158,7 +151,6 @@ class StepDetectorTest {
         detector.refresh()
         assertEquals(4L, detector.state.value.totalSteps)
         assertEquals(0.0, detector.state.value.cadence!!, 0.0)
-        assertEquals("Stopped.", detector.state.value.message)
         detector.reset()
         assertNull(detector.state.value.totalSteps)
         assertEquals(0L, detector.totalSteps)
@@ -193,28 +185,22 @@ class StepDetectorTest {
         val previousGeneration = session.state.value.generation
         assertFalse(start())
         assertEquals(4L, detector.state.value.totalSteps)
-        val distance = detector.state.value.distance!!
-        assertTrue(distance > 0)
-        assertNull(detector.state.value.averageSpeed)
+        assertNull(detector.state.value.meanCadence)
         now = 1000
         session.stop("User stopped")
-        assertEquals(distance, detector.state.value.averageSpeed!!, 1e-10)
+        assertEquals(240.0, detector.state.value.meanCadence!!, 1e-10)
         assertEquals(0.0, detector.state.value.cadence!!, 0.0)
-        assertEquals(0.0, detector.state.value.speed!!, 0.0)
-        assertEquals("Stopped.", detector.state.value.message)
         val frozen = detector.state.value
         now = 2000
         session.stop("Duplicate stop")
         runCurrent()
         assertEquals(frozen, detector.state.value)
-        assertEquals("Stopped.", detector.state.value.message)
         now = 20_000
         assertTrue(start())
         runCurrent()
         val newDisplay = detector.state.value
         assertEquals(4L, newDisplay.totalSteps)
-        assertEquals(distance, newDisplay.distance!!, 1e-10)
-        assertNull(newDisplay.averageSpeed)
+        assertNull(newDisplay.meanCadence)
         now += 30_000
         session.refresh(previousGeneration)
         if (session.accepts(previousGeneration)) {
@@ -245,14 +231,13 @@ class StepDetectorTest {
 
     @Test fun sensorTimeoutRewarmsOnceAndPreservesTotalWithoutAnyUiTimer() {
         val detector = StepDetector()
-        walking().forEach { detector.receive(it) }
-        val lastPeak = detector.latestCommitted.last().timeStamp
+        val committed = walking().flatMap(detector::receive)
+        val lastPeak = committed.last().timeStamp
         val exactIndex = ((lastPeak + 2_000_000_000L) / 10_000_000L).toInt()
         for (i in 304..exactIndex) detector.receive(raw(i, 1000))
         assertFalse(detector.isWarmingUp)
         detector.receive(raw(exactIndex + 1, 1000))
         assertTrue(detector.isWarmingUp)
-        assertTrue(detector.latestCommitted.isEmpty())
         assertEquals(4L, detector.totalSteps)
         for (i in exactIndex + 2..exactIndex + 103) detector.receive(raw(i, 1000))
         assertTrue(detector.isWarmingUp)
@@ -274,7 +259,6 @@ class StepDetectorTest {
         detector.clearSegment()
         assertEquals(4L, detector.totalSteps)
         assertTrue(detector.isWarmingUp)
-        assertTrue(detector.latestCommitted.isEmpty())
         detector.reset()
         assertTrue(detector.isWarmingUp)
         assertEquals(0L, detector.totalSteps)
@@ -298,7 +282,6 @@ class StepDetectorTest {
         source.emit(batch)
         runCurrent()
         detector.receivedBatch(batch.samples.last().timeStamp, 0)
-        val distance = detector.state.value.distance!!
         assertEquals(4L, detector.totalSteps)
         assertFalse(start(source))
         assertFalse(detector.isWarmingUp)
@@ -311,11 +294,9 @@ class StepDetectorTest {
         source.emit(batch)
         assertTrue(detector.isWarmingUp)
         assertEquals(4L, detector.totalSteps)
-        assertEquals(distance, detector.state.value.distance!!, 0.0)
         retry.emit(batch)
         runCurrent()
         detector.receivedBatch(batch.samples.last().timeStamp, 0)
-        assertEquals(distance * 2, detector.state.value.distance!!, 1e-10)
         assertEquals(8L, detector.totalSteps)
         subscriptions.stop(ACC)
         runCurrent()
@@ -354,8 +335,7 @@ class StepDetectorTest {
             val frozen = detector.state.value
             assertEquals(SessionStatus.STOPPED, session.state.value.status)
             assertEquals(10_000L, frozen.durationMs)
-            assertEquals(frozen.distance!! / 10, frozen.averageSpeed!!, 1e-10)
-            assertEquals(0.0, frozen.speed!!, 0.0)
+            assertEquals(frozen.totalSteps!! * 6.0, frozen.meanCadence!!, 1e-10)
             now += 60_000
             session.stop("Repeated end")
             session.onSubscriptionState(ACC, SubscriptionStatus.STOPPED)

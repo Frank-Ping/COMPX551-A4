@@ -34,15 +34,15 @@ class HistoryPresentationTest {
         it.copy(record = it.record.copy(durationMs = 1_200_000, interrupted = false,
             streams = it.record.streams.mapValues { entry -> entry.value.copy(missing = false) },
             summary = it.record.summary.copy(meanHr = 125.0, minimumHr = 70, maximumHr = 160,
-                totalSteps = 1920, distanceMetres = 1400.0, meanCadence = 96.0, maximumCadence = 144.0,
+                totalSteps = 1920, meanCadence = 96.0, maximumCadence = 144.0,
                 zoneDurationsMs = listOf(240_000, 300_000, 420_000, 180_000, 60_000), unclassifiedMs = 0)),
             hrPoints = listOf(HrHistoryPoint("presentation", 0, 0, 70, true),
                 HrHistoryPoint("presentation", 1, 300_000, 160, false),
                 HrHistoryPoint("presentation", 2, 600_000, null, true),
                 HrHistoryPoint("presentation", 3, 900_000, 100, true),
                 HrHistoryPoint("presentation", 4, 1_200_000, 80, false)),
-            motionPoints = listOf(MotionHistoryPoint("presentation", 0, 0, 0.0, 0.0, true),
-                MotionHistoryPoint("presentation", 1, 1_200_000, 144.0, 1.2, false)))
+            motionPoints = listOf(MotionHistoryPoint("presentation", 0, 0, 0.0, true),
+                MotionHistoryPoint("presentation", 1, 1_200_000, 144.0, false)))
     }
 
     private fun mount() {
@@ -94,7 +94,7 @@ class HistoryPresentationTest {
         compose.onAllNodesWithText("0%").assertCountEquals(3)
         compose.onNodeWithText("70%").assertDoesNotExist()
         compose.runOnIdle { snapshot.value = snapshot.value.let { it.copy(record = it.record.copy(
-            durationMs = 0, summary = SessionSummary(totalSteps = 0, distanceMetres = 0.0)),
+            durationMs = 0, summary = SessionSummary(totalSteps = 0)),
             hrPoints = emptyList(), motionPoints = emptyList()) } }
         show("No valid heart rate data")
         show("No recorded heart rate data")
@@ -108,8 +108,8 @@ class HistoryPresentationTest {
         for (duration in listOf(0L, 14_400_000L)) {
             compose.runOnIdle { snapshot.value = fixture().let { it.copy(record = it.record.copy(durationMs = duration),
                 hrPoints = listOf(HrHistoryPoint("presentation", 0, 0, 100, true)),
-                motionPoints = listOf(MotionHistoryPoint("presentation", 0, 0, 0.0, 0.0, true),
-                    MotionHistoryPoint("presentation", 1, duration, 0.0, 0.0, false))) } }
+                motionPoints = listOf(MotionHistoryPoint("presentation", 0, 0, 0.0, true),
+                    MotionHistoryPoint("presentation", 1, duration, 0.0, false))) } }
             compose.onNodeWithText("HR").performScrollTo().performClick()
             compose.onNodeWithContentDescription("Heart rate line chart").assertExists()
             selectCadence()
@@ -136,7 +136,7 @@ class HistoryPresentationTest {
             show("Delete session"); noTextOverflow(); capture("$prefix-bottom")
             compose.runOnIdle {
                 snapshot.value = fixture().let { it.copy(record = it.record.copy(durationMs = 14_400_000,
-                    interrupted = true, summary = it.record.summary.copy(totalSteps = 57_600, distanceMetres = 123_450.0))) }
+                    interrupted = true, summary = it.record.summary.copy(totalSteps = 57_600))) }
                 failure.value = "Delete failed. Please retry Delete session."
             }
             show("Activity Summary"); noTextOverflow(); capture("$prefix-long-values")

@@ -67,7 +67,7 @@ class LiveChartsTest {
         checkedDataTypes.forEach { onSubscriptionState(it, SubscriptionStatus.STARTING, 0) }
     }
     private fun reading(bpm: Int, wall: Long = 0) = HeartRateReading(bpm, wall)
-    private fun motion(cadence: Double = 120.0, speed: Double = 1.0) = StepState(cadence = cadence, speed = speed)
+    private fun motion(cadence: Double = 120.0) = StepState(cadence = cadence)
 
     @Test fun hrKeepsActualTimeOfLastBatchPerSecondWithoutAveragingOrChangingStatistics() {
         val charts = running()
@@ -147,15 +147,14 @@ class LiveChartsTest {
         val charts = running()
         charts.recordMotion(0, motion(), true, 1)
         charts.recordMotion(100, motion(), false, 1)
-        charts.recordMotion(500, motion(0.0, 0.0), false, 1)
+        charts.recordMotion(500, motion(0.0), false, 1)
         charts.recordMotion(1000, motion(), false, 1)
-        charts.recordMotion(1000, motion(200.0, 2.0), false, 1)
+        charts.recordMotion(1000, motion(200.0), false, 1)
         charts.recordMotion(1500, StepState(), false, 1)
         charts.recordMotion(2000, motion(), false, 2)
         val cadence = charts.snapshot(ChartKind.CADENCE, 2000).points
         assertEquals(listOf(null, 0.0, 120.0, null, 120.0), cadence.map { it.value })
         assertEquals(listOf(true, true, false, true, true), cadence.map { it.breakBefore })
-        assertEquals(3.6, charts.snapshot(ChartKind.SPEED, 2000).points.last().value!!, 1e-10)
     }
 
     @Test fun accThirtyMillisecondBoundaryDrivesChartSegmentsWithoutExtraReset() {
@@ -184,7 +183,7 @@ class LiveChartsTest {
         assertNull(points[2].value)
         assertTrue(points[3].breakBefore)
         val before = detector.state.value
-        charts.snapshot(ChartKind.SPEED, 1500)
+        charts.snapshot(ChartKind.CADENCE, 1500)
         assertEquals(before, detector.state.value)
     }
 
@@ -203,7 +202,6 @@ class LiveChartsTest {
         detector.receivedBatch(3_030_000_000, 0)
         charts.recordMotion(3030, detector.state.value, false, detector.segment)
         val previousSegment = detector.segment
-        val distance = detector.state.value.distance
         (304..600).forEach { detector.receive(AccSample(it * 10_000_000L, 1000, 0, 0)) }
         detector.receivedBatch(6_000_000_000, 0)
         assertTrue(detector.segment > previousSegment)
@@ -212,7 +210,6 @@ class LiveChartsTest {
         val last = charts.snapshot(ChartKind.CADENCE, 6000).points.last()
         assertTrue(last.breakBefore)
         assertEquals(0.0, last.value!!, 0.0)
-        assertEquals(distance, detector.state.value.distance)
     }
 
     @Test fun ecgAnchorIsFixedAcrossBatchesAndNegativeTimesAreOmittedWithSignedValues() {
@@ -280,7 +277,6 @@ class LiveChartsTest {
         charts.onSubscriptionState(ACC, SubscriptionStatus.FAILED, 2000)
         charts.onSubscriptionState(ACC, SubscriptionStatus.STARTING, 3000)
         assertTrue(charts.snapshot(ChartKind.CADENCE, 3000).points.isEmpty())
-        assertTrue(charts.snapshot(ChartKind.SPEED, 3000).points.isEmpty())
         assertEquals(1, charts.snapshot(ChartKind.HEART_RATE, 3000).points.size)
         assertEquals(1, charts.snapshot(ChartKind.ELECTROCARDIOGRAM, 3000).points.size)
         charts.onSubscriptionState(ECG, SubscriptionStatus.STARTING, 4000)
@@ -305,7 +301,7 @@ class LiveChartsTest {
         charts.recordMotion(70_000, motion(), false, 1)
         charts.stop(71_000)
         val stopped = charts.snapshot(ChartKind.CADENCE, 71_000)
-        charts.recordMotion(72_000, motion(0.0, 0.0), false, 2)
+        charts.recordMotion(72_000, motion(0.0), false, 2)
         charts.advance(200_000)
         charts.stop(200_000)
         assertEquals(stopped, charts.snapshot(ChartKind.CADENCE, 200_000))
@@ -318,16 +314,16 @@ class LiveChartsTest {
         charts.receiveHr(1000, reading(120, Long.MAX_VALUE))
         charts.recordMotion(1000, motion(), false, 1)
         val hr = charts.snapshot(ChartKind.HEART_RATE, 1000)
-        charts.select(ChartKind.SPEED)
+        charts.select(ChartKind.CADENCE)
         charts.select(ChartKind.ELECTROCARDIOGRAM)
         repeat(10) { charts.snapshot(charts.selection.value, 1000) }
-        charts.select(charts.motionSelection)
-        assertEquals(ChartKind.SPEED, charts.selection.value)
+        charts.select(ChartKind.CADENCE)
+        assertEquals(ChartKind.CADENCE, charts.selection.value)
         assertEquals(hr, charts.snapshot(ChartKind.HEART_RATE, 1000))
         charts.receiveHr(2000, reading(121, Long.MIN_VALUE))
         assertEquals(2000.0, charts.snapshot(ChartKind.HEART_RATE, 2000).points.last().elapsedMs, 0.0)
         charts.reset()
-        assertEquals(ChartKind.SPEED, charts.selection.value)
+        assertEquals(ChartKind.CADENCE, charts.selection.value)
         ChartKind.entries.forEach { assertTrue(charts.snapshot(it, 3000).points.isEmpty()) }
     }
 }

@@ -68,7 +68,7 @@ class AccPreprocessorTest {
         assertEquals(deviation, result.previousStdDev!!, 1e-10)
     }
 
-    @Test fun newBatchesProcessEachArrivalOnceWithoutReplayingRetainedBuffer() {
+    @Test fun newBatchesProcessEachArrivalExactlyOnce() {
         val processor = AccPreprocessor()
         val results = mutableListOf<PreparedAcc>()
         val buffer = AccBuffer { results += processor.receive(it) }
@@ -79,7 +79,6 @@ class AccPreprocessorTest {
         assertEquals((0..104).map { it * 10_000_000L }, results.map { it.timeStamp })
         assertEquals(101, results.count { it.smoothed != null })
         assertEquals(1, results.count { it.previousMean != null })
-        assertEquals(105, buffer.samples.value.size)
     }
 
     @Test fun thirtyMillisecondBoundaryAndCrossBatchGapResetWarmup() {

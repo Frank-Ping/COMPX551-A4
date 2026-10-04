@@ -186,7 +186,6 @@ class SessionSnapshotTest {
         assertEquals(com.example.polarh10activityviewer.heartrate.HeartRateZoneState(), f.zones.state.value)
         assertNull(f.hrHistory.state.value.sessionId); assertNull(f.motionHistory.state.value.sessionId)
         assertTrue(f.hrHistory.snapshot().isEmpty()); assertTrue(f.motionHistory.snapshot().isEmpty())
-        assertTrue(f.acc.samples.value.isEmpty())
         assertTrue(f.charts.snapshot(ChartKind.HEART_RATE, 0).points.isEmpty())
         assertTrue(f.charts.snapshot(ChartKind.CADENCE, 0).points.isEmpty())
         runCatching { old.emit(samples(40_000_000_000)) }; f.now = 90_000; f.tick(oldGeneration); runCurrent()
@@ -378,11 +377,8 @@ class SessionSnapshotTest {
         val segment = f.detector.segment
         f.now += 2000; f.tick()
         assertEquals(0.0, f.motionHistory.snapshot().last().cadence!!, 0.0)
-        assertEquals(0.0, f.motionHistory.snapshot().last().speedMetresPerSecond!!, 0.0)
         assertEquals(previous.totalSteps, f.detector.totalSteps)
         assertEquals(previous.maximumCadence, f.detector.state.value.maximumCadence)
-        assertEquals(previous.minimumCadence, f.detector.state.value.minimumCadence)
-        assertEquals(previous.distance, f.detector.state.value.distance)
         assertEquals(segment, f.detector.segment)
         f.stop()
     }
@@ -406,7 +402,6 @@ class SessionSnapshotTest {
         runCurrent(); f.now += 250; f.tick()
         assertEquals(id, f.session.state.value.record!!.id)
         assertEquals(before.totalSteps, f.detector.state.value.totalSteps)
-        assertEquals(before.distance, f.detector.state.value.distance)
         assertTrue(f.detector.isWarmingUp)
         assertEquals(points, f.motionHistory.snapshot())
         f.stop(); runCurrent()
@@ -455,7 +450,6 @@ class SessionSnapshotTest {
         val hrOnly = f.snapshot!!
         assertTrue(hrOnly.record.eligibleForSaving)
         assertNull(hrOnly.motionPoints.single().cadence)
-        assertNull(hrOnly.motionPoints.single().speedMetresPerSecond)
         assertEquals(250L, hrOnly.motionPoints.single().elapsedMs)
         assertNull(hrOnly.record.summary.totalSteps)
         assertTrue(empty.motionPoints.isEmpty())

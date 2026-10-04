@@ -83,12 +83,11 @@ class HistoryDetailTest {
         val one = databaseFixture("one", 1000)
         val two = databaseFixture("two", 2000).let { snapshot -> snapshot.copy(
             record = snapshot.record.copy(summary = snapshot.record.summary.copy(
-                maximumHr = 200, meanHr = 110.25, totalSteps = 12, meanCadence = 288.0,
-                minimumCadence = 0.0, maximumCadence = 150.0, distanceMetres = 8.25)),
+                maximumHr = 200, meanHr = 110.25, totalSteps = 12, meanCadence = 288.0, maximumCadence = 150.0)),
             hrPoints = listOf(HrHistoryPoint("two", 0, 100, 80, true), HrHistoryPoint("two", 1, 1100, null, true),
                 HrHistoryPoint("two", 2, 2200, 90, true)),
-            motionPoints = listOf(MotionHistoryPoint("two", 0, 100, 0.0, 0.0, true),
-                MotionHistoryPoint("two", 1, 1100, null, null, true), MotionHistoryPoint("two", 2, 2200, 96.0, 1.25, true))) }
+            motionPoints = listOf(MotionHistoryPoint("two", 0, 100, 0.0, true),
+                MotionHistoryPoint("two", 1, 1100, null, true), MotionHistoryPoint("two", 2, 2200, 96.0, true))) }
         save(one, two); db.close(); db = SessionDatabase(context, name)
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
         awaitList(2); select(); awaitText("Delete session")
@@ -129,8 +128,8 @@ class HistoryDetailTest {
 
     @Test fun zeroDurationNoValidHrAndNullableStatisticsDoNotBecomeMeasuredZero() {
         val snapshot = databaseFixture("zero").let { it.copy(record = it.record.copy(durationMs = 0,
-            endedAt = it.record.startedAt, summary = SessionSummary(totalSteps = 0, distanceMetres = 0.0)),
-            hrPoints = emptyList(), motionPoints = listOf(MotionHistoryPoint("zero", 0, 0, 0.0, 0.0, true))) }
+            endedAt = it.record.startedAt, summary = SessionSummary(totalSteps = 0)),
+            hrPoints = emptyList(), motionPoints = listOf(MotionHistoryPoint("zero", 0, 0, 0.0, true))) }
         save(snapshot)
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
         awaitList(1); select(); awaitText("Delete session")

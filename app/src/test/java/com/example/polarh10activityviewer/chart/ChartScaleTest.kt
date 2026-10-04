@@ -23,12 +23,6 @@ class ChartScaleTest {
     @Test fun positiveHrUsesZeroAndTenPercentHeadroom() {
         assertEquals(ChartScale(0.0, 132.0), chartScale(points(100.0, 120.0), ChartKind.HEART_RATE))
     }
-    @Test fun speedBoundsRoundOutwardsToOneDecimal() {
-        val data = points(4.56)
-        assertEquals(ChartScale(0.0, 5.1), chartScale(data, ChartKind.SPEED))
-        assertEquals(4.56, data.single().value!!, 0.0)
-        assertEquals("5.1", chartScaleLabel(5.1, ChartKind.SPEED))
-    }
     @Test fun cadenceBoundsRoundUpToWholeUnits() {
         assertEquals(ChartScale(0.0, 136.0), chartScale(points(123.4), ChartKind.CADENCE))
     }

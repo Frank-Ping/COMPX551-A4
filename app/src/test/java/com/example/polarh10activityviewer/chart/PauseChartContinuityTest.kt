@@ -25,7 +25,7 @@ class PauseChartContinuityTest {
             live.receiveHr(time, reading); hr.receive(time, reading)
         }
         fun cadence(time: Long, warming: Boolean = false, segment: Long = 1) {
-            val value = StepState(receivedAcc = true, cadence = 120.0, speed = 1.0)
+            val value = StepState(receivedAcc = true, cadence = 120.0)
             live.recordMotion(time, value, warming, segment)
             motion.record(time, value, warming, segment)
         }

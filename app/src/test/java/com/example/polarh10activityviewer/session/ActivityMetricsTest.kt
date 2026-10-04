@@ -42,7 +42,7 @@ class ActivityMetricsTest {
             durationMs = 1_800_000, summary = SessionSummary(validHrCount = 30,
                 zoneDurationsMs = listOf(0, 600_000, 900_000, 300_000, 0), meanCadence = 999.0))
         return SessionSnapshot(record, emptyList(), values.mapIndexed { index, value ->
-            MotionHistoryPoint(record.id, index.toLong(), index * 1000L, value, null, index % 4 == 0)
+            MotionHistoryPoint(record.id, index.toLong(), index * 1000L, value, index % 4 == 0)
         })
     }
 

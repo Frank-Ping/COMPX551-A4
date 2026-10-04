@@ -31,6 +31,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.*
 import org.junit.Test
+import com.example.polarh10activityviewer.sensor.AccSample
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionStateTest {
@@ -38,19 +39,21 @@ class SessionStateTest {
         var now = 0L
         var connected = true
         val hr = LatestHeartRate()
-        val acc = AccBuffer()
+        val accSamples = mutableListOf<AccSample>()
+        val acc = AccBuffer { accSamples.add(it) }
         val ecg = EcgBuffer()
         val saved = mutableListOf<SessionRecord>()
         lateinit var session: SessionController
         val subscriptions = DataSubscriptions(scope) { type, status ->
             hr.onSubscriptionState(type, status)
             acc.onSubscriptionState(type, status)
+            if (type == ACC && status == SubscriptionStatus.STARTING) accSamples.clear()
             ecg.onSubscriptionState(type, status)
             session.onSubscriptionState(type, status)
         }
         init {
             session = SessionController(subscriptions, { now },
-                { hr.reset(); acc.clear(); ecg.clear() }, hr::clear,
+                { hr.reset(); acc.clear(); accSamples.clear(); ecg.clear() }, hr::clear,
                 { SessionSummary(minimumHr = hr.statistics.value.min, maximumHr = hr.statistics.value.max,
                     meanHr = hr.statistics.value.average, validHrCount = hr.statistics.value.count) },
                 onSummaryFrozen = { saved.add(it) })
@@ -88,7 +91,7 @@ class SessionStateTest {
         assertEquals(SessionStatus.IDLE, f.state.status)
         assertNull(f.state.record); assertEquals(0L, f.state.elapsedMs)
         assertNull(f.hr.reading.value); assertEquals(HeartRateStatistics(), f.hr.statistics.value)
-        assertTrue(f.acc.samples.value.isEmpty()); assertTrue(f.ecg.samples.value.isEmpty())
+        assertTrue(f.accSamples.isEmpty()); assertTrue(f.ecg.samples.value.isEmpty())
         assertTrue(f.subscriptions.states.value.values.all { it.status == SubscriptionStatus.IDLE })
         assertTrue(f.connected)
         assertTrue(f.session.start(true) { f.startStream(HR, flow { awaitCancellation() }) })
@@ -155,7 +158,7 @@ class SessionStateTest {
         assertFalse(f.startStream(HR, f.running()))
         assertFalse(f.session.retry(ECG, true) { attempts++; true })
         assertEquals(0, attempts)
-        assertEquals(7, f.acc.samples.value.single().x)
+        assertEquals(7, f.accSamples.single().x)
         assertEquals(SessionStatus.IDLE, f.state.status)
         assertEquals(0L, f.state.generation)
     }
@@ -199,7 +202,7 @@ class SessionStateTest {
         assertFalse(f.start())
         assertEquals(80, f.hr.reading.value?.bpm)
         assertEquals(HeartRateStatistics(1, 80, 80, 80), f.hr.statistics.value)
-        assertEquals(9, f.acc.samples.value.single().x)
+        assertEquals(9, f.accSamples.single().x)
         f.session.stop("User stopped")
         assertEquals(SessionStatus.STOPPING, f.state.status)
         assertEquals(1_000L, f.state.elapsedMs)
@@ -217,12 +220,12 @@ class SessionStateTest {
         runCurrent()
         assertEquals(SessionStatus.STOPPED, f.state.status)
         assertEquals(1_000L, f.state.elapsedMs)
-        assertEquals(9, f.acc.samples.value.single().x)
+        assertEquals(9, f.accSamples.single().x)
         assertEquals(HeartRateStatistics(1, 80, 80, 80), f.hr.statistics.value)
         assertTrue(f.session.start(true) { f.startStream(HR, flow { awaitCancellation() }) })
         assertEquals(generation + 1, f.state.generation)
         assertEquals(0L, f.state.elapsedMs)
-        assertTrue(f.acc.samples.value.isEmpty())
+        assertTrue(f.accSamples.isEmpty())
         assertEquals(HeartRateStatistics(), f.hr.statistics.value)
         f.session.stop("Done")
     }
@@ -236,7 +239,7 @@ class SessionStateTest {
             f.subscriptions.unavailable(ECG, "ECG not ready")
         })
         assertNull(f.hr.reading.value)
-        assertTrue(f.acc.samples.value.isEmpty())
+        assertTrue(f.accSamples.isEmpty())
         assertTrue(f.ecg.samples.value.isEmpty())
         assertEquals(SessionStatus.STARTING, f.state.status)
         assertEquals("ECG not ready", f.subscriptions.states.value.getValue(ECG).error)
@@ -295,7 +298,7 @@ class SessionStateTest {
         })
         assertTrue(f.ecg.samples.value.isEmpty())
         assertEquals(75, f.hr.reading.value?.bpm)
-        assertEquals(5, f.acc.samples.value.single().x)
+        assertEquals(5, f.accSamples.single().x)
         runCurrent()
         f.session.refresh(generation)
         assertEquals(1, settingsChecks)
@@ -376,7 +379,7 @@ class SessionStateTest {
             assertEquals(500L, f.state.elapsedMs)
             assertNull(f.hr.reading.value)
             assertEquals(HeartRateStatistics(1, 1, 1, 1), f.hr.statistics.value)
-            assertTrue(f.acc.samples.value.isNotEmpty())
+            assertTrue(f.accSamples.isNotEmpty())
             assertTrue(f.ecg.samples.value.isNotEmpty())
             assertTrue(checkedDataTypes.none(f.subscriptions::isActive))
             f.connected = true
@@ -478,7 +481,7 @@ class SessionStateTest {
         assertEquals(HeartRateStatistics(2, 180, 80, 100), f.hr.statistics.value)
         assertFalse(f.session.retry(HR, true) { error("Duplicate retry") })
         assertEquals(2L, f.hr.statistics.value.count)
-        assertEquals(9, f.acc.samples.value.single().x)
+        assertEquals(9, f.accSamples.single().x)
         f.session.stop("Done")
         runCurrent()
         assertEquals(2L, f.hr.statistics.value.count)

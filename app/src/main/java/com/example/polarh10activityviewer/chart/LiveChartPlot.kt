@@ -40,7 +40,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     Column {
     val valid = snapshot.points.any { it.value != null }
     val mean = if (kind == ChartKind.ELECTROCARDIOGRAM) null else chartMeanInRange(sessionMean, scale, valid)
-    val ticks = chartYTicks(scale, kind)
+    val ticks = chartYTicks(scale)
     val style = MaterialTheme.typography.bodySmall
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val measurer = rememberTextMeasurer()
@@ -55,7 +55,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
         (ticks.filter { abs(it) / (scale.upper - scale.lower) * availableHeight >= labelGap } + 0.0)
             .sortedDescending()
     } else ticks
-    val labels = if (valid) axisTicks.map { chartScaleLabel(it, kind) } else listOf("--", "--")
+    val labels = if (valid) axisTicks.map { chartScaleLabel(it) } else listOf("--", "--")
     val gutter = axisWidth ?: with(density) { (labels.maxOf { measurer.measure(it, style).size.width }).toDp() + ContentSpacing }
     val ink = if (kind == ChartKind.HEART_RATE) Color(0xFFEF4444) else sessionBlue()
     val axis = MaterialTheme.colorScheme.outline

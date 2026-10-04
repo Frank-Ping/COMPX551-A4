@@ -99,8 +99,8 @@ class SessionReferenceTest {
                             hrSubscription = streams.getValue(PolarDeviceDataType.HR),
                             accSubscription = streams.getValue(PolarDeviceDataType.ACC),
                             ecgSubscription = streams.getValue(PolarDeviceDataType.ECG),
-                            steps = if (empty.value) StepState() else StepState(totalSteps = 1200, cadence = 108.0, maximumCadence = 144.0, distance = 875.0,
-                                receivedAcc = true, durationMs = 750000, message = "Detecting steps."),
+                            steps = if (empty.value) StepState() else StepState(totalSteps = 1200, cadence = 108.0, maximumCadence = 144.0,
+                                receivedAcc = true, durationMs = 750000),
                             session = SessionState(phase.value, elapsedMs = if (empty.value) 0 else 750000),
                             charts = {
                                 val kind = selected.value

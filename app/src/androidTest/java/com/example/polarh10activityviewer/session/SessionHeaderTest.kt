@@ -308,7 +308,6 @@ class SessionHeaderTest {
     }
 }
 
-
 private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
     var ancestor = fetchSemanticsNode().parent
     while (ancestor != null) {

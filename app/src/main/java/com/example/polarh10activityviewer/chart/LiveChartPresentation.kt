@@ -35,8 +35,8 @@ internal fun chartSegments(points: List<ChartPoint>): List<List<ChartPoint>> {
 internal fun chartMeanInRange(mean: Double?, scale: ChartScale, hasData: Boolean): Double? =
     mean?.takeIf { hasData && it.isFinite() && it in scale.lower..scale.upper }
 
-internal fun chartYTicks(scale: ChartScale, kind: ChartKind): List<Double> =
-    (0..4).map { chartScaleLabel(scale.lower + (scale.upper - scale.lower) * it / 4, kind).toDouble() }
+internal fun chartYTicks(scale: ChartScale): List<Double> =
+    (0..4).map { chartScaleLabel(scale.lower + (scale.upper - scale.lower) * it / 4).toDouble() }
         .distinct().sortedDescending()
 
 internal data class ChartTimeTick(val fraction: Float, val label: String)

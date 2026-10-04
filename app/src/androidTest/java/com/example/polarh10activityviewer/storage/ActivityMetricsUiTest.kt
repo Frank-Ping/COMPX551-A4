@@ -69,7 +69,6 @@ class ActivityMetricsUiTest {
             val annotated = compose.onNodeWithText(text).fetchSemanticsNode().config[SemanticsProperties.Text].single()
             val span = annotated.spanStyles.single()
             assertEquals(text.indexOf('/'), span.start)
-            assertEquals(text.length, span.end)
             assertEquals(if (context.resources.configuration.uiMode and 0x30 == 0x20)
                 Color(0xFF60A5FA) else Color(0xFF2563EB), span.item.color)
         }

@@ -24,10 +24,6 @@ internal data class SessionSummary(
     val totalSteps: Long? = null,
     val meanCadence: Double? = null,
     val maximumCadence: Double? = null,
-    val minimumCadence: Double? = null,
-    val distanceMetres: Double? = null,
-    val meanSpeedMetresPerSecond: Double? = null,
-    val maximumSpeedMetresPerSecond: Double? = null,
     val activityMetrics: ActivityMetrics = ActivityMetrics()
 ) {
     val receivedValidHr: Boolean get() = validHrCount > 0
@@ -37,9 +33,7 @@ internal data class SessionSummary(
             minimumHr = hr.min, maximumHr = hr.max, meanHr = hr.average, validHrCount = hr.count,
             zoneDurationsMs = zones.durationsMs.toList(), unclassifiedMs = zones.unclassifiedMs,
             totalSteps = motion.totalSteps, maximumCadence = motion.maximumCadence,
-            meanCadence = motion.meanCadence, minimumCadence = motion.minimumCadence,
-            distanceMetres = motion.distance, meanSpeedMetresPerSecond = motion.averageSpeed,
-            maximumSpeedMetresPerSecond = motion.maximumSpeed
+            meanCadence = motion.meanCadence
         )
     }
 }
@@ -77,5 +71,5 @@ internal data class HrHistoryPoint(
 
 internal data class MotionHistoryPoint(
     val sessionId: String, val secondBucket: Long, val elapsedMs: Long,
-    val cadence: Double?, val speedMetresPerSecond: Double?, val breakBefore: Boolean
+    val cadence: Double?, val breakBefore: Boolean
 )

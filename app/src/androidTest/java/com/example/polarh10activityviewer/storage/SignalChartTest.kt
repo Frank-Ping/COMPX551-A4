@@ -8,7 +8,6 @@ import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.polarh10activityviewer.history.HistoryCharts
 import com.example.polarh10activityviewer.history.HistoryDetailLayout
-import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue

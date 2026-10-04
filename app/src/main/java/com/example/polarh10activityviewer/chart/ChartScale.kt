@@ -19,12 +19,11 @@ internal fun chartScale(points: List<ChartPoint>, kind: ChartKind, referenceValu
     if (lower == upper) return if (kind == ChartKind.ELECTROCARDIOGRAM)
         ChartScale(-1.0, 1.0) else ChartScale(0.0, 1.0)
     val margin = (upper - lower) * 0.1
-    val precision = if (kind == ChartKind.SPEED) 10.0 else 1.0
     return ChartScale(
-        if (kind == ChartKind.ELECTROCARDIOGRAM) floor((lower - margin) * precision) / precision else 0.0,
-        ceil((upper + margin) * precision) / precision
+        if (kind == ChartKind.ELECTROCARDIOGRAM) floor(lower - margin) else 0.0,
+        ceil(upper + margin)
     )
 }
 
-internal fun chartScaleLabel(value: Double, kind: ChartKind): String =
-    String.format(Locale.ENGLISH, if (kind == ChartKind.SPEED) "%.1f" else "%.0f", value)
+internal fun chartScaleLabel(value: Double): String =
+    String.format(Locale.ENGLISH, "%.0f", value)

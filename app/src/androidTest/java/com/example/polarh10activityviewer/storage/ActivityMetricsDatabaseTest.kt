@@ -18,7 +18,7 @@ internal fun metricsFixture(id: String = "metrics"): SessionSnapshot {
         summary = s.record.summary.copy(zoneDurationsMs = listOf(0,600_000,900_000,300_000,0),
             meanCadence = 120.0, totalSteps = 3600)),
         motionPoints = List(30) { i -> MotionHistoryPoint(id, i.toLong(), i * 1000L,
-            listOf(100.0,110.0,120.0)[i%3], null, i%5==0) })
+            listOf(100.0,110.0,120.0)[i%3], i%5==0) })
 }
 
 class ActivityMetricsDatabaseTest {
@@ -67,7 +67,7 @@ class ActivityMetricsDatabaseTest {
         assertTrue(ecg.isNotEmpty())
         emulateV3(); reopen()
         assertEquals(s, db.detail("metrics"))
-        assertEquals(6,db.readableDatabase.version)
+        assertEquals(7, db.readableDatabase.version)
         assertEquals(ecg,db.ecgWindow("metrics",0,5000))
         assertFalse(columns(db.readableDatabase).contains("sessionRpe"))
         db.readableDatabase.rawQuery("PRAGMA foreign_keys",null).use { assertTrue(it.moveToFirst()); assertEquals(1,it.getInt(0)) }
@@ -91,7 +91,7 @@ class ActivityMetricsDatabaseTest {
         val expected = old.copy(record=old.record.copy(summary=old.record.summary.copy(
             activityMetrics=ActivityMetrics(algorithmVersion=2,sessionStrain=278.5,sessionStrainScore=ActivityMetricsCalculator.strainScore(278.5)))))
         assertEquals(expected,db.detail("metrics"))
-        assertEquals(6,db.readableDatabase.version)
+        assertEquals(7, db.readableDatabase.version)
     }
 
     @Test fun migrationFailureRollsBackSchemaDataAndVersionThenCanRetry() = runBlocking<Unit> {
@@ -151,7 +151,7 @@ class ActivityMetricsDatabaseTest {
         db.writableDatabase.addLegacyRrSchema()
         db.writableDatabase.version=4
         reopen()
-        assertEquals(6,db.readableDatabase.version)
+        assertEquals(7, db.readableDatabase.version)
         for (s in old) {
             val m=s.record.summary.activityMetrics
             val expected=s.copy(record=s.record.copy(summary=s.record.summary.copy(

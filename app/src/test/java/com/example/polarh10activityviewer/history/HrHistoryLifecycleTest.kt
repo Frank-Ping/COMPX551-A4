@@ -147,7 +147,7 @@ class HrHistoryLifecycleTest {
         val f = Fixture(this)
         val source = MutableSharedFlow<PolarHrData>()
         f.start(source); runCurrent()
-        f.charts.select(ChartKind.SPEED)
+        f.charts.select(ChartKind.CADENCE)
         for (second in 0..375) {
             f.now = second * 1000L
             source.emit(batch(120)); runCurrent()

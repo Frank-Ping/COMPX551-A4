@@ -45,9 +45,9 @@ internal fun LiveChartCard(
                 ChartStatistics("Sampling Rate", rate?.let { "$it Hz" } ?: "--", "Samples", countLabel)
             } else {
                 ChartStatistics(if (kind == ChartKind.HEART_RATE) "Average HR" else "Mean", "${sessionMean?.let {
-                        chartScaleLabel(it, kind)
+                        chartScaleLabel(it)
                     } ?: "--"} ${kind.unit}", if (kind == ChartKind.HEART_RATE) "Max HR" else "Max",
-                    "${sessionMaximum?.let { chartScaleLabel(it, kind) } ?: "--"} ${kind.unit}")
+                    "${sessionMaximum?.let { chartScaleLabel(it) } ?: "--"} ${kind.unit}")
             }
             val valid = snapshot.points.any { it.value != null }
             val statusLabel = if (kind == ChartKind.HEART_RATE) {

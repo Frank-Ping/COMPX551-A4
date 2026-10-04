@@ -1,3 +1,6 @@
+> 最新清理（2026-10-04）：移除旧区间/图表UI、未消费ACC展示缓存、失效运动提示及速度/距离/步长/最小步频链路；SQLite v7保留其余活动、曲线和评分。App构建及两类测试源码编译通过，未运行测试/lint/模拟器/真机或实际数据库升级。见5.56，无commit/push。
+> Latest cleanup (2026-10-04): Remove unused UI/ACC display cache/motion messages and the speed/distance/stride/minimum-cadence pipeline. SQLite v7 retains other activity, chart and score data. App build and both test-source compilations pass; no tests, lint, device runs or actual installed-database upgrade. See 5.56; no commit/push.
+
 > 最新展示（2026-10-04）：撤销5.51的ECG启动隐藏及纵轴更改，恢复原图；保留步频待确认和暂停连接。Intensity/Cardio Load显示整数 / 10，Cadence Stability仅一位小数百分比，/ 10与/ 100用主题蓝色。272单元、25项模拟器及10项深色字号2.0重复检查通过，构建/lint通过（0 errors、23 warnings）。见5.52，无真机安装、commit/push。
 > Latest display (2026-10-04): Revert 5.51 ECG startup hiding/scaling; retain cadence confirmation and pause connections. Intensity/Cardio Load show integer scores out of 10; Cadence Stability shows one-decimal percent only; denominators use theme blue. All 272 unit, 25 emulator and ten dark/font-2.0 repeat checks pass; builds/lint pass (zero errors, 23 warnings). See 5.52; no hardware installation, commit or push.
 > 最新启动显示（2026-10-04）：ECG原始数据全保留，实时/History仅隐藏检测到的启动漂移并保留原时间；步频首次确认前为空，正常暂停连接保留。277单元、45项不同模拟器及5项深色字号2.0重复检查通过，构建/lint通过（0 errors、23 warnings）。规则与限制见5.51；真机进一步验收pending，无commit/push。
@@ -2386,3 +2389,20 @@ English prompt: Add persisted Session Strain scores to 9.0b only. Replace the di
   Across runs, all 38 distinct checks pass on the isolated Pixel_9 phone emulator (1080×2340, 450dpi): CadenceRefresh 2, SessionMetrics 17, SessionReference 3 and LiveChartCard 16. The first run passed 36/38; two obsolete Estimated Distance assertions were updated to the current Duration/Total Steps presentation and both passed on retry. Original statistical assertions remain. Includes timing and existing theme/font checks; no separate screenshot visual acceptance or hardware performance measurement this turn.
 - 模拟器证据：build/cadence-rate-ui.txt、cadence-rate-ui-retry.txt。两对AGENTS.md/prompt.md同步；本轮专用模拟器完成后关闭，未安装/操作Samsung/H10，无commit/push。
   Emulator evidence: build/cadence-rate-ui.txt and cadence-rate-ui-retry.txt. Both AGENTS.md/prompt.md pairs are synchronized. Close the dedicated emulator after validation; no Samsung/H10 installation/operation, commit or push.
+
+## 5.56 当前未使用路径清理 / Retired-path cleanup（2026-10-04）
+
+- 用户批准上一轮建议的两批代码清理；第7项临时产物按保留作业证据处理，不批量删除已有build/output/tmp、截图、日志或实际设备数据。此节覆盖早期保留速度、距离、步长估计、最小步频和ACC展示副本的要求。
+  The user approved both proposed code-cleanup batches. Preserve existing build/output/tmp evidence, captures, logs and device data. This section supersedes earlier retention of speed, distance, stride estimation, minimum cadence and the ACC display copy.
+- 删除未调用HeartRateZonePanel及ChartPlot；formatZoneDuration移入ZoneDuration.kt继续共用。移除旧尺寸常量、模板颜色资源及两个Example测试。
+  Remove the uncalled HeartRateZonePanel and ChartPlot, retain the shared formatter in ZoneDuration.kt, and remove unused dimensions, template colors and the two Example tests.
+- AccBuffer仅逐样本转发并检测跨批30ms缺口，不再保留十秒/1000点列表或StateFlow；移除未消费accSamples/ecgSamples对外接口，保留ECG实际绘图缓存。StepState.message及其生成路径、仅供测试的latestCommitted副本删除；测试改观察回调/返回值，保留采集、错误和恢复检查。
+  AccBuffer forwards every sample and detects cross-batch gaps above 30 ms without a ten-second/1,000-point list or StateFlow. Remove unused accSamples/ecgSamples exports, retaining the real ECG chart buffer. Remove unused StepState.message generation and the test-only latestCommitted copy; tests observe callbacks/returns while preserving acquisition/error/recovery coverage.
+- 删除StrideLengthEstimator、StepCandidate.length、速度/距离/最小步频计算、字段和SQLite读写、ChartKind.SPEED及旧子选择。LiveCharts/MotionHistory仅按步频有效性、真实缺口和既有暂停规则判断连线。保留原步伐确认、Total Steps、Mean/Max cadence、评分、HR/ECG及暂停继续逻辑。
+  Remove stride length, speed, distance, minimum cadence, their persistence fields and SPEED chart branches/sub-selection. Live/history cadence continuity uses cadence validity, real gaps and existing pause rules. Preserve step confirmation, totals, mean/max cadence, scores, HR/ECG and pause/resume.
+- SQLite从v6升至v7，在升级事务中重建sessions和motion_points，仅省略退休字段；其余摘要、HR/步频/ECG、评分及缺口标记保留。沿用v1—v5既有升级语义，v6评分直接保留；升级失败由SQLiteOpenHelper事务回滚。没有打开或迁移用户手机数据库。
+  SQLite v7 rebuilds sessions and motion_points transactionally, omitting only retired fields and retaining other summaries, HR/cadence/ECG, scores and gap markers. Preserve existing v1–v5 migration semantics and v6 stored scores; SQLiteOpenHelper rolls failed upgrades back. No user-device database was opened or migrated.
+- 删除退休功能专属测试，保留混合测试内仍有效的断言；区间UI检查更新为当前活动时长比例、整数四舍五入及着色范围。新增两项v6→v7迁移测试代码覆盖保留/重开/级联删除和失败回滚重试；RR/RPE旧版本迁移检查保留。所有测试均未执行，不能沿用旧测试通过数量作为本轮结果。
+  Remove retired-feature-only checks and preserve useful assertions in mixed tests. Update zone UI checks for active-time proportions, integer rounding and colored fills. Add two v6→v7 migration checks for preservation/reopen/cascade and rollback/retry; retain RR/RPE legacy migration checks. No tests were run; prior passing counts do not describe this revision.
+- 验证：离线assembleDebug、compileDebugUnitTestKotlin、compileDebugAndroidTestKotlin通过，日志build/cleanup-compile.txt。初轮编译暴露的Compose隐式委托import及旧ACC缓存测试引用已修正。未运行测试、lint、模拟器或Samsung/H10；数据库迁移运行验收pending。两对文档同步，无commit/push。
+  Offline assembleDebug and both test Kotlin compilation tasks pass; see build/cleanup-compile.txt. Corrected implicit Compose delegate imports and obsolete ACC-cache references found by compilation. No tests, lint, emulator or Samsung/H10 runs; runtime database migration acceptance is pending. Both document pairs synchronized; no commit/push.

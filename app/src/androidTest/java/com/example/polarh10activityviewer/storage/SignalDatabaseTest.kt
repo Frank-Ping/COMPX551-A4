@@ -83,7 +83,7 @@ class SignalDatabaseTest {
         sql.version = 1
         db.close(); db = SessionDatabase(context, name)
         db.recoverInterrupted()
-        assertEquals(6, db.readableDatabase.version)
+        assertEquals(7, db.readableDatabase.version)
         assertEquals(old.copy(record = old.record.copy(summary = old.record.summary.copy(activityMetrics = ActivityMetrics(algorithmVersion = 2)))), db.detail(old.record.id))
         assertTrue(db.ecgWindow(old.record.id, 0, 5000).isEmpty())
     }

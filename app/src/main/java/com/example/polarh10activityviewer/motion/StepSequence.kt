@@ -27,18 +27,16 @@ internal class StepSequence {
         return true
     }
 
-    fun accept(candidate: StepCandidate, strideLength: () -> Double? = { null }): List<StepCandidate> {
+    fun accept(candidate: StepCandidate): List<StepCandidate> {
         val previous = lastAcceptedAt
         if (previous != null && candidate.timeStamp - previous < 250_000_000L) return emptyList()
         if (expire(candidate.timeStamp)) return emptyList()
         lastAcceptedAt = candidate.timeStamp
-        // Calculate only after admission: rejected peaks never move the stride reference.
-        val accepted = candidate.copy(length = strideLength())
         if (confirmed) {
             totalSteps++
-            return listOf(accepted)
+            return listOf(candidate)
         }
-        pending.add(accepted)
+        pending.add(candidate)
         if (pending.size < 4) return emptyList()
         val committed = pending.toList()
         pending.clear()

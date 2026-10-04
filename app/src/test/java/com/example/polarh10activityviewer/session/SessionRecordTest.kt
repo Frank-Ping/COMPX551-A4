@@ -170,7 +170,6 @@ class SessionRecordTest {
             assertFalse(f.record.summary.receivedValidHr)
             assertNull(f.record.summary.minimumHr)
             assertNull(f.record.summary.totalSteps)
-            assertNull(f.record.summary.distanceMetres)
             assertEquals(SessionStatus.STOPPED, f.session.state.value.status)
         }
     }
@@ -186,13 +185,9 @@ class SessionRecordTest {
             assertEquals(type == HR, f.record.summary.receivedValidHr)
             if (type == ACC) {
                 assertEquals(0L, f.record.summary.totalSteps)
-                assertEquals(0.0, f.record.summary.distanceMetres!!, 0.0)
                 assertNull(f.record.summary.maximumCadence)
-                assertNull(f.record.summary.maximumSpeedMetresPerSecond)
-                assertNull(f.record.summary.meanSpeedMetresPerSecond)
             } else assertNull(f.record.summary.totalSteps)
             assertNull(f.record.summary.meanCadence)
-            assertNull(f.record.summary.minimumCadence)
             runCurrent()
         }
     }
@@ -213,20 +208,14 @@ class SessionRecordTest {
 
     @Test fun summaryCopiesUnroundedOwnerResultsAndDoesNotAliasZoneStorage() {
         val durations = mutableListOf(1L, 2L, 3L, 4L, 5L)
-        val motion = StepState(totalSteps = 7, receivedAcc = true, distance = 3.14159265,
-            minimumCadence = 60.0, maximumCadence = 96.0,
-            maximumSpeed = 0.87654321, durationMs = 12345)
+        val motion = StepState(totalSteps = 7, receivedAcc = true, maximumCadence = 96.0, durationMs = 12345)
         val result = SessionSummary.from(HeartRateStatistics(3, 361, 120, 121),
             HeartRateZoneState(durationsMs = durations, unclassifiedMs = 19), motion)
         assertEquals(361.0 / 3, result.meanHr!!, 0.0)
-        assertEquals(motion.distance, result.distanceMetres)
-        assertEquals(motion.averageSpeed, result.meanSpeedMetresPerSecond)
-        assertEquals(motion.maximumSpeed, result.maximumSpeedMetresPerSecond)
         assertEquals(motion.maximumCadence, result.maximumCadence)
         durations[0] = 999
         assertEquals(1L, result.zoneDurationsMs[0])
         assertEquals(motion.meanCadence, result.meanCadence)
-        assertEquals(motion.minimumCadence, result.minimumCadence)
     }
 
     @Test fun stopSettlesLastZoneIntervalOnceAndExcludesDelayedCleanup() = runTest {
@@ -367,7 +356,6 @@ class SessionRecordTest {
             f.now = 10_000; f.tick()
             assertEquals(10L, f.record.summary.totalSteps)
             assertEquals(60.0, f.record.summary.meanCadence!!, 0.0)
-            assertEquals(120.0, f.record.summary.minimumCadence!!, 0.0)
             f.now = 20_000; f.tick()
             assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)
             assertSame(f.record, f.session.state.first().record)
@@ -376,7 +364,6 @@ class SessionRecordTest {
             else { f.session.stop(reason, interrupted = reason != "Stopped by user."); runCurrent() }
             val frozen = f.record
             assertEquals(30.0, frozen.summary.meanCadence!!, 0.0)
-            assertEquals(120.0, frozen.summary.minimumCadence!!, 0.0)
             f.now = 99_000; f.tick(); f.stop()
             assertEquals(frozen, f.record)
         }
@@ -391,7 +378,6 @@ class SessionRecordTest {
         f.now = 10_000; f.tick()
         val id = f.record.id
         assertEquals(60.0, f.record.summary.meanCadence!!, 0.0)
-        assertEquals(120.0, f.record.summary.minimumCadence!!, 0.0)
         assertTrue(f.record.streams.getValue(ACC).failed)
         assertTrue(f.record.incomplete)
         val recovered = MutableSharedFlow<PolarAccelerometerData>()
@@ -399,12 +385,10 @@ class SessionRecordTest {
         f.now = 20_000; f.tick()
         assertEquals(id, f.record.id)
         assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)
-        assertEquals(120.0, f.record.summary.minimumCadence!!, 0.0)
         // Fresh stationary data must rewarm and cover a full five seconds.
         recovered.emit(PolarAccelerometerData((0..603).map {
             PolarAccelerometerData.PolarAccelerometerDataSample(30_000_000_000L + it * 10_000_000L, 1000, 0, 0)
         })); runCurrent()
-        assertEquals(0.0, f.record.summary.minimumCadence!!, 0.0)
         assertEquals(120.0, f.record.summary.maximumCadence!!, 0.0)
         assertEquals(30.0, f.record.summary.meanCadence!!, 0.0)
         f.stop()
@@ -430,9 +414,7 @@ class SessionRecordTest {
         runCatching { old.emit(walkingBatch()) }; f.tick(generation); runCurrent()
         assertEquals(fresh, f.record)
         assertNull(f.record.summary.meanCadence)
-        assertNull(f.record.summary.minimumCadence)
         assertEquals(60.0, frozen.summary.meanCadence!!, 0.0)
-        assertEquals(120.0, frozen.summary.minimumCadence!!, 0.0)
         f.stop()
     }
 
@@ -448,7 +430,5 @@ class SessionRecordTest {
         assertEquals(before!!.id, f.record.id)
         assertFalse(f.record.incomplete)
         assertTrue(f.record.streams.values.all { it.received && !it.missing && !it.failed })
-        assertEquals(0.0, f.record.summary.meanSpeedMetresPerSecond!!, 0.0)
-        assertNull(f.record.summary.maximumSpeedMetresPerSecond)
     }
 }

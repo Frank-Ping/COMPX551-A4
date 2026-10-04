@@ -38,9 +38,8 @@ class LiveChartPresentationTest {
         assertEquals(ChartScale(0.0, 110.0), scale)
     }
     @Test fun yTicksRetainBoundsPrecisionAndAvoidDuplicateZeroLabels() {
-        assertEquals(listOf(1.0, 0.0), chartYTicks(ChartScale(0.0, 1.0), ChartKind.CADENCE))
-        assertEquals(listOf(1.0, 0.0, -1.0), chartYTicks(ChartScale(-1.0, 1.0), ChartKind.ELECTROCARDIOGRAM))
-        assertEquals(5.1, chartYTicks(ChartScale(0.0, 5.1), ChartKind.SPEED).first(), 0.0)
+        assertEquals(listOf(1.0, 0.0), chartYTicks(ChartScale(0.0, 1.0)))
+        assertEquals(listOf(1.0, 0.0, -1.0), chartYTicks(ChartScale(-1.0, 1.0)))
     }
     @Test fun ecgSecondsAdaptToActualWidthAndLargerTextWithoutOverlap() {
         val wide = chartTimeTicks(snapshot(), 600f, 8f) { 50f }

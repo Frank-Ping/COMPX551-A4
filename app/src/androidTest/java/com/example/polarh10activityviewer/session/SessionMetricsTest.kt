@@ -27,22 +27,21 @@ import com.example.polarh10activityviewer.storage.databaseFixture
 import com.example.polarh10activityviewer.storage.SessionDatabase
 import com.example.polarh10activityviewer.history.HistoryPanel
 import com.example.polarh10activityviewer.ui.theme.PolarH10ActivityViewerTheme
-import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 
 // Controlled states validate rendering and callback routing, not H10 acquisition.
 class SessionMetricsTest {
     @get:Rule val compose = createComposeRule()
     private val reading = mutableStateOf<HeartRateReading?>(HeartRateReading(123, 1_700_000_000_000))
     private val statistics = mutableStateOf(HeartRateStatistics(3, 361, 110, 130))
-    private val motion = mutableStateOf(StepState(totalSteps = 121, cadence = 123.6, speed = 1.25,
-        distance = 100.04, maximumCadence = 168.0, minimumCadence = 0.0, maximumSpeed = 3.0,
-        receivedAcc = true, durationMs = 60_000, message = "Controlled ACC observations."))
+    private val motion = mutableStateOf(StepState(totalSteps = 121, cadence = 123.6, maximumCadence = 168.0,
+        receivedAcc = true, durationMs = 60_000))
     private val zones = mutableStateOf(HeartRateZoneState(listOf(500, 1000, 1500, 2000, 2500),
         current = HeartRateZone.LIGHT, receivedValidHr = true, unclassifiedMs = 1300))
     private val session = mutableStateOf(SessionState(SessionStatus.RUNNING, elapsedMs = 60_000))
@@ -119,7 +118,6 @@ class SessionMetricsTest {
             compose.onAllNodesWithText(it, substring = true).assertCountEquals(0)
         }
         assertEquals(123.6, motion.value.cadence!!, 0.0)
-        assertEquals(100.04, motion.value.distance!!, 0.0)
     }
 
     @Test fun sessionOrdersChartSummaryZonesAndRecoveryAfterMetrics() {
@@ -149,13 +147,13 @@ class SessionMetricsTest {
         compose.onAllNodesWithText("Heart rate intensity").assertCountEquals(0)
     }
 
-    @Test fun validZeroZonesUseEmptyHorizontalBarsAndNeverRunningPercentages() {
+    @Test fun zeroDurationZonesShowEmptyProgressAndUnknownPercentage() {
         zones.value = HeartRateZoneState(current = HeartRateZone.LIGHT, receivedValidHr = true)
         mount();
         for (index in 1..5) {
-            val bar = compose.onNodeWithContentDescription("Zone $index, cumulative duration 00:00")
+            val bar = compose.onNodeWithContentDescription("Zone $index, cumulative duration 00:00, -- of active time")
             bar.reveal()
-            assertEquals(0f, bar.fetchSemanticsNode().boundsInRoot.width, 0f)
+            bar.assertRangeInfoEquals(ProgressBarRangeInfo(0f, 0f..1f))
         }
         compose.onAllNodesWithText("No valid HR data").assertCountEquals(0)
         compose.onAllNodesWithText("%", substring = true).assertCountEquals(0)
@@ -191,7 +189,7 @@ class SessionMetricsTest {
     }
 
     @Test fun initialWarmupShowsGenuineCurrentZerosWithoutDialogDetails() {
-        motion.value = StepState(cadence = 0.0, speed = 0.0, message = "Warming up ACC.")
+        motion.value = StepState(cadence = 0.0)
         mount(); visible("0"); visible("Mean: -- steps/min")
         compose.onNodeWithContentDescription("Open Devices").performClick()
         compose.onNodeWithText("Warming up ACC.").assertDoesNotExist()
@@ -208,13 +206,12 @@ class SessionMetricsTest {
     }
 
     @Test fun gapAndAccFailureKeepTotalsAndActionableErrorsWithoutDetails() {
-        motion.value = motion.value.copy(cadence = null, incompleteAcc = true, message = "ACC gap. Warming up a new continuous segment.")
+        motion.value = motion.value.copy(cadence = null, incompleteAcc = true)
         acc.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled ACC failure.")
         mount(); visible("121")
         compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         compose.onNodeWithContentDescription("Open Devices").performClick()
-        compose.onNodeWithText(motion.value.message).assertDoesNotExist()
         visible("ACC: Controlled ACC failure.")
         compose.onNodeWithText("Incomplete ACC data. Mean cadence may be lower.").assertDoesNotExist()
     }
@@ -232,7 +229,7 @@ class SessionMetricsTest {
 
     @Test fun stoppedObservedZerosAndNewSessionStateAreRenderedWithoutCaching() {
         reading.value = null; session.value = session.value.copy(status = SessionStatus.STOPPED)
-        motion.value = motion.value.copy(cadence = 0.0, speed = 0.0, message = "Stopped.")
+        motion.value = motion.value.copy(cadence = 0.0)
         mount(); visible("0"); visible("Mean HR: 120 bpm"); visible("121")
         compose.runOnIdle { motion.value = StepState(); statistics.value = HeartRateStatistics()
             zones.value = HeartRateZoneState(); session.value = SessionState(SessionStatus.STARTING) }
@@ -241,36 +238,35 @@ class SessionMetricsTest {
         compose.onAllNodesWithText("0").assertCountEquals(0)
     }
 
-    @Test fun zeroAndSubsecondDurationsUseActualWidthsAndDynamicSharedScale() {
+    @Test fun liveZonePercentagesRoundAndUseActiveTimeIncludingUnclassifiedTime() {
         zones.value = HeartRateZoneState(listOf(0, 500, 1000, 0, 0), receivedValidHr = true)
         mount()
-        fun bar(zone: Int, duration: String) = compose.onNodeWithContentDescription("Zone $zone, cumulative duration $duration")
-        bar(3, "00:01").reveal()
-        val maximum = bar(3, "00:01").fetchSemanticsNode().boundsInRoot.width
-        assertEquals(maximum / 2, bar(2, "00:00").fetchSemanticsNode().boundsInRoot.width, 1f)
-        assertEquals(0f, bar(1, "00:00").fetchSemanticsNode().boundsInRoot.width, 0f)
-        compose.runOnIdle { zones.value = zones.value.copy(durationsMs = listOf(0, 500, 2000, 0, 0)) }
-        bar(3, "00:02").reveal()
-        assertEquals(maximum / 4, bar(2, "00:00").fetchSemanticsNode().boundsInRoot.width, 1f)
-        compose.runOnIdle { zones.value = zones.value.copy(durationsMs = listOf(3_000_000, 6_000_000, 0, 0, 0)) }
-        bar(2, "100:00").reveal()
-        val longMaximum = bar(2, "100:00").fetchSemanticsNode().boundsInRoot.width
-        assertEquals(longMaximum / 2, bar(1, "50:00").fetchSemanticsNode().boundsInRoot.width, 1f)
-
+        fun bar(zone: Int, duration: String, percent: String) = compose.onNodeWithContentDescription(
+            "Zone $zone, cumulative duration $duration, $percent of active time").reveal()
+        bar(1, "00:00", "0%").assertRangeInfoEquals(ProgressBarRangeInfo(0f, 0f..1f))
+        bar(2, "00:00", "33%").assertRangeInfoEquals(ProgressBarRangeInfo(1f / 3f, 0f..1f))
+        bar(3, "00:01", "67%").assertRangeInfoEquals(ProgressBarRangeInfo(2f / 3f, 0f..1f))
+        compose.runOnIdle { zones.value = zones.value.copy(unclassifiedMs = 500) }
+        bar(2, "00:00", "25%").assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
+        bar(3, "00:01", "50%").assertRangeInfoEquals(ProgressBarRangeInfo(0.5f, 0f..1f))
+        compose.runOnIdle { zones.value = zones.value.copy(durationsMs = listOf(0, 5, 395, 0, 0), unclassifiedMs = 0) }
+        bar(2, "00:00", "1%").assertRangeInfoEquals(ProgressBarRangeInfo(0.0125f, 0f..1f))
+        compose.runOnIdle { zones.value = zones.value.copy(durationsMs = listOf(0, 6, 394, 0, 0)) }
+        bar(2, "00:00", "2%").assertRangeInfoEquals(ProgressBarRangeInfo(0.015f, 0f..1f))
     }
 
     @Test fun fiveZoneBarsRenderTheExactPaletteInBothThemes() {
+        zones.value = HeartRateZoneState(List(5) { 1000L }, receivedValidHr = true)
         mount()
         val expected = listOf(0xFF22C55E.toInt(), 0xFF3B82F6.toInt(), 0xFFEAB308.toInt(),
             0xFFF97316.toInt(), 0xFFEF4444.toInt())
         for (night in listOf(false, true)) {
             compose.runOnIdle { dark.value = night }
             for (index in 0..4) {
-                val duration = if (index < 1) "00:00" else if (index < 3) "00:01" else "00:02"
-                val node = compose.onNodeWithContentDescription("Zone ${index + 1}, cumulative duration $duration")
+                val node = compose.onNodeWithContentDescription("Zone ${index + 1}, cumulative duration 00:01, 20% of active time")
                 node.reveal()
                 val bitmap = node.captureToImage().asAndroidBitmap()
-                assertEquals(expected[index], bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
+                assertEquals(expected[index], bitmap.getPixel(bitmap.width / 10, bitmap.height / 2))
             }
             screenshot(if (night) "dark-zone-bars" else "light-zone-bars")
         }
@@ -281,7 +277,7 @@ class SessionMetricsTest {
 
     @Test fun longValuesFitAndErrorsStayOnOneLineWithoutExpandingCards() {
         session.value = session.value.copy(elapsedMs = 14_400_000)
-        motion.value = motion.value.copy(totalSteps = 123456, distance = 65432.14)
+        motion.value = motion.value.copy(totalSteps = 123456)
         acc.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled long failure explanation. ".repeat(20))
         mount()
         for (night in listOf(false, true)) {
@@ -367,7 +363,6 @@ class SessionMetricsTest {
         } finally { db.close(); context.deleteDatabase(name) }
     }
 }
-
 
 private fun SemanticsNodeInteraction.reveal(): SemanticsNodeInteraction {
     var ancestor = fetchSemanticsNode().parent

@@ -133,14 +133,12 @@ class PolarBleManager(context: Context) {
     private val stepDetector = StepDetector(SystemClock::elapsedRealtime)
     internal val stepState = stepDetector.state
     private val accBuffer = AccBuffer { stepDetector.receive(it) }
-    val accSamples = accBuffer.samples
     private var signals = SignalBuffer()
     private var checkpointBucket = 0L
     private var checkpointAt = -1000L
     private var discardingRecording = false
     private var pauseContinuations = emptySet<PolarDeviceDataType>()
     private val ecgBuffer = EcgBuffer()
-    val ecgSamples = ecgBuffer.samples
     internal val liveCharts = LiveCharts { ecgBuffer.samples.value }
     private val streamSettingsMutex = Mutex()
     private val dataSubscriptions: DataSubscriptions = DataSubscriptions(
@@ -157,7 +155,7 @@ class PolarBleManager(context: Context) {
         latestHeartRate.onSubscriptionState(type, status)
         accBuffer.onSubscriptionState(type, status)
         if (type == PolarDeviceDataType.ACC && session.state.value.ongoing) {
-            stepDetector.onSubscriptionState(status, dataSubscriptions.states.value.getValue(type).error)
+            stepDetector.onSubscriptionState(status)
         }
         if (type == PolarDeviceDataType.ACC) motionHistory.onSubscriptionState(status, stepDetector.segment)
         liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime), stepDetector.segment)

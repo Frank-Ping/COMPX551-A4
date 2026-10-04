@@ -70,9 +70,8 @@ internal class MotionHistory {
         if (replaced == null && points.size == HrHistory.MAX_POINTS) return
         val available = status == SubscriptionStatus.RECEIVING && motion.receivedAcc && !warmingUp
         val cadence = motion.cadence.takeIf { available }
-        val speed = motion.speed.takeIf { available }
-        val missing = cadence == null || speed == null
-        val point = MotionHistoryPoint(sessionId, bucket, elapsedMs, cadence, speed,
+        val missing = cadence == null
+        val point = MotionHistoryPoint(sessionId, bucket, elapsedMs, cadence,
             breakBefore || (!continuingAfterPause && previousSegment != segment) || missing || replaced?.breakBefore == true)
         if (replaced == null) points.add(point) else points[points.lastIndex] = point
         previousSegment = segment
@@ -89,7 +88,7 @@ internal class MotionHistory {
 
     fun resume(connectPrevious: Boolean = true) {
         val last = points.lastOrNull()
-        continuingAfterPause = connectPrevious && !breakBefore && last?.cadence != null && last.speedMetresPerSecond != null
+        continuingAfterPause = connectPrevious && !breakBefore && last?.cadence != null
         breakBefore = !continuingAfterPause
         resumeSegment = null
         mutableState.value = state.value.copy(frozen = false)

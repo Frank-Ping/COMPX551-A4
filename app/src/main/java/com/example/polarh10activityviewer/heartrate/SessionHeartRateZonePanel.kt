@@ -21,6 +21,8 @@ import com.example.polarh10activityviewer.session.SessionCard
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
 import kotlin.math.roundToInt
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
 
 @Composable
 internal fun SessionHeartRateZonePanel(state: HeartRateZoneState) {
@@ -63,6 +65,7 @@ internal fun HeartRateZoneRows(durationsMs: List<Long>, elapsedMs: Long, hasHr: 
                     Box(Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(2.dp))
                         .background(color.copy(alpha = 0.12f)).semantics {
                             contentDescription = "Zone ${index + 1}, cumulative duration ${durations[index]}, ${percentages[index]} of active time"
+                            progressBarRangeInfo = ProgressBarRangeInfo(fractions[index].toFloat(), 0f..1f)
                         }) {
                         Box(Modifier.fillMaxWidth(fractions[index].toFloat()).fillMaxHeight().background(color))
                     }

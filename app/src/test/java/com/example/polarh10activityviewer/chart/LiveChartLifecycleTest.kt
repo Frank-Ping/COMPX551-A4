@@ -130,9 +130,9 @@ class LiveChartLifecycleTest {
         var starts = 0
         f.start(flow { starts++; emit(120); end.await() })
         runCurrent()
-        f.charts.select(ChartKind.SPEED)
+        f.charts.select(ChartKind.CADENCE)
         val retainedOwner = f.charts
-        assertEquals(ChartKind.SPEED, retainedOwner.selection.value)
+        assertEquals(ChartKind.CADENCE, retainedOwner.selection.value)
         retainedOwner.select(ChartKind.HEART_RATE)
         f.now = 3500
         end.complete(Unit)

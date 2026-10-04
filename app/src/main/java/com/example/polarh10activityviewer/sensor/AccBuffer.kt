@@ -5,8 +5,6 @@ import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import androidx.annotation.MainThread
 import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import com.polar.sdk.api.model.PolarAccelerometerData
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 
 // Raw mG values and the sensor timestamp in nanoseconds. A gap begins a new segment.
 data class AccSample(
@@ -19,10 +17,7 @@ data class AccSample(
 
 @MainThread
 internal class AccBuffer(private val onSample: (AccSample) -> Unit = {}) {
-    private val buffer = ArrayDeque<AccSample>()
     private var previousTimeStamp: Long? = null
-    private val mutableSamples = MutableStateFlow<List<AccSample>>(emptyList())
-    val samples = mutableSamples.asStateFlow()
 
     fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
         if (type == PolarDeviceDataType.ACC && status == SubscriptionStatus.STARTING) {
@@ -31,9 +26,7 @@ internal class AccBuffer(private val onSample: (AccSample) -> Unit = {}) {
     }
 
     fun clear() {
-        buffer.clear()
         previousTimeStamp = null
-        mutableSamples.value = emptyList()
     }
 
     fun receive(batch: PolarAccelerometerData) {
@@ -41,14 +34,7 @@ internal class AccBuffer(private val onSample: (AccSample) -> Unit = {}) {
             val gap = previousTimeStamp?.let { sample.timeStamp - it }?.takeIf { it > 30_000_000L }
             val raw = AccSample(sample.timeStamp, sample.x, sample.y, sample.z, gap)
             onSample(raw)
-            buffer.addLast(raw)
             previousTimeStamp = sample.timeStamp
-            val cutoff = sample.timeStamp - 10_000_000_000L
-            while (buffer.isNotEmpty() && (buffer.first().timeStamp <= cutoff || buffer.size > 1_000)) {
-                buffer.removeFirst()
-            }
         }
-        // Publish once per SDK batch; every sample has already been processed above.
-        if (batch.samples.isNotEmpty()) mutableSamples.value = buffer.toList()
     }
 }
