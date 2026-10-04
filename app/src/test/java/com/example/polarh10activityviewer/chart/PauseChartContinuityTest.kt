@@ -21,7 +21,7 @@ class PauseChartContinuityTest {
             heart(1000); cadence(1000); heart(2000); cadence(2000)
         }
         fun heart(time: Long, value: Int? = 120) {
-            val reading = value?.let { HeartRateReading(it, time) }
+            val reading = value?.let { HeartRateReading(it) }
             live.receiveHr(time, reading); hr.receive(time, reading)
         }
         fun cadence(time: Long, warming: Boolean = false, segment: Long = 1) {

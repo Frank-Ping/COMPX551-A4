@@ -40,9 +40,6 @@ import com.example.polarh10activityviewer.motion.StepState
 import com.example.polarh10activityviewer.ui.theme.ContentSpacing
 import com.example.polarh10activityviewer.ui.theme.ControlSpacing
 import com.example.polarh10activityviewer.ui.theme.HeartRateZoneColors
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -102,12 +99,6 @@ internal fun HeartRateCard(
                 SessionStatistic("Mean HR", "${cadence(statistics.average)} bpm", Modifier.fillMaxWidth(), TextAlign.Center)
             }
         )
-        val receivedAt = reading?.let {
-            SimpleDateFormat("HH:mm, dd.MM.yyyy", Locale.ENGLISH)
-                .format(Date(it.receivedAt))
-        } ?: "--"
-        Text("Last Received: $receivedAt", Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
     }
 }
 

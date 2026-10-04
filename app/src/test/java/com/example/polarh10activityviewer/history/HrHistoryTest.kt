@@ -6,7 +6,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HrHistoryTest {
-    private fun HrHistory.receive(at: Long, bpm: Int = 120) = receive(at, HeartRateReading(bpm, 99))
+    private fun HrHistory.receive(at: Long, bpm: Int = 120) = receive(at, HeartRateReading(bpm))
     private fun history() = HrHistory().apply { reset("session-a") }
 
     @Test fun eachSecondKeepsTheLastActualValueAndTimestampWithoutAveraging() {

@@ -112,7 +112,7 @@ class SessionHeaderTest {
                             dataReadiness = readiness.value, onRecheckData = { rechecks++ },
                             batteryLevel = battery.value, heartRateZones = zones.value,
                             heartRate = zones.value.current?.let {
-                                HeartRateReading(listOf(100, 115, 130, 145, 160)[it.ordinal], 1_700_000_000_000)
+                                HeartRateReading(listOf(100, 115, 130, 145, 160)[it.ordinal])
                             },
                             heartRateMessage = message.value, hrSubscription = hr.value,
                             accSubscription = acc.value, session = session.value

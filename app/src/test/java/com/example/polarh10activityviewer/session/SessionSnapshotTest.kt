@@ -103,7 +103,7 @@ class SessionSnapshotTest {
                         if (session.checkTimeLimit(now) || !session.accepts(generation)) return@start
                         val data = PolarHrData(listOf(PolarHrData.PolarHrSample(
                             bpm, 0, 0, emptyList(), emptyList(), false, true, true)))
-                        val valid = hr.receive(data, wall)
+                        val valid = hr.receive(data)
                         if (valid) session.onValidData(now, wall)
                         zones.receive(hr.reading.value, valid, session.elapsedAt(now))
                         session.refresh(generation, now)

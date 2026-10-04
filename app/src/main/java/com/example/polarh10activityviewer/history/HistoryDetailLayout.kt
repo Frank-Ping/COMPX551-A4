@@ -91,7 +91,9 @@ internal fun HistoryDetailLayout(snapshot: SessionSnapshot?, loading: Boolean, e
                             SessionSummaryPanel(snapshot.record, compact)
                             HistoryCharts(snapshot, if (compact) Modifier.weight(3.1f)
                                 else Modifier.height(400.dp * LocalDensity.current.fontScale), database)
-                            HistoryZones(snapshot.record, if (compact) Modifier.weight(2.7f) else Modifier)
+                            // Reserve all five rows instead of squeezing them into a weighted remainder.
+                            HistoryZones(snapshot.record, if (compact) Modifier.height(
+                                if (snapshot.record.summary.receivedValidHr) 140.dp else 156.dp) else Modifier)
                             deleteError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                             OutlinedButton(onClick = onDelete, enabled = !loading,
                                 modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp), shape = RoundedCornerShape(5.dp),

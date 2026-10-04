@@ -35,7 +35,6 @@ class HeartRateZonesTest {
 
     private class Fixture(scope: CoroutineScope) {
         var now = 0L
-        var wall = 1_000_000L
         var cleanupMs = 0L
         val hr = LatestHeartRate()
         val zones = HeartRateZones()
@@ -62,7 +61,7 @@ class HeartRateZonesTest {
             return subscriptions.start(HR, { session.accepts(generation) }, { session.accepts(generation) },
                 { source.filter { it.samples.isNotEmpty() } }) { data ->
                 val receivedTime = now
-                val valid = hr.receive(data, wall)
+                val valid = hr.receive(data)
                 if (valid) session.onValidData(receivedTime)
                 session.refresh(generation, receivedTime)
                 zones.receive(hr.reading.value, valid, session.state.value.elapsedMs)
@@ -89,7 +88,7 @@ class HeartRateZonesTest {
         val expected = listOf(109 to 0, 110 to 1, 124 to 1, 125 to 2,
             139 to 2, 140 to 3, 154 to 3, 155 to 4)
         expected.forEachIndexed { index, (bpm, zone) ->
-            val valid = hr.receive(batch(bpm), 99)
+            val valid = hr.receive(batch(bpm))
             zones.receive(hr.reading.value, valid, index * 1000L)
             assertEquals(zone, zones.state.value.current!!.ordinal)
         }
@@ -97,20 +96,20 @@ class HeartRateZonesTest {
         assertEquals(109, hr.statistics.value.min)
         assertEquals(155, hr.statistics.value.max)
         val invalid = PolarHrData(listOf(sample(0), sample(-1), sample(120, contact = false)))
-        assertFalse(hr.receive(invalid, 100))
+        assertFalse(hr.receive(invalid))
         zones.receive(hr.reading.value, false, 8000)
         assertNull(zones.state.value.current)
         assertEquals(8L, hr.statistics.value.count)
         val unsupported = PolarHrData(listOf(sample(120, supported = false, contact = false)))
-        val valid = hr.receive(unsupported, 101)
+        val valid = hr.receive(unsupported)
         zones.receive(hr.reading.value, valid, 9000)
         assertEquals(HeartRateZone.LIGHT, zones.state.value.current)
     }
 
     @Test fun sampleAtTenThenThirteenAssignsThreeSecondsToZoneTwo() {
         val zones = HeartRateZones()
-        zones.receive(HeartRateReading(120, 0), true, 10_000)
-        zones.receive(HeartRateReading(130, 0), true, 13_000)
+        zones.receive(HeartRateReading(120), true, 10_000)
+        zones.receive(HeartRateReading(130), true, 13_000)
         assertEquals(listOf(0L, 3000L, 0L, 0L, 0L), zones.state.value.durationsMs)
         assertEquals(10_000L, zones.state.value.unclassifiedMs)
         zones.refresh(14_250)
@@ -120,10 +119,10 @@ class HeartRateZonesTest {
 
     @Test fun stationaryHoldingAndRepeatedRefreshesNeverCommitTwice() {
         val zones = HeartRateZones()
-        zones.receive(HeartRateReading(120, 0), true, 0)
+        zones.receive(HeartRateReading(120), true, 0)
         repeat(8) { zones.refresh(1750) }
         assertEquals(1750L, zones.state.value.durationsMs[1])
-        zones.receive(HeartRateReading(120, 1000), true, 2000)
+        zones.receive(HeartRateReading(120), true, 2000)
         zones.refresh(60_999)
         assertEquals(60_999L, zones.state.value.durationsMs[1])
         assertEquals(0L, zones.state.value.unclassifiedMs)
@@ -162,7 +161,7 @@ class HeartRateZonesTest {
         f.stop()
     }
 
-    @Test fun emptyBatchesAndWallClockChangesDoNotAlterMonotonicHolding() = runTest {
+    @Test fun emptyBatchesDoNotAlterMonotonicHolding() = runTest {
         val f = Fixture(this)
         val source = MutableSharedFlow<PolarHrData>()
         f.start(source)
@@ -174,12 +173,10 @@ class HeartRateZonesTest {
         source.emit(batch())
         assertEquals(first, f.state)
         assertEquals(1L, f.hr.statistics.value.count)
-        f.wall = -500_000
         f.now = 13_000
         source.emit(batch(130))
-        assertEquals(-500_000L, f.hr.reading.value!!.receivedAt)
+        assertEquals(130, f.hr.reading.value!!.bpm)
         assertEquals(3000L, f.state.durationsMs[1])
-        f.wall = Long.MAX_VALUE
         f.now = 15_000
         source.emit(batch(130))
         assertEquals(2000L, f.state.durationsMs[2])

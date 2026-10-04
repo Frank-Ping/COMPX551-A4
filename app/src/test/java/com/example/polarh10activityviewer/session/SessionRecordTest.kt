@@ -76,7 +76,7 @@ class SessionRecordTest {
             val previousCount = hr.statistics.value.count
             val valid = hr.receive(PolarHrData(values.map {
                 PolarHrData.PolarHrSample(it, 0, 0, emptyList(), emptyList(), false, true, true)
-            }), wall)
+            }))
             if (hr.statistics.value.count - previousCount < values.size) session.markMissing(HR)
             if (valid) session.onValidData(now, wall)
             zones.receive(hr.reading.value, valid, session.elapsedAt(now))

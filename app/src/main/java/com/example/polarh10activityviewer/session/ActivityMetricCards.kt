@@ -23,7 +23,7 @@ internal fun ColumnScope.ActivityMetricCards(record: SessionRecord, compact: Boo
         ActivityMetricsCalculator.cardioLoadRating(metrics.cardioLoad)?.toString() ?: "--",
         number(metrics.cadenceCvPercent)?.let { "$it%" } ?: "--")
     val cardHeight = with(LocalDensity.current) { 32.sp.toDp() + 30.sp.toDp() } + 10.dp
-    if (compact) Row(Modifier.fillMaxWidth().height(cardHeight), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    if (compact) Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         titles.indices.forEach { index ->
             ActivityMetricCard(titles[index], values[index], Modifier.weight(1f).fillMaxHeight(),
                 maximum = if (index < 2) 10 else null)
@@ -33,7 +33,7 @@ internal fun ColumnScope.ActivityMetricCards(record: SessionRecord, compact: Boo
             maximum = if (index < 2) 10 else null)
     }
     ActivityMetricCard("Session Strain", number(metrics.sessionStrainScore) ?: "--",
-        if (compact) Modifier.height(cardHeight) else Modifier.heightIn(min = cardHeight), maximum = 100)
+        if (compact) Modifier.height(48.dp) else Modifier.heightIn(min = cardHeight), maximum = 100)
 }
 
 @Composable

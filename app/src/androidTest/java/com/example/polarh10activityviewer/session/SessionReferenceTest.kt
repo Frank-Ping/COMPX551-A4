@@ -92,7 +92,7 @@ class SessionReferenceTest {
                             onConnect = {}, savedDevicesState = SavedDevicesState(loading = false), onDisconnect = {},
                             onRetryDisconnect = {}, dataReadiness = readiness, onRecheckData = {},
                             modifier = Modifier.testTag("reference-scroll"), batteryLevel = 86,
-                            heartRate = if (empty.value || failed.value) null else HeartRateReading(132, 1_791_019_860_000),
+                            heartRate = if (empty.value || failed.value) null else HeartRateReading(132),
                             heartRateStatistics = if (empty.value) HeartRateStatistics() else HeartRateStatistics(10, 1250, 100, 158),
                             heartRateZones = if (empty.value) HeartRateZoneState() else HeartRateZoneState(listOf(120000, 210000, 330000, 80000, 10000),
                                 current = HeartRateZone.MODERATE, receivedValidHr = true),

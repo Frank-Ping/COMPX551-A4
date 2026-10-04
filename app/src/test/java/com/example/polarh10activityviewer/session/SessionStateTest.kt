@@ -63,7 +63,7 @@ class SessionStateTest {
             when (type) {
                 HR -> if (hr.receive(PolarHrData(listOf(
                     PolarHrData.PolarHrSample(value, 0, 0, emptyList(), emptyList(), false, true, true)
-                )), now)) session.onValidData()
+                )))) session.onValidData()
                 ACC -> acc.receive(PolarAccelerometerData(listOf(
                     PolarAccelerometerData.PolarAccelerometerDataSample(now, value, 0, 1000)
                 )))
@@ -423,7 +423,7 @@ class SessionStateTest {
         f.session.start(true) {
             val generation = f.state.generation
             f.subscriptions.start(HR, { true }, { f.session.accepts(generation) }, { source }) {
-                if (f.hr.receive(it, f.now)) f.session.onValidData()
+                if (f.hr.receive(it)) f.session.onValidData()
             }
         }
         runCurrent()

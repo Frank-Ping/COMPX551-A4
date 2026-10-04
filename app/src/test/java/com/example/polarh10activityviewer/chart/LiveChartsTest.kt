@@ -66,7 +66,7 @@ class LiveChartsTest {
     private fun running(buffer: EcgBuffer = EcgBuffer()) = LiveCharts { buffer.samples.value }.apply {
         checkedDataTypes.forEach { onSubscriptionState(it, SubscriptionStatus.STARTING, 0) }
     }
-    private fun reading(bpm: Int, wall: Long = 0) = HeartRateReading(bpm, wall)
+    private fun reading(bpm: Int) = HeartRateReading(bpm)
     private fun motion(cadence: Double = 120.0) = StepState(cadence = cadence)
 
     @Test fun hrKeepsActualTimeOfLastBatchPerSecondWithoutAveragingOrChangingStatistics() {
@@ -76,7 +76,7 @@ class LiveChartsTest {
         fun receive(time: Long, vararg bpms: Int) {
             val valid = hr.receive(PolarHrData(bpms.map {
                 PolarHrData.PolarHrSample(it, 0, 0, emptyList(), emptyList(), false, true, true)
-            }), time + 100_000)
+            }))
             zones.receive(hr.reading.value, valid, time)
             charts.receiveHr(time, hr.reading.value)
         }
@@ -311,7 +311,7 @@ class LiveChartsTest {
 
     @Test fun selectionAndRepeatedSnapshotsDoNotChangeDataAndResetKeepsSelectionOnly() {
         val charts = running()
-        charts.receiveHr(1000, reading(120, Long.MAX_VALUE))
+        charts.receiveHr(1000, reading(120))
         charts.recordMotion(1000, motion(), false, 1)
         val hr = charts.snapshot(ChartKind.HEART_RATE, 1000)
         charts.select(ChartKind.CADENCE)
@@ -320,7 +320,7 @@ class LiveChartsTest {
         charts.select(ChartKind.CADENCE)
         assertEquals(ChartKind.CADENCE, charts.selection.value)
         assertEquals(hr, charts.snapshot(ChartKind.HEART_RATE, 1000))
-        charts.receiveHr(2000, reading(121, Long.MIN_VALUE))
+        charts.receiveHr(2000, reading(121))
         assertEquals(2000.0, charts.snapshot(ChartKind.HEART_RATE, 2000).points.last().elapsedMs, 0.0)
         charts.reset()
         assertEquals(ChartKind.CADENCE, charts.selection.value)

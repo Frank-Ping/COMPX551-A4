@@ -3366,3 +3366,47 @@ English: Remove RR charts and all app-level RR extraction, buffering, state, sto
   Remove retired-feature-only checks and preserve useful assertions in mixed tests. Update zone UI checks for active-time proportions, integer rounding and colored fills. Add two v6→v7 migration checks for preservation/reopen/cascade and rollback/retry; retain RR/RPE legacy migration checks. No tests were run; prior passing counts do not describe this revision.
 - 验证：离线assembleDebug、compileDebugUnitTestKotlin、compileDebugAndroidTestKotlin通过，日志build/cleanup-compile.txt。初轮编译暴露的Compose隐式委托import及旧ACC缓存测试引用已修正。未运行测试、lint、模拟器或Samsung/H10；数据库迁移运行验收pending。两对文档同步，无commit/push。
   Offline assembleDebug and both test Kotlin compilation tasks pass; see build/cleanup-compile.txt. Corrected implicit Compose delegate imports and obsolete ACC-cache references found by compilation. No tests, lint, emulator or Samsung/H10 runs; runtime database migration acceptance is pending. Both document pairs synchronized; no commit/push.
+
+## 2026-10-04 — Session Last Received removal / 删除最后接收时间
+
+中文请求：现在修改Session页面，删除Last Received字样，并且删除其相关逻辑。
+English translation: Modify Session to remove Last Received and its related logic.
+## 5.57 Session移除最后接收时间 / Remove Session reception-time display（2026-10-04）
+
+- 按用户要求删除心率卡片整行Last Received及时间值，移除专用日期格式化和import。删除HeartRateReading.receivedAt、LatestHeartRate.receive的日期参数及其传递，不保留闲置字段或兼容入口。
+  Remove the entire Last Received row and its time value, formatting and imports. Remove HeartRateReading.receivedAt and the date parameter passed to LatestHeartRate.receive, leaving no unused field or compatibility overload.
+- 保留当前HR、Max/Mean、强度、接触/失败状态与统计。会话起止日期、单调计时、缺口检测、图表时间轴和SQLite v7不变；相同HR再次到达仍按每批数据更新统计与历史。测试夹具移除旧日期参数，旧接收时间断言删除或改为检查现行行为。
+  Preserve current HR, max/mean, intensity, contact/failure states and statistics. Keep session dates, monotonic timing, gap detection, chart timestamps and SQLite v7. Repeated equal HR samples still update statistics and history per batch. Update fixtures and retired timestamp assertions for the new model.
+- 本轮离线assembleDebug、testDebugUnitTest及compileDebugAndroidTestKotlin通过；267项单元测试，0 failures/errors/skips。日志：build/last-received-validation.txt。未新增测试用例，未运行仪器测试、lint、模拟器或Samsung/H10；不宣称实际界面或数据库升级验收通过。两对文档同步，无commit/push。
+  Offline debug build, unit tests and instrumentation-test Kotlin compilation pass: 267 unit tests, zero failures/errors/skips. See build/last-received-validation.txt. No new test cases, instrumentation execution, lint, emulator or Samsung/H10 checks; no runtime UI or database-migration acceptance claim. Both document pairs synchronized; no commit/push.
+
+## 2026-10-04 — Cadence curve smoothing after refresh-rate change
+
+中文请求：现在Cadence曲线不平滑，是不是没有适配修改后的步频更新频率导致的，如果是的话修复一下。
+English translation: The Cadence curve is not smooth. Check whether it was not adapted to the changed cadence update rate and fix it if that is the cause.
+## 5.58 Cadence曲线连接适配 / Cadence curve joins（2026-10-04）
+
+- 用户反馈调整步频显示频率后曲线不平滑，要求检查并修复。源码确认：数值每1000ms显示，曲线每500ms取点/快照，原一秒低通已使用实际dt，因此没有硬编码250ms滤波失配。原贝塞尔却在每个采样点强制水平切线，连续上升/下降会反复变平；点距增加可能使这种观感更明显。未对用户当前真机画面复现，不能认定这是全部成因。
+  Source inspection confirms 1,000 ms metric updates, 500 ms chart recording/snapshots and a one-second low-pass already based on actual elapsed time. The previous Bezier joins forced horizontal tangents at every sample, flattening continuous rises/falls; wider point spacing can make this more noticeable. The reported hardware appearance was not reproduced, so this is not a claim of its sole cause.
+- 仅Session Cadence改为相邻点共享斜率的三次贝塞尔：斜率按实际时间计算，同向取两侧较小斜率幅值，峰谷/平台取零；控制点横坐标为区间三分之一/三分之二，纵坐标限制在相邻值范围内。连续线性趋势保持直线，不再每点形成水平平台；填充复用同一路径。每个真实断段单独计算。
+  Use shared time-based slopes for Session cadence cubic Bezier joins. Same-direction neighbors use the smaller slope magnitude; peaks, troughs and plateaus use zero. Controls at one-third/two-thirds of the time interval stay within endpoint values. Linear trends remain linear instead of flattening at each sample. Fill reuses the path; each real segment is processed independently.
+- 保留一秒显示低通、500ms取点/快照、1000ms指标显示、原始步频/统计/评分/SQLite及暂停连接规则；HR、ECG、History绘图不变。新增3项单元检查覆盖500ms滤波时间响应、250/500ms与不规则时间的线性连接、峰谷不越界和真实断段隔离。
+  Preserve the one-second display filter, 500 ms chart and 1,000 ms metric rates, raw cadence/statistics/scores/SQLite and pause connections. HR, ECG and History plots are unchanged. Add three unit checks for timed filter response, linear joins at 250/500 ms and irregular intervals, bounded extrema and gap isolation.
+- 验证：270项单元测试全部通过（0 failures/errors/skips）；assembleDebug、compileDebugAndroidTestKotlin、lintDebug通过，lint 0 errors、20 warnings。日志build/cadence-curve-tangents-validation.txt。未运行仪器测试、模拟器视觉或Samsung/H10；实际观感仍待设备复核。两对文档同步，无commit/push。
+  All 270 unit tests pass with zero failures/errors/skips; debug build, instrumentation-test Kotlin compilation and lint pass (zero errors, 20 warnings). Evidence: build/cadence-curve-tangents-validation.txt. No instrumentation execution, emulator visual check or Samsung/H10 run; device appearance remains unverified. Both documentation pairs synchronized; no commit/push.
+
+## 2026-10-04 — HR Zones空间调整 / HR Zones space allocation
+
+中文请求：HR Zones被挤压得Z5无法显示，可以减小Intensity和Session Strain两排的高度，分配给HR Zones高度。
+English translation: HR Zones is squeezed so Z5 is not visible. Reduce the Intensity and Session Strain row heights and allocate space to HR Zones.
+用户验收 / User acceptance: 我手动测试通过了 / My manual test passed.
+## 5.59 HR Zones高度分配 / HR Zones height allocation（2026-10-04）
+
+- 用户反馈Activity Summary的HR Zones挤压导致Z5不可见，要求压缩Intensity和Session Strain两排。默认字号紧凑布局的两排评分高度从72/72dp改为64/48dp，保留原字号与评分内容；HR Zones由剩余高度权重改为140dp，无有效HR需额外提示时为156dp。大字号继续原可滚动布局。
+  The user reported clipped Z5 and requested shorter Intensity/Session Strain rows. Compact normal-font rating rows change from 72/72 dp to 64/48 dp without changing text sizes or scores. Reserve 140 dp for HR Zones, or 156 dp when the no-HR message is present, instead of a weighted remainder. Enlarged text retains the scrolling layout.
+- 既有HistoryPresentation检查增加Z1—Z5完整边界断言。debug/测试APK构建及lint通过；独立Pixel_9模拟器（1080×2340、450dpi、字号1.0）HistoryPresentation 4项及ActivityMetricsUi 6项全部通过，包含深浅主题布局检查。本轮未运行单元测试、字号2.0重复检查或独立截图视觉核对。
+  Extend the existing HistoryPresentation check with unclipped bounds for Z1–Z5. Debug/test APK builds and lint pass. All four HistoryPresentation and six ActivityMetricsUi checks pass on the isolated Pixel_9 at 1080×2340/450dpi and font scale 1.0, including light/dark layout assertions. No unit tests, font-2.0 repeats or independent screenshot inspection this turn.
+- 首次仪器启动报告Process crashed；重试10项全部通过。crash日志记录模拟器nexuslauncher异常，未确认与首次仪器失败的因果关系。证据：build/summary-zones-height-build.txt、summary-zones-test-build.txt、summary-zones-light-tests.txt、summary-zones-light-retry.txt、summary-zones-crash.txt。
+  The first instrumentation launch reported Process crashed; all ten checks pass on retry. The crash buffer records a nexuslauncher exception without an established causal link to the instrumentation failure. Evidence is in the listed build logs.
+- 用户随后明确反馈“我手动测试通过了”，据此记录本次HR Zones显示调整的用户手动验收通过；设备、主题及字号范围未说明，不扩展到其他功能的验收。停止追加测试，关闭本轮独立模拟器。两对文档同步，无commit/push。
+  The user subsequently confirmed that manual testing passed. Record user acceptance for this HR Zones display change; device, theme and font scope were not specified, so do not extend acceptance to other features. Stop further testing and close the dedicated emulator. Both document pairs synchronized; no commit/push.

@@ -114,6 +114,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                 // Close each fill at its own endpoints; missing intervals never receive ink.
                 val displayPoints = if (smoothLine) smoothCadenceForDisplay(snapshot.points) else snapshot.points
                 chartSegments(displayPoints).forEach { segment ->
+                    val tangents = if (smoothLine) cadenceDisplayTangents(segment) else emptyList()
                     val path = Path()
                     val first = position(segment.first())
                     path.moveTo(first.x, first.y)
@@ -122,9 +123,13 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
                             val next = position(point)
                             if (smoothLine) {
                                 val previous = position(segment[index - 1])
-                                val middleX = (previous.x + next.x) / 2f
-                                // Horizontal tangents join smoothly without overshooting either sample.
-                                path.cubicTo(middleX, previous.y, middleX, next.y, next.x, next.y)
+                                val previousPoint = segment[index - 1]
+                                val thirdTime = (point.elapsedMs - previousPoint.elapsedMs) / 3.0
+                                val thirdX = (next.x - previous.x) / 3f
+                                path.cubicTo(previous.x + thirdX,
+                                    y(previousPoint.value!! + tangents[index - 1] * thirdTime),
+                                    next.x - thirdX, y(point.value!! - tangents[index] * thirdTime),
+                                    next.x, next.y)
                             } else path.lineTo(next.x, next.y)
                         }
                     }

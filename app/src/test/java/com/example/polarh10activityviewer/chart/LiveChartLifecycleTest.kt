@@ -45,7 +45,7 @@ class LiveChartLifecycleTest {
                 if (bpm > 0) session.onValidData(now)
                 session.refresh(generation, now)
                 if (session.state.value.status == SessionStatus.RUNNING) {
-                    charts.receiveHr(session.state.value.elapsedMs, if (bpm > 0) HeartRateReading(bpm, now) else null)
+                    charts.receiveHr(session.state.value.elapsedMs, if (bpm > 0) HeartRateReading(bpm) else null)
                 }
             }
         }

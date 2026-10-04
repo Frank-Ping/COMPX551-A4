@@ -337,7 +337,7 @@ class PolarBleManager(context: Context) {
         onData = onData@ { data, receivedTime, receivedDate ->
             if (!acceptSignalInput(0)) return@onData
             val beforeCount = latestHeartRate.statistics.value.count
-            val receivedValid = latestHeartRate.receive(data, receivedDate)
+            val receivedValid = latestHeartRate.receive(data)
             if (latestHeartRate.statistics.value.count - beforeCount < data.samples.size ||
                 previousHrArrival?.let { previous -> receivedTime - previous > 3000 } == true) {
                 session.markMissing(PolarDeviceDataType.HR)
@@ -957,7 +957,7 @@ internal data class SubscriptionState(
     val error: String? = null
 )
 
-data class HeartRateReading(val bpm: Int, val receivedAt: Long)
+data class HeartRateReading(val bpm: Int)
 
 data class HeartRateStatistics(
     val count: Long = 0,
@@ -978,7 +978,7 @@ internal class LatestHeartRate {
     val message = mutableMessage.asStateFlow()
 
     // Report valid reception separately from the final sample's display state.
-    fun receive(batch: PolarHrData, receivedAt: Long): Boolean {
+    fun receive(batch: PolarHrData): Boolean {
         var receivedValid = false
         var totals = statistics.value
         batch.samples.forEach { sample ->
@@ -990,7 +990,7 @@ internal class LatestHeartRate {
                     minOf(totals.min ?: sample.hr, sample.hr),
                     maxOf(totals.max ?: sample.hr, sample.hr)
                 )
-                mutableReading.value = HeartRateReading(sample.hr, receivedAt)
+                mutableReading.value = HeartRateReading(sample.hr)
                 mutableMessage.value = null
             } else {
                 mutableReading.value = null

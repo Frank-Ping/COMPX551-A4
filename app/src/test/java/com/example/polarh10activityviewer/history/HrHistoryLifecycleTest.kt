@@ -72,7 +72,7 @@ class HrHistoryLifecycleTest {
             return subscriptions.start(HR, { session.accepts(generation) }, { session.accepts(generation) },
                 { source.filter { it.samples.isNotEmpty() } }) { data ->
                 if (session.checkTimeLimit(now) || !session.accepts(generation)) return@start
-                val valid = hr.receive(data, wall)
+                val valid = hr.receive(data)
                 if (valid) session.onValidData(now, wall)
                 zones.receive(hr.reading.value, valid, session.elapsedAt(now))
                 session.refresh(generation, now)

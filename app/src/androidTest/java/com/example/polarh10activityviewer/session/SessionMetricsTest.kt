@@ -38,7 +38,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 // Controlled states validate rendering and callback routing, not H10 acquisition.
 class SessionMetricsTest {
     @get:Rule val compose = createComposeRule()
-    private val reading = mutableStateOf<HeartRateReading?>(HeartRateReading(123, 1_700_000_000_000))
+    private val reading = mutableStateOf<HeartRateReading?>(HeartRateReading(123))
     private val statistics = mutableStateOf(HeartRateStatistics(3, 361, 110, 130))
     private val motion = mutableStateOf(StepState(totalSteps = 121, cadence = 123.6, maximumCadence = 168.0,
         receivedAcc = true, durationMs = 60_000))
@@ -136,7 +136,7 @@ class SessionMetricsTest {
         compose.runOnIdle { reading.value = null }
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
         visible("Mean HR: 120 bpm")
-        compose.runOnIdle { reading.value = HeartRateReading(130, 1_700_000_000_000)
+        compose.runOnIdle { reading.value = HeartRateReading(130)
             hr.value = SubscriptionState(SubscriptionStatus.FAILED) }
         compose.onNodeWithText("Moderate · Zone 3").assertDoesNotExist()
         visible("HR unavailable")
@@ -177,7 +177,7 @@ class SessionMetricsTest {
     @Test fun unavailableReadingsRetainPlaceholdersRatherThanInventingZeros() {
         reading.value = null; statistics.value = HeartRateStatistics(); motion.value = StepState()
         zones.value = HeartRateZoneState(); mount()
-        visible("Last Received: --"); visible("Max HR: -- bpm")
+        compose.onAllNodesWithText("Last Received", substring = true).assertCountEquals(0); visible("Max HR: -- bpm")
         visible("Mean: -- steps/min");
         visible("No valid HR")
         compose.onNodeWithContentDescription("Open Devices").performClick()
@@ -198,7 +198,7 @@ class SessionMetricsTest {
     @Test fun invalidHrKeepsStatisticsAndFullFailureDetailsWithoutRetry() {
         reading.value = null; message.value = "No skin contact. Adjust the chest strap."
         hr.value = SubscriptionState(SubscriptionStatus.FAILED, "Controlled HR failure.")
-        mount(); visible("Last Received: --"); visible("Mean HR: 120 bpm")
+        mount(); compose.onAllNodesWithText("Last Received", substring = true).assertCountEquals(0); visible("Mean HR: 120 bpm")
         compose.onAllNodesWithText("Retry", substring = true).assertCountEquals(0)
         compose.onNodeWithContentDescription("Open Devices").performClick()
         compose.onNodeWithText(message.value!!, substring = true).performScrollTo().assertIsDisplayed()

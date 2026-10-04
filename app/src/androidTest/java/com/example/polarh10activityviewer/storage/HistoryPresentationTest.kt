@@ -129,6 +129,10 @@ class HistoryPresentationTest {
                 val viewport = compose.onNodeWithTag("history-detail-scroll").getUnclippedBoundsInRoot()
                 val delete = compose.onNodeWithText("Delete session").assertIsDisplayed().getUnclippedBoundsInRoot()
                 assertTrue("Normal-font summary must fit one viewport", delete.bottom <= viewport.bottom)
+                for (zone in 1..5) {
+                    val label = compose.onNodeWithText("Z$zone").assertIsDisplayed()
+                    assertEquals("Zone $zone must not be clipped", label.getUnclippedBoundsInRoot(), label.getBoundsInRoot())
+                }
             }
             show("Session Strain"); noTextOverflow(); capture("$prefix-metrics")
             selectCadence(); noTextOverflow(); capture("$prefix-cadence")

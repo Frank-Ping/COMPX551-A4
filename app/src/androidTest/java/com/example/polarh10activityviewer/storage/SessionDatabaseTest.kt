@@ -58,7 +58,7 @@ class SessionDatabaseTest {
         val motion = MotionHistory().apply { reset(base.record.id); onSubscriptionState(SubscriptionStatus.RECEIVING) }
         val steps = StepState(receivedAcc = true, cadence = 120.0)
         for (time in listOf(0L, 1000L)) {
-            hr.receive(time, HeartRateReading(120, time))
+            hr.receive(time, HeartRateReading(120))
             motion.record(time, steps, false, 1)
         }
         hr.stop(); motion.stop()
@@ -67,12 +67,12 @@ class SessionDatabaseTest {
         motion.onSubscriptionState(SubscriptionStatus.STARTING, 2)
         motion.onSubscriptionState(SubscriptionStatus.RECEIVING)
         motion.record(2000, steps, true, 2)
-        hr.receive(3000, HeartRateReading(130, 3000))
+        hr.receive(3000, HeartRateReading(130))
         motion.record(3000, steps, false, 2)
         assertFalse(hr.snapshot().last().breakBefore)
         assertFalse(motion.snapshot().last().breakBefore)
         hr.receive(4000, null)
-        hr.receive(5000, HeartRateReading(140, 5000))
+        hr.receive(5000, HeartRateReading(140))
         motion.record(5000, steps, false, 3)
         val snapshot = base.copy(record = base.record.copy(durationMs = 5000,
             endedAt = base.record.startedAt!! + 5000), hrPoints = hr.snapshot(), motionPoints = motion.snapshot())

@@ -2,6 +2,8 @@ package com.example.polarh10activityviewer.chart
 
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import kotlin.math.exp
+import kotlin.math.abs
+import kotlin.math.min
 
 // Display-only one-second low-pass filter. Restart at real gaps, preserving sample times.
 internal fun smoothCadenceForDisplay(points: List<ChartPoint>): List<ChartPoint> {
@@ -15,6 +17,30 @@ internal fun smoothCadenceForDisplay(points: List<ChartPoint>): List<ChartPoint>
         }
         previous = displayed
         displayed
+    }
+}
+
+// Shared endpoint slopes avoid flattening every sample. Limiting to both adjacent
+// secants keeps the Bezier controls inside each interval's value range.
+internal fun cadenceDisplayTangents(segment: List<ChartPoint>): List<Double> {
+    if (segment.size < 2) return List(segment.size) { 0.0 }
+    val slopes = segment.zipWithNext { a, b ->
+        (b.value!! - a.value!!) / (b.elapsedMs - a.elapsedMs)
+    }
+    return segment.indices.map { index ->
+        when (index) {
+            0 -> slopes.first()
+            segment.lastIndex -> slopes.last()
+            else -> {
+                val before = slopes[index - 1]
+                val after = slopes[index]
+                when {
+                    before > 0 && after > 0 -> min(before, after)
+                    before < 0 && after < 0 -> -min(abs(before), abs(after))
+                    else -> 0.0
+                }
+            }
+        }
     }
 }
 
