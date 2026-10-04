@@ -9,7 +9,7 @@ class CadenceDisplayTest {
         val original = input.toList()
         val output = smoothCadenceForDisplay(input)
         val settled = output.drop(40).map { it.value!! }
-        assertTrue(settled.max() - settled.min() < 6.0)
+        assertTrue(settled.max() - settled.min() < 3.0)
         assertEquals(original, input)
         assertEquals(input.map { it.elapsedMs }, output.map { it.elapsedMs })
         assertEquals(input.map { it.breakBefore }, output.map { it.breakBefore })
@@ -35,15 +35,15 @@ class CadenceDisplayTest {
         val dense = listOf(sparse.first()) + (1..4).map { ChartPoint(it * 250.0, 100.0, false) }
         val result = smoothCadenceForDisplay(sparse).last().value!!
         assertEquals(result, smoothCadenceForDisplay(dense).last().value!!, 1e-10)
-        assertEquals(63.21205588, result, 1e-7)
+        assertEquals(39.34693403, result, 1e-7)
     }
 
     @Test fun halfSecondSamplesKeepTheSameTimedFilterResponse() {
         val input = listOf(ChartPoint(0.0, 0.0, true)) +
             (1..4).map { ChartPoint(it * 500.0, 100.0, false) }
         val output = smoothCadenceForDisplay(input)
-        assertEquals(63.21205588, output[2].value!!, 1e-7)
-        assertEquals(86.46647168, output[4].value!!, 1e-7)
+        assertEquals(39.34693403, output[2].value!!, 1e-7)
+        assertEquals(63.21205588, output[4].value!!, 1e-7)
         assertEquals(input.map { it.elapsedMs }, output.map { it.elapsedMs })
     }
 

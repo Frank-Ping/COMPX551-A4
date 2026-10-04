@@ -126,7 +126,7 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
             val axisHeight = with(LocalDensity.current) { MaterialTheme.typography.bodySmall.lineHeight.toDp() } * 2
             LivePlot(chart, kind, mean, statusLabel = null, scale = scale,
                 height = (maxHeight - axisHeight).coerceAtLeast(36.dp), maximumTimeTicks = 5,
-                plainLine = choice == 2,
+                plainLine = choice == 2, smoothLine = kind == ChartKind.CADENCE,
                 axisWidth = 48.dp * LocalDensity.current.fontScale, modifier = swipe)
             if (queryError != null) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(queryError!!, style = MaterialTheme.typography.bodySmall)

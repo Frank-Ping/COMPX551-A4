@@ -32,7 +32,6 @@ internal fun LiveChartPanel(manager: PolarBleManager,
             snapshot = manager.chartSnapshot(kind)
             delay(when (kind) {
                 ChartKind.ELECTROCARDIOGRAM -> 100L
-                ChartKind.CADENCE -> 500L
                 else -> 250L
             })
         }

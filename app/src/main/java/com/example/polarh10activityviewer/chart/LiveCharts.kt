@@ -133,10 +133,10 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
         }
         val cadence = state.cadence.takeUnless { warmingUp }
         val previous = motion.lastOrNull()
-        // Retain gaps observed between the 500 ms display samples.
+        // Retain gaps observed between the 250 ms display samples.
         motionBreak = motionBreak || (!continueMotion && previousMotionSegment != segment) ||
             cadence == null || previous?.cadence == null
-        if (previous != null && elapsedMs - previous.time < 500) return
+        if (previous != null && elapsedMs - previous.time < 250) return
         motion.addLast(MotionPoint(elapsedMs, cadence,
             motionBreak))
         motionBreak = false
@@ -165,7 +165,7 @@ internal class LiveCharts(private val ecgSamples: () -> List<EcgSample>) {
         val hrCutoff = frozenEnds.getValue(HR) - 300_000
         while (hr.isNotEmpty() && (hr.first().elapsedMs <= hrCutoff || hr.size > 301)) hr.removeFirst()
         val motionCutoff = frozenEnds.getValue(ACC) - 300_000
-        while (motion.isNotEmpty() && (motion.first().time <= motionCutoff || motion.size > 601)) motion.removeFirst()
+        while (motion.isNotEmpty() && (motion.first().time <= motionCutoff || motion.size > 1201)) motion.removeFirst()
     }
 
     fun snapshot(kind: ChartKind, elapsedMs: Long): ChartSnapshot {

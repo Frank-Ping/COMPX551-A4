@@ -5,14 +5,14 @@ import kotlin.math.exp
 import kotlin.math.abs
 import kotlin.math.min
 
-// Display-only one-second low-pass filter. Restart at real gaps, preserving sample times.
+// Display-only two-second low-pass filter. Restart at real gaps, preserving sample times.
 internal fun smoothCadenceForDisplay(points: List<ChartPoint>): List<ChartPoint> {
     var previous: ChartPoint? = null
     return points.map { point ->
         val last = previous
         val value = point.value
         val displayed = if (value == null || point.breakBefore || last?.value == null) point else {
-            val weight = 1.0 - exp(-(point.elapsedMs - last.elapsedMs) / 1000.0)
+            val weight = 1.0 - exp(-(point.elapsedMs - last.elapsedMs) / 2000.0)
             point.copy(value = last.value + weight * (value - last.value))
         }
         previous = displayed

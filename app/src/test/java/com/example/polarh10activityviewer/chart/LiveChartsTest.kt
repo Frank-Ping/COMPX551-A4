@@ -19,17 +19,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveChartsTest {
-    @Test fun cadenceSamplesEveryHalfSecondAndKeepsSkippedGaps() {
+    @Test fun cadenceSamplesEveryQuarterSecondAndKeepsSkippedGaps() {
         val charts = running()
         charts.recordMotion(0, motion(100.0), false, 1)
-        charts.recordMotion(250, motion(110.0), false, 1)
-        charts.recordMotion(499, motion(115.0), false, 1)
-        assertEquals(1, charts.snapshot(ChartKind.CADENCE, 499).points.size)
-        charts.recordMotion(500, motion(120.0), false, 1)
-        charts.recordMotion(750, StepState(), false, 1)
-        charts.recordMotion(1000, motion(130.0), false, 1)
-        val points = charts.snapshot(ChartKind.CADENCE, 1000).points
-        assertEquals(listOf(0.0, 500.0, 1000.0), points.map { it.elapsedMs })
+        charts.recordMotion(125, motion(110.0), false, 1)
+        charts.recordMotion(249, motion(115.0), false, 1)
+        assertEquals(1, charts.snapshot(ChartKind.CADENCE, 249).points.size)
+        charts.recordMotion(250, motion(120.0), false, 1)
+        charts.recordMotion(375, StepState(), false, 1)
+        charts.recordMotion(500, motion(130.0), false, 1)
+        val points = charts.snapshot(ChartKind.CADENCE, 500).points
+        assertEquals(listOf(0.0, 250.0, 500.0), points.map { it.elapsedMs })
         assertEquals(listOf(100.0, 120.0, 130.0), points.map { it.value })
         assertEquals(listOf(true, false, true), points.map { it.breakBefore })
     }
@@ -37,11 +37,11 @@ class LiveChartsTest {
     @Test fun skippedGapBeforePauseMustNotReconnectOnResume() {
         val charts = running()
         charts.recordMotion(0, motion(), false, 1)
-        charts.recordMotion(250, StepState(), false, 1)
-        charts.stop(250); charts.resume()
-        charts.onSubscriptionState(ACC, SubscriptionStatus.STARTING, 250, 2)
-        charts.recordMotion(500, motion(), false, 2)
-        assertTrue(charts.snapshot(ChartKind.CADENCE, 500).points.last().breakBefore)
+        charts.recordMotion(125, StepState(), false, 1)
+        charts.stop(125); charts.resume()
+        charts.onSubscriptionState(ACC, SubscriptionStatus.STARTING, 125, 2)
+        charts.recordMotion(250, motion(), false, 2)
+        assertTrue(charts.snapshot(ChartKind.CADENCE, 250).points.last().breakBefore)
     }
 
     @Test fun resumePreservesFiveMinuteHrAndCadenceAndConnectsBothSegments() {
@@ -134,7 +134,7 @@ class LiveChartsTest {
         val hr = charts.snapshot(ChartKind.HEART_RATE, 600_000)
         val cadence = charts.snapshot(ChartKind.CADENCE, 600_000)
         assertEquals(301, hr.points.size)
-        assertEquals(600, cadence.points.size)
+        assertEquals(1200, cadence.points.size)
         assertTrue(hr.points.all { it.elapsedMs > 300_000 })
         assertTrue(cadence.points.all { it.elapsedMs > 300_000 })
         assertEquals(600_000.0, cadence.points.last().elapsedMs, 0.0)

@@ -3410,3 +3410,42 @@ English translation: HR Zones is squeezed so Z5 is not visible. Reduce the Inten
   The first instrumentation launch reported Process crashed; all ten checks pass on retry. The crash buffer records a nexuslauncher exception without an established causal link to the instrumentation failure. Evidence is in the listed build logs.
 - 用户随后明确反馈“我手动测试通过了”，据此记录本次HR Zones显示调整的用户手动验收通过；设备、主题及字号范围未说明，不扩展到其他功能的验收。停止追加测试，关闭本轮独立模拟器。两对文档同步，无commit/push。
   The user subsequently confirmed that manual testing passed. Record user acceptance for this HR Zones display change; device, theme and font scope were not specified, so do not extend acceptance to other features. Stop further testing and close the dedicated emulator. Both document pairs synchronized; no commit/push.
+
+## 2026-10-04 — Restore 250 ms cadence curve updates
+
+中文请求：按你刚刚的方案恢复曲线250ms取点和刷新；数值仍每秒刷新，保留当前一秒显示滤波。
+English request: Restore 250 ms cadence chart recording and refresh, while keeping one-second numeric updates and the current one-second display filter.
+## 5.60 恢复Cadence曲线250ms / Restore 250 ms cadence charts（2026-10-04）
+
+- 按用户确认，Session Cadence曲线恢复每250ms取点和获取显示快照；删除500ms专用刷新分支，与HR共用250ms分支，ECG仍100ms。五分钟缓存上限由601改回1201点，正常等间隔窗口保留1200点。保留被跳过样本的缺口标记、正常暂停连接和五分钟窗口。
+  Restore Session cadence recording and display snapshots to 250 ms. Remove the dedicated 500 ms refresh branch and use the shared 250 ms branch with HR; ECG remains 100 ms. Restore the five-minute cap from 601 to 1,201 points, normally 1,200 evenly spaced visible points. Preserve skipped-gap flags, ordinary pause connections and the five-minute window.
+- 当前Cadence及两处Mean/Max仍每1000ms取最新值；保留已有一秒显示低通和共享切线贝塞尔。ACC原始采集、步伐检测、步频计算、统计、评分和History保存频率不变。此条覆盖5.55/5.58中的500ms曲线频率。
+  Current cadence and both Mean/Max displays still sample the newest values every 1,000 ms. Preserve the one-second visual low-pass and shared-tangent Bezier joins. Raw ACC acquisition, step detection, cadence calculation, statistics, scores and History recording rates remain unchanged. This supersedes the 500 ms chart rate in sections 5.55/5.58.
+- 更新既有250ms边界、跳过缺口/暂停、五分钟点数检查，未新增测试用例。270项单元测试全部通过（0 failures/errors/skips）；debug构建、仪器测试源码编译、lint通过（0 errors、20 warnings）。证据build/cadence-250ms-validation.txt。本轮未运行模拟器/仪器测试或真机；不宣称所有陡坡消除或真机观感已验证。两对文档同步，无commit/push。
+  Update existing interval-boundary, skipped-gap/pause and five-minute capacity checks without adding test cases. All 270 unit tests pass with zero failures/errors/skips. Debug build, instrumentation-test source compilation and lint pass (zero errors, 20 warnings); see build/cadence-250ms-validation.txt. No emulator/instrumentation execution or hardware checks this turn; no claim that all steep slopes disappear or hardware appearance is verified. Both document pairs synchronized; no commit/push.
+
+## 2026-10-04 — Trial stronger Cadence display smoothing
+
+中文请求：按已说明的方案试调，将仅用于Cadence绘图的滤波时间常数从1秒改为2秒。
+English request: Try the proposed change from a one-second to a two-second time constant for Cadence chart smoothing only.
+## 5.61 Cadence两秒显示滤波试调 / Trial two-second cadence display filter（2026-10-04）
+
+- 根据用户提供的曲线截图及确认，将Session Cadence绘图指数低通时间常数从1000ms改为2000ms，alpha=1-exp(-dt/2000)。保持250ms曲线取点/刷新、1000ms数值显示、共享切线贝塞尔及真实缺口重置。仅改变图线和填充，不修改步频原值、计步、统计、评分、History或SQLite。
+  Following the supplied screenshot and user approval, change the Session cadence display low-pass time constant from 1,000 to 2,000 ms, using alpha=1-exp(-dt/2000). Preserve 250 ms chart updates, 1,000 ms numeric updates, shared-tangent Bezier joins and gap resets. Only the plotted line/fill changes; raw cadence, steps, statistics, scores, History and SQLite are unchanged.
+- 两秒时间常数会加强细小波动衰减并使曲线响应更慢，不等于固定延迟两秒。阶跃变化一秒后约完成39.3%，两秒后约完成63.2%；截图毛边改善程度需用户实际复核，不宣称已消除。
+  The longer time constant attenuates small fluctuations more strongly and slows the visual response; it is not a fixed two-second delay. A step reaches about 39.3% after one second and 63.2% after two. Actual improvement in the reported rough edge remains for user verification.
+- 更新已有时间响应断言，将250ms交替100/140合成抖动的稳定范围上限从6收紧到3 steps/min。debug构建和270项单元测试通过（0 failures/errors/skips），日志build/cadence-2s-filter-validation.txt。本轮未运行lint、仪器测试、模拟器或真机；两对文档同步，无commit/push。
+  Update existing response assertions and tighten the settled range limit for synthetic alternating 100/140 cadence at 250 ms from six to three steps/min. Debug build and all 270 unit tests pass with zero failures/errors/skips; see build/cadence-2s-filter-validation.txt. No lint, instrumentation, emulator or hardware runs this turn. Both document pairs synchronized; no commit/push.
+
+## 2026-10-04 — Enable Summary Cadence smoothing
+
+中文请求：截图是Summary中的图表；实施修复，为Summary Cadence启用与Session相同的两秒显示滤波和曲线连接。
+English request: The screenshot is from Summary. Enable the same two-second display filter and curve joins for Summary Cadence.
+## 5.62 Summary Cadence平滑 / Smooth Summary cadence（2026-10-04）
+
+- 用户明确截图来自Summary并要求实施修复。HistoryCharts对Cadence启用LivePlot已有smoothLine入口，复用两秒指数显示低通与共享切线贝塞尔；HR和ECG仍走原绘制路径。此前5.61只影响Session，不能作为Summary毛边已修复的证据。
+  After the user identified the screenshot as Summary and requested implementation, enable LivePlot's existing smoothLine option for Cadence in HistoryCharts. Reuse the two-second display low-pass and shared-tangent Bezier joins; HR and ECG keep their previous rendering. Section 5.61 affected only Session and did not fix Summary.
+- 滤波仅作用于绘图及填充副本，按保存点实际时间间隔计算；真实空值/断段重置，原始每秒保存点、均值虚线、统计、评分及SQLite不变。已有记录重新打开也使用新绘制，无需迁移或重存。两页共用平滑规则，但Summary每秒点与Session每250ms点不同，不保证逐像素相同。
+  Filter only copies used for the line/fill, using actual saved-point intervals and resetting at nulls/segment breaks. Preserve raw per-second records, saved-mean references, statistics, scores and SQLite. Existing records use the new rendering without migration or resaving. Both pages share smoothing rules, but one-second Summary and 250 ms Session samples need not produce pixel-identical curves.
+- debug构建、270项既有单元测试（0 failures/errors/skips）、仪器测试源码编译和lint通过（0 errors、20 warnings）。日志build/summary-cadence-smoothing-validation.txt。未新增测试，本轮未运行模拟器/仪器测试或真机，Summary实际观感待用户复核。两对文档同步，无commit/push。
+  Debug build, all 270 existing unit tests (zero failures/errors/skips), instrumentation-test source compilation and lint pass (zero errors, 20 warnings). Evidence: build/summary-cadence-smoothing-validation.txt. No new tests or emulator/instrumentation/hardware runs this turn; actual Summary appearance remains for user verification. Both document pairs synchronized; no commit/push.
