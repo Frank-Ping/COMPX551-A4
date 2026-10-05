@@ -1,21 +1,7 @@
 package com.example.polarh10activityviewer.ble
 
 import com.example.polarh10activityviewer.chart.ChartKind
-import com.example.polarh10activityviewer.chart.LiveCharts
-import com.example.polarh10activityviewer.heartrate.HeartRateZones
-import com.example.polarh10activityviewer.history.HrHistory
-import com.example.polarh10activityviewer.history.MotionHistory
-import com.example.polarh10activityviewer.motion.StepDetector
-import com.example.polarh10activityviewer.sensor.AccBuffer
-import com.example.polarh10activityviewer.sensor.EcgBuffer
-import com.example.polarh10activityviewer.storage.SignalBuffer
-import com.example.polarh10activityviewer.storage.RawEcg
-import com.example.polarh10activityviewer.session.SessionRecord
 import com.example.polarh10activityviewer.sensor.h10EcgSamples
-import com.example.polarh10activityviewer.session.SessionController
-import com.example.polarh10activityviewer.session.SessionStatus
-import com.example.polarh10activityviewer.session.SessionSummary
-import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.storage.SessionStorage
 
 import android.Manifest
@@ -38,55 +24,13 @@ import com.polar.sdk.api.PolarBleApiDefaultImpl
 import com.polar.sdk.api.PolarBleDisconnectInfo
 import com.polar.sdk.api.model.PolarDeviceInfo
 import com.polar.sdk.api.model.PolarHealthThermometerData
-import com.polar.sdk.api.model.PolarHrData
 import com.polar.sdk.api.model.PolarSensorSetting
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withTimeoutOrNull
-
-enum class ScanStatus(val message: String) {
-    NOT_STARTED("Scan not started."),
-    SCANNING("Scanning for Polar H10 (up to 30 seconds)..."),
-    STOPPED("Scan stopped."),
-    TIMED_OUT("Scan finished after 30 seconds."),
-    INTERRUPTED("Scan stopped because Bluetooth is unavailable."),
-    ERROR("Scan failed.")
-}
-
-data class ScanState(
-    val status: ScanStatus = ScanStatus.NOT_STARTED,
-    val devices: List<PolarDeviceInfo> = emptyList(),
-    val error: String? = null
-)
-
-enum class ConnectionStatus(val message: String) {
-    NOT_CONNECTED("Not connected"),
-    CONNECTING("Connecting"),
-    CONNECTED("Connected"),
-    DISCONNECTING("Disconnecting")
-}
-
-data class ConnectionDevice(val name: String, val deviceId: String)
-
-data class ConnectionState(
-    val status: ConnectionStatus = ConnectionStatus.NOT_CONNECTED,
-    val device: ConnectionDevice? = null,
-    val error: String? = null,
-    val message: String? = null,
-    val disconnectError: String? = null
-)
 
 class PolarBleManager(context: Context) {
     var onBluetoothStateChanged: (() -> Unit)? = null
@@ -98,11 +42,11 @@ class PolarBleManager(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var api: PolarBleApi? = null
     private var pendingCleanup: PolarBleApi? = null
-    private val scanScope = CoroutineScope(Dispatchers.Main.immediate)
-    private var scanJob: Job? = null
-    private var scanGeneration = 0
-    private val mutableScanState = MutableStateFlow(ScanState())
-    val scanState = mutableScanState.asStateFlow()
+    private val managerScope = CoroutineScope(Dispatchers.Main.immediate)
+    private val scanner = PolarScanner(managerScope) { error ->
+        Log.e("PolarBleManager", "Scan failed", error)
+    }
+    val scanState = scanner.state
     private val mutableConnectionState = MutableStateFlow(ConnectionState())
     val connectionState = mutableConnectionState.asStateFlow()
     private val deviceBattery = DeviceBattery()
@@ -110,118 +54,27 @@ class PolarBleManager(context: Context) {
     private var connectionTimeout: Runnable? = null
     private var connectionConfirmed = false
     private var sdkUsedForConnection = false
-    private val readinessScope = CoroutineScope(Dispatchers.Main.immediate)
-    private var readinessJob: Job? = null
-    private var readinessGeneration = 0
-    private val readyFeatures = mutableSetOf<PolarBleSdkFeature>()
-    private val unavailableFeatures = mutableSetOf<PolarBleSdkFeature>()
-    private val mutableDataReadiness = MutableStateFlow(checkedDataTypes.associateWith { DataReadiness() })
-    val dataReadiness = mutableDataReadiness.asStateFlow()
-    private val latestHeartRate = LatestHeartRate()
-    private val hrHistory = HrHistory()
-    private val motionHistory = MotionHistory()
-    private val mutableLastSnapshot = MutableStateFlow<SessionSnapshot?>(null)
-    internal val lastSnapshot = mutableLastSnapshot.asStateFlow()
-    private var previousHrArrival: Long? = null
-    val heartRate = latestHeartRate.reading
-    val heartRateStatistics = latestHeartRate.statistics
-    val heartRateMessage = latestHeartRate.message
-    private val heartRateZones = HeartRateZones()
-    internal val heartRateZoneState = heartRateZones.state
-    private val stepDetector = StepDetector(SystemClock::elapsedRealtime)
-    internal val stepState = stepDetector.state
-    private val accBuffer = AccBuffer { stepDetector.receive(it) }
-    private var signals = SignalBuffer()
-    private var checkpointBucket = 0L
-    private var checkpointAt = -1000L
-    private var discardingRecording = false
-    private var pauseContinuations = emptySet<PolarDeviceDataType>()
-    private val ecgBuffer = EcgBuffer()
-    internal val liveCharts = LiveCharts { ecgBuffer.samples.value }
-    private val streamSettingsMutex = Mutex()
-    private val dataSubscriptions: DataSubscriptions = DataSubscriptions(
-        CoroutineScope(Dispatchers.Main.immediate)
-    ) { type, status ->
-        val eventTime = SystemClock.elapsedRealtime()
-        if (session.checkTimeLimit(eventTime)) return@DataSubscriptions
-        if (type == PolarDeviceDataType.HR) hrHistory.onSubscriptionState(status)
-        if (type == PolarDeviceDataType.HR && status == SubscriptionStatus.STARTING) previousHrArrival = null
-        if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING && session.state.value.ongoing) {
-            session.refresh(session.state.value.generation, eventTime)
-            heartRateZones.clearCurrent(session.state.value.elapsedMs)
-        }
-        latestHeartRate.onSubscriptionState(type, status)
-        accBuffer.onSubscriptionState(type, status)
-        if (type == PolarDeviceDataType.ACC && session.state.value.ongoing) {
-            stepDetector.onSubscriptionState(status)
-        }
-        if (type == PolarDeviceDataType.ACC) motionHistory.onSubscriptionState(status, stepDetector.segment)
-        liveCharts.onSubscriptionState(type, status, session.elapsedAt(eventTime), stepDetector.segment)
-        if (status != SubscriptionStatus.RECEIVING) {
-            if (type == PolarDeviceDataType.ECG) signals.endEcg(session.elapsedAt(eventTime))
-        }
-        ecgBuffer.onSubscriptionState(type, status)
-        session.onSubscriptionState(type, status, eventTime)
-    }
-    internal val subscriptionStates = dataSubscriptions.states
-    private val session: SessionController = SessionController(dataSubscriptions, SystemClock::elapsedRealtime,
-        clearAllReadings = {
-            pauseContinuations = emptySet()
-            signals = SignalBuffer()
-            checkpointBucket = 0L; checkpointAt = -1000L
-            hrHistory.reset(session.state.value.record?.id)
-            motionHistory.reset(session.state.value.record?.id)
-            liveCharts.reset()
-            if (session.state.value.status == SessionStatus.IDLE) liveCharts.select(ChartKind.HEART_RATE)
-            heartRateZones.reset()
-            latestHeartRate.reset()
-            previousHrArrival = null
-            accBuffer.clear()
-            stepDetector.reset()
-            ecgBuffer.clear()
-        },
-        clearHr = {
-            pauseContinuations = if (session.state.value.status == SessionStatus.PAUSING &&
-                !storage.recording.state.value.blocked) {
-                setOf(PolarDeviceDataType.HR, PolarDeviceDataType.ACC).filter {
-                    dataSubscriptions.states.value.getValue(it).status == SubscriptionStatus.RECEIVING
-                }.toSet()
-            } else emptySet()
-            hrHistory.stop()
-            motionHistory.stop()
-            liveCharts.stop(session.state.value.elapsedMs)
-            heartRateZones.clearCurrent(session.state.value.elapsedMs)
-            latestHeartRate.clear()
-            stepDetector.updateSessionTime(session.state.value.elapsedMs)
-            stepDetector.stop()
-        },
-        readSummary = { elapsed ->
-            heartRateZones.refresh(elapsed)
-            stepDetector.updateSessionTime(elapsed)
-            SessionSummary.from(latestHeartRate.statistics.value, heartRateZones.state.value, stepState.value)
-        },
-        onSummaryFrozen = { record ->
-            if (!discardingRecording) checkpointSignals(record, true)
-            val snapshot = SessionSnapshot(record, hrHistory.snapshot(), motionHistory.snapshot())
-            mutableLastSnapshot.value = snapshot
-            if (!discardingRecording) storage.saves.submit(snapshot)
-        },
-        canStart = { !storage.saves.state.value.blocksStart && !storage.recording.state.value.blocked },
-        onResume = {
-            val hr = PolarDeviceDataType.HR in pauseContinuations
-            val motion = PolarDeviceDataType.ACC in pauseContinuations
-            hrHistory.resume(hr); motionHistory.resume(motion); liveCharts.resume(hr, motion)
-            pauseContinuations = emptySet()
-        },
-        onPaused = { record -> checkpointSignals(record, true) })
-    init { storage.recording.onFailure = { session.pause() } }
-    internal val sessionState = session.state
+    private val readiness = PolarDataReadiness(
+        CoroutineScope(Dispatchers.Main.immediate),
+        ::readinessMatches, ::bluetoothAvailableForData, ::onlineStreamActive
+    )
+    val dataReadiness = readiness.state
+    private val coordinator = SessionDataCoordinator(storage, managerScope)
+    private val dataSubscriptions = coordinator.dataSubscriptions
+    private val session = coordinator.session
+    internal val lastSnapshot = coordinator.lastSnapshot
+    val heartRate = coordinator.heartRate
+    val heartRateStatistics = coordinator.heartRateStatistics
+    val heartRateMessage = coordinator.heartRateMessage
+    internal val heartRateZoneState = coordinator.heartRateZoneState
+    internal val stepState = coordinator.stepState
+    internal val liveCharts = coordinator.liveCharts
+    internal val subscriptionStates = coordinator.subscriptionStates
+    internal val sessionState = coordinator.sessionState
 
     @MainThread
     fun startSession(): Boolean = session.start(
-        eligible = connectedForData() && mutableDataReadiness.value.values.any {
-            it.status == DataReadinessStatus.READY && it.configurationComplete
-        },
+        eligible = connectedForData() && hasReadyDataType(),
         device = mutableConnectionState.value.device
     ) {
         startSessionStreams()
@@ -229,7 +82,7 @@ class PolarBleManager(context: Context) {
 
     private fun startSessionStreams() {
         checkedDataTypes.forEach { type ->
-            val readiness = mutableDataReadiness.value.getValue(type)
+            val readiness = dataReadiness.value.getValue(type)
             if (readiness.status == DataReadinessStatus.READY && readiness.configurationComplete) {
                 startStream(type)
             } else {
@@ -247,68 +100,24 @@ class PolarBleManager(context: Context) {
 
     @MainThread
     fun resumeSession() = session.resume(!storage.recording.state.value.blocked && connectedForData() &&
-        sessionState.value.acceptsDevice(mutableConnectionState.value.device?.deviceId) && mutableDataReadiness.value.values.any {
+        sessionState.value.acceptsDevice(mutableConnectionState.value.device?.deviceId) && hasReadyDataType(),
+        ::startSessionStreams)
+
+    private fun hasReadyDataType() = dataReadiness.value.values.any {
         it.status == DataReadinessStatus.READY && it.configurationComplete
-    }, ::startSessionStreams)
-
-    fun refreshSessionTime(generation: Long) {
-        session.refresh(generation)
-        if (session.accepts(generation)) {
-            stepDetector.refresh()
-            if (session.state.value.status == SessionStatus.RUNNING) {
-                val elapsed = session.state.value.elapsedMs
-                liveCharts.recordMotion(elapsed, stepState.value,
-                    warmingUp = stepDetector.isWarmingUp, segment = stepDetector.segment)
-                motionHistory.record(elapsed, stepState.value,
-                    warmingUp = stepDetector.isWarmingUp, segment = stepDetector.segment)
-                liveCharts.advance(elapsed)
-                checkpointSignals(session.state.value.record!!)
-            }
-        }
     }
 
-    private fun acceptSignalInput(bytes: Int): Boolean {
-        if (storage.recording.state.value.blocked) return false
-        if (storage.recording.canAccept(signals.bytes + bytes + 8192)) return true
-        session.markMissing(PolarDeviceDataType.ECG)
-        session.markMissing(PolarDeviceDataType.HR)
-        storage.recording.fail("Recording queue is full. Unaccepted input was not recorded.")
-        return false
-    }
+    fun refreshSessionTime(generation: Long) = coordinator.refreshSessionTime(generation)
 
-    private fun checkpointSignals(record: SessionRecord, force: Boolean = false) {
-        if (!record.eligibleForSaving) return
-        if (!force && record.durationMs - checkpointAt < 1000) return
-        if (!force && !storage.recording.canAccept(signals.bytes + 8192)) {
-            if (storage.recording.state.value.error == null) storage.recording.fail("Recording queue is full. Recording paused.")
-            return
-        }
-        if (force) signals.boundary(record.durationMs)
-        val checkpoint = record.copy(endedAt = record.endedAt ?: System.currentTimeMillis())
-        val batch = signals.take(checkpoint, hrHistory.since(checkpointBucket), motionHistory.since(checkpointBucket), force)
-        checkpointAt = record.durationMs
-        checkpointBucket = record.durationMs / 1000
-        storage.recording.enqueue(batch)
-    }
+    fun discardRecording() = coordinator.discardRecording()
 
-    fun discardRecording() {
-        val id = session.state.value.record?.id ?: return
-        scanScope.launch {
-            try {
-                storage.recording.discard(id)
-                discardingRecording = true
-                try { session.stop("Session discarded", reset = true) } finally { discardingRecording = false }
-            } catch (error: Exception) { storage.recording.fail(error.message ?: "Unable to discard recording") }
-        }
-    }
-
-    internal fun chartSnapshot(kind: ChartKind) = liveCharts.snapshot(kind, session.elapsedAt())
+    internal fun chartSnapshot(kind: ChartKind) = coordinator.chartSnapshot(kind)
 
     private fun connectedForData() = api != null &&
         mutableConnectionState.value.status == ConnectionStatus.CONNECTED && bluetoothAvailableForData()
 
     private fun startStream(type: PolarDeviceDataType): Boolean {
-        if (type != PolarDeviceDataType.HR && readinessJob != null) {
+        if (type != PolarDeviceDataType.HR && readiness.checking) {
             dataSubscriptions.unavailable(type, "Settings check in progress. Retry when it finishes.")
             return false
         }
@@ -324,120 +133,35 @@ class PolarBleManager(context: Context) {
     private fun startHr(): Boolean = startDataSubscription(
         PolarDeviceDataType.HR,
         stream = { source, identifier ->
-            checkFeature(source, identifier, PolarDeviceDataType.HR)
+            readiness.checkFeature(source, identifier, PolarDeviceDataType.HR)
             source.startHrStreaming(identifier).filter { it.samples.isNotEmpty() }
         },
-        onData = onData@ { data, receivedTime, receivedDate ->
-            if (!acceptSignalInput(0)) return@onData
-            val beforeCount = latestHeartRate.statistics.value.count
-            val receivedValid = latestHeartRate.receive(data)
-            if (latestHeartRate.statistics.value.count - beforeCount < data.samples.size ||
-                previousHrArrival?.let { previous -> receivedTime - previous > 3000 } == true) {
-                session.markMissing(PolarDeviceDataType.HR)
-            }
-            previousHrArrival = receivedTime
-            if (receivedValid) session.onValidData(receivedTime, receivedDate)
-            heartRateZones.receive(latestHeartRate.reading.value, receivedValid, session.elapsedAt(receivedTime))
-            session.refresh(session.state.value.generation, receivedTime)
-            if (session.state.value.status == SessionStatus.RUNNING) {
-                liveCharts.receiveHr(session.state.value.elapsedMs, latestHeartRate.reading.value)
-                hrHistory.receive(session.state.value.elapsedMs, latestHeartRate.reading.value)
-                checkpointSignals(session.state.value.record!!)
-            }
-        }
+        onData = coordinator::receiveHr
     )
 
     @MainThread
-    private fun startAcc(): Boolean {
-        return startDataSubscription(
-            PolarDeviceDataType.ACC,
-            stream = { source, identifier ->
-                val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ACC)
-                source.startAccStreaming(identifier, settings)
-                    .filter { it.samples.isNotEmpty() }
-            },
-            onData = { data, receivedAt, receivedDate ->
-                accBuffer.receive(data)
-                stepDetector.receivedBatch(data.samples.last().timeStamp, receivedAt)
-                if (stepState.value.incompleteAcc) session.markMissing(PolarDeviceDataType.ACC)
-                session.onValidData(receivedAt, receivedDate)
-                session.refresh(session.state.value.generation, receivedAt)
-            }
-        )
-    }
+    private fun startAcc(): Boolean = startDataSubscription(
+        PolarDeviceDataType.ACC,
+        stream = { source, identifier ->
+            val settings = readiness.currentStreamSettings(source, identifier, PolarDeviceDataType.ACC)
+            source.startAccStreaming(identifier, settings).filter { it.samples.isNotEmpty() }
+        },
+        onData = coordinator::receiveAcc
+    )
 
     @MainThread
-    private fun startEcg(): Boolean {
-        return startDataSubscription(
-            PolarDeviceDataType.ECG,
-            stream = { source, identifier ->
-                val settings = currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
-                source.startEcgStreaming(identifier, settings).h10EcgSamples()
-            },
-            onData = onData@ { data, receivedTime, receivedDate ->
-                if (!acceptSignalInput(data.size * 100)) return@onData
-                val sampleRate = mutableDataReadiness.value.getValue(PolarDeviceDataType.ECG)
-                    .selected.getValue(PolarSensorSetting.SettingType.SAMPLE_RATE)
-                var previous = ecgBuffer.samples.value.lastOrNull()?.timeStamp
-                data.forEach { sample ->
-                    if (previous?.let { time -> (sample.timeStamp - time).toDouble() * sampleRate > 3_000_000_000.0 } == true) {
-                        session.markMissing(PolarDeviceDataType.ECG)
-                    }
-                    previous = sample.timeStamp
-                }
-                ecgBuffer.receive(data)
-                session.onValidData(receivedTime, receivedDate)
-                session.refresh(session.state.value.generation, receivedTime)
-                liveCharts.receiveEcg(data, session.elapsedAt(receivedTime),
-                    sampleRate)
-                signals.receiveEcg(data.map { RawEcg(it.timeStamp, it.voltage) }, session.elapsedAt(receivedTime), sampleRate)
-                checkpointSignals(session.state.value.record!!)
-            }
-        )
-    }
-
-    private fun checkFeature(source: PolarBleApi, identifier: String, type: PolarDeviceDataType) {
-        val feature = if (type == PolarDeviceDataType.HR) PolarBleSdkFeature.FEATURE_HR
-            else PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
-        if (!readyFeatures.confirmReadiness(feature) { source.isFeatureReady(identifier, feature) }) {
-            setDataReadiness(type, DataReadiness(DataReadinessStatus.WAITING))
-            error("$type feature is not ready. Retry when available.")
+    private fun startEcg(): Boolean = startDataSubscription(
+        PolarDeviceDataType.ECG,
+        stream = { source, identifier ->
+            val settings = readiness.currentStreamSettings(source, identifier, PolarDeviceDataType.ECG)
+            source.startEcgStreaming(identifier, settings).h10EcgSamples()
+        },
+        onData = { data, receivedTime, receivedDate ->
+            val sampleRate = dataReadiness.value.getValue(PolarDeviceDataType.ECG)
+                .selected.getValue(PolarSensorSetting.SettingType.SAMPLE_RATE)
+            coordinator.receiveEcg(data, receivedTime, receivedDate, sampleRate)
         }
-        if (type == PolarDeviceDataType.HR) {
-            setDataReadiness(type, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
-        }
-    }
-
-    // Serialize fresh ACC/ECG settings queries, not the lifetime of their data streams.
-    private suspend fun currentStreamSettings(
-        source: PolarBleApi, identifier: String, type: PolarDeviceDataType
-    ): PolarSensorSetting = streamSettingsMutex.withLock {
-        currentCoroutineContext().ensureActive()
-        if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
-            throw CancellationException("$type connection is no longer current.")
-        }
-        checkFeature(source, identifier, type)
-        val supported = source.getAvailableOnlineStreamDataTypes(identifier)
-        currentCoroutineContext().ensureActive()
-        if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
-            throw CancellationException("$type connection is no longer current.")
-        }
-        if (type !in supported) {
-            setDataReadiness(type, DataReadiness(DataReadinessStatus.UNSUPPORTED))
-            error("$type is unavailable for online streaming.")
-        }
-        val settings = source.requestStreamSettings(identifier, type)
-        currentCoroutineContext().ensureActive()
-        if (!readinessMatches(source, identifier) || !bluetoothAvailableForData()) {
-            throw CancellationException("$type connection is no longer current.")
-        }
-        val checked = checkedSettings(type, settings.settings)
-        setDataReadiness(type, checked)
-        check(checked.configurationComplete) {
-            checked.error ?: "$type settings need confirmation. Confirm the displayed options before starting."
-        }
-        PolarSensorSetting(checked.selected)
-    }
+    )
 
     @MainThread
     private fun <T> startDataSubscription(
@@ -572,7 +296,7 @@ class PolarBleManager(context: Context) {
                 }
 
                 override fun bleSdkFeatureReady(identifier: String, feature: PolarBleSdkFeature) {
-                    mainHandler.post { acceptReadiness(created, identifier, listOf(feature), emptyList()) }
+                    mainHandler.post { readiness.acceptReadiness(created, identifier, listOf(feature), emptyList()) }
                 }
 
                 override fun bleSdkFeaturesReadiness(
@@ -580,7 +304,7 @@ class PolarBleManager(context: Context) {
                     ready: List<PolarBleSdkFeature>,
                     unavailable: List<PolarBleSdkFeature>
                 ) {
-                    mainHandler.post { acceptReadiness(created, identifier, ready, unavailable) }
+                    mainHandler.post { readiness.acceptReadiness(created, identifier, ready, unavailable) }
                 }
 
                 // Required by SDK 8.3.0; these features are not enabled in this step.
@@ -598,61 +322,12 @@ class PolarBleManager(context: Context) {
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     fun startScan() {
-        if (mutableScanState.value.status == ScanStatus.SCANNING ||
-            mutableConnectionState.value.status != ConnectionStatus.NOT_CONNECTED) return
+        if (mutableConnectionState.value.status != ConnectionStatus.NOT_CONNECTED) return
         val currentApi = api ?: return
-        val previousJob = scanJob
-        val generation = ++scanGeneration
-        mutableScanState.value = ScanState(status = ScanStatus.SCANNING)
-
-        // Assign the job before starting it, even if the SDK fails synchronously.
-        scanJob = scanScope.launch(start = CoroutineStart.LAZY) {
-            val devicesById = linkedMapOf<String, PolarDeviceInfo>()
-            try {
-                val completed = withTimeoutOrNull(30_000L) {
-                    // Let the previous scan release its subscription before restarting.
-                    previousJob?.join()
-                    currentApi.searchForDevice().collect { device ->
-                        ensureActive()
-                        if (generation != scanGeneration) return@collect
-                        // PolarDeviceInfo has no model field; match the complete H10 name token.
-                        if ((device.name == "Polar H10" || device.name.startsWith("Polar H10 ")) &&
-                            device.deviceId.isNotBlank()) {
-                            devicesById[device.deviceId] = device
-                            mutableScanState.value = mutableScanState.value.copy(devices = devicesById.values.toList())
-                        }
-                    }
-                    true
-                }
-                if (generation == scanGeneration) {
-                    mutableScanState.value = mutableScanState.value.copy(
-                        status = if (completed == null) ScanStatus.TIMED_OUT else ScanStatus.STOPPED
-                    )
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                if (generation == scanGeneration) {
-                    mutableScanState.value = mutableScanState.value.copy(
-                        status = ScanStatus.ERROR,
-                        error = "Scan failed (${error.javaClass.simpleName}). Check Bluetooth and permissions, then retry."
-                    )
-                    Log.e("PolarBleManager", "Scan failed", error)
-                }
-            } finally {
-                if (generation == scanGeneration) scanJob = null
-            }
-        }
-        scanJob?.start()
+        scanner.start { currentApi.searchForDevice() }
     }
 
-    fun stopScan(status: ScanStatus = ScanStatus.STOPPED) {
-        if (mutableScanState.value.status != ScanStatus.SCANNING) return
-        // Invalidate queued results so a cancelled scan cannot change retained or new results.
-        scanGeneration++
-        scanJob?.cancel()
-        mutableScanState.value = mutableScanState.value.copy(status = status)
-    }
+    fun stopScan(status: ScanStatus = ScanStatus.STOPPED) = scanner.stop(status)
 
     @RequiresPermission(allOf = [Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT])
     fun connect(deviceId: String) {
@@ -662,7 +337,7 @@ class PolarBleManager(context: Context) {
                 error = "Reconnect the original H10 to continue, or Stop this session before changing devices.")
             return
         }
-        val device = mutableScanState.value.devices.firstOrNull { it.deviceId == deviceId }
+        val device = scanState.value.devices.firstOrNull { it.deviceId == deviceId }
             ?.let { ConnectionDevice(it.name, it.deviceId) }
             ?: savedDevicesState.value.devices.firstOrNull { it.deviceId == deviceId }
                 ?.let { ConnectionDevice(it.name, it.deviceId) }
@@ -700,122 +375,20 @@ class PolarBleManager(context: Context) {
         api === source && mutableConnectionState.value.status == ConnectionStatus.CONNECTED &&
             mutableConnectionState.value.device?.deviceId == identifier
 
-    private fun setDataReadiness(type: PolarDeviceDataType, state: DataReadiness) {
-        mutableDataReadiness.value = mutableDataReadiness.value + (type to state)
-    }
-
-    private fun acceptReadiness(
-        source: PolarBleApi, identifier: String,
-        ready: List<PolarBleSdkFeature>, unavailable: List<PolarBleSdkFeature>
-    ) {
-        if (!readinessMatches(source, identifier)) return
-        val online = PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING
-        val onlineWasReady = online in readyFeatures
-        readyFeatures.addAll(ready)
-        unavailableFeatures.addAll(unavailable)
-        unavailableFeatures.removeAll(readyFeatures)
-        val hr = PolarBleSdkFeature.FEATURE_HR
-        if (hr in readyFeatures) {
-            setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
-        } else if (hr in unavailableFeatures) {
-            setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.UNSUPPORTED))
-        }
-        if (online in readyFeatures && !onlineWasReady) queryStreamSettings(source, identifier)
-        else if (online in unavailableFeatures) {
-            listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG).forEach {
-                setDataReadiness(it, DataReadiness(DataReadinessStatus.UNSUPPORTED))
-            }
-        }
-        // Features absent from both callback lists remain unresolved, not unsupported.
-    }
-
-    fun recheckDataReadiness() {
-        if (readinessJob != null || onlineStreamActive()) return
-        val source = api ?: return
-        val identifier = mutableConnectionState.value.device?.deviceId ?: return
-        if (!readinessMatches(source, identifier)) return
-        for (feature in listOf(PolarBleSdkFeature.FEATURE_HR, PolarBleSdkFeature.FEATURE_POLAR_ONLINE_STREAMING)) {
-            val types = if (feature == PolarBleSdkFeature.FEATURE_HR) listOf(PolarDeviceDataType.HR)
-                else listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
-            try {
-                if (readyFeatures.confirmReadiness(feature) { source.isFeatureReady(identifier, feature) }) {
-                    unavailableFeatures.remove(feature)
-                    if (feature == PolarBleSdkFeature.FEATURE_HR) {
-                        setDataReadiness(PolarDeviceDataType.HR, DataReadiness(DataReadinessStatus.READY, configurationComplete = true))
-                    } else queryStreamSettings(source, identifier)
-                } else {
-                    readyFeatures.remove(feature)
-                    types.forEach { setDataReadiness(it, DataReadiness(
-                        if (feature in unavailableFeatures) DataReadinessStatus.UNSUPPORTED else DataReadinessStatus.WAITING
-                    )) }
-                }
-            } catch (error: Exception) {
-                readyFeatures.remove(feature)
-                types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.FAILED,
-                    error = "Readiness check failed (${error.javaClass.simpleName}). Recheck to retry.")) }
-            }
-        }
-    }
-
     private fun onlineStreamActive() = dataSubscriptions.isActive(PolarDeviceDataType.ACC) ||
         dataSubscriptions.isActive(PolarDeviceDataType.ECG)
 
-    private fun queryStreamSettings(source: PolarBleApi, identifier: String) {
-        if (readinessJob != null || onlineStreamActive() ||
-            !readinessMatches(source, identifier)) return
-        val generation = readinessGeneration
-        val types = listOf(PolarDeviceDataType.ACC, PolarDeviceDataType.ECG)
-        types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.CHECKING)) }
-        fun current() = generation == readinessGeneration && readinessMatches(source, identifier)
-        readinessJob = readinessScope.launch(start = CoroutineStart.LAZY) {
-            try {
-                val supported = source.getAvailableOnlineStreamDataTypes(identifier)
-                ensureActive()
-                if (!current()) return@launch
-                for (type in types) {
-                    if (type !in supported) {
-                        setDataReadiness(type, DataReadiness(DataReadinessStatus.UNSUPPORTED))
-                        continue
-                    }
-                    try {
-                        val settings = source.requestStreamSettings(identifier, type)
-                        ensureActive()
-                        if (!current()) return@launch
-                        setDataReadiness(type, checkedSettings(type, settings.settings))
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (error: Exception) {
-                        if (current()) setDataReadiness(type, DataReadiness(DataReadinessStatus.FAILED,
-                            error = "Settings check failed (${error.javaClass.simpleName}). Recheck to retry."))
-                    }
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                if (current()) types.forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.FAILED,
-                    error = "Data type query failed (${error.javaClass.simpleName}). Recheck to retry.")) }
-            } finally {
-                if (generation == readinessGeneration) {
-                    readinessJob = null
-                    // Cancellation while still connected must not leave the recheck button blocked.
-                    if (current()) types.filter { mutableDataReadiness.value[it]?.status == DataReadinessStatus.CHECKING }
-                        .forEach { setDataReadiness(it, DataReadiness(DataReadinessStatus.WAITING)) }
-                }
-            }
-        }
-        readinessJob?.start()
+    fun recheckDataReadiness() {
+        val source = api ?: return
+        val identifier = mutableConnectionState.value.device?.deviceId ?: return
+        readiness.recheckDataReadiness(source, identifier)
     }
 
     private fun clearDataReadiness(status: DataReadinessStatus = DataReadinessStatus.DISCONNECTED) {
-        pauseContinuations = emptySet()
+        coordinator.clearPauseContinuations()
         deviceBattery.clear()
         cleanupDataSubscriptions()
-        readinessGeneration++
-        readinessJob?.cancel()
-        readinessJob = null
-        readyFeatures.clear()
-        unavailableFeatures.clear()
-        mutableDataReadiness.value = checkedDataTypes.associateWith { DataReadiness(status) }
+        readiness.clear(status)
     }
 
     fun bluetoothUnavailable() {
@@ -892,8 +465,7 @@ class PolarBleManager(context: Context) {
     private fun disposeSdk(): Boolean {
         clearDataReadiness()
         cancelConnectionTimeout()
-        stopScan(ScanStatus.INTERRUPTED)
-        scanJob?.cancel()
+        scanner.release()
         val previous = api ?: pendingCleanup
         // Invalidate queued callbacks before shutdown, including callbacks for the same device ID.
         api = null
@@ -922,181 +494,5 @@ class PolarBleManager(context: Context) {
             // Local SDK ownership ended; a new connection must be confirmed by a fresh SDK callback.
             mutableConnectionState.value = ConnectionState(message = "Bluetooth access released. Reconnect when available.")
         }
-    }
-}
-
-// SDK instances are compared only by identity; this state needs no Android calls.
-@MainThread
-internal class DeviceBattery {
-    private val mutableLevel = MutableStateFlow<Int?>(null)
-    val level = mutableLevel.asStateFlow()
-
-    fun receive(source: Any, currentSdk: Any?, identifier: String, connection: ConnectionState, value: Int) {
-        if (source === currentSdk && connection.status == ConnectionStatus.CONNECTED &&
-            connection.device?.deviceId == identifier && value in 0..100) {
-            mutableLevel.value = value
-        }
-    }
-
-    fun clear() {
-        mutableLevel.value = null
-    }
-}
-
-internal enum class SubscriptionStatus { IDLE, STARTING, RECEIVING, STOPPING, STOPPED, FAILED }
-
-internal data class SubscriptionState(
-    val status: SubscriptionStatus = SubscriptionStatus.IDLE,
-    val error: String? = null
-)
-
-data class HeartRateReading(val bpm: Int)
-
-data class HeartRateStatistics(
-    val count: Long = 0,
-    val sum: Long = 0,
-    val min: Int? = null,
-    val max: Int? = null
-) {
-    val average: Double? get() = if (count == 0L) null else sum.toDouble() / count
-}
-
-@MainThread
-internal class LatestHeartRate {
-    private val mutableReading = MutableStateFlow<HeartRateReading?>(null)
-    val reading = mutableReading.asStateFlow()
-    private val mutableStatistics = MutableStateFlow(HeartRateStatistics())
-    val statistics = mutableStatistics.asStateFlow()
-    private val mutableMessage = MutableStateFlow<String?>(null)
-    val message = mutableMessage.asStateFlow()
-
-    // Report valid reception separately from the final sample's display state.
-    fun receive(batch: PolarHrData): Boolean {
-        var receivedValid = false
-        var totals = statistics.value
-        batch.samples.forEach { sample ->
-            val noContact = sample.contactStatusSupported && !sample.contactStatus
-            if (sample.hr > 0 && !noContact) {
-                receivedValid = true
-                totals = HeartRateStatistics(
-                    totals.count + 1, totals.sum + sample.hr,
-                    minOf(totals.min ?: sample.hr, sample.hr),
-                    maxOf(totals.max ?: sample.hr, sample.hr)
-                )
-                mutableReading.value = HeartRateReading(sample.hr)
-                mutableMessage.value = null
-            } else {
-                mutableReading.value = null
-                mutableMessage.value = if (noContact) "No sensor contact" else "Invalid HR sample"
-            }
-        }
-        mutableStatistics.value = totals
-        return receivedValid
-    }
-
-    fun onSubscriptionState(type: PolarDeviceDataType, status: SubscriptionStatus) {
-        if (type == PolarDeviceDataType.HR && status != SubscriptionStatus.RECEIVING) {
-            clear()
-        }
-    }
-
-    fun clear() {
-        mutableReading.value = null
-        mutableMessage.value = null
-    }
-
-    fun reset() {
-        clear()
-        mutableStatistics.value = HeartRateStatistics()
-    }
-}
-
-// Confined to the main thread by the manager; tests use a single coroutine test scheduler.
-@MainThread
-internal class DataSubscriptions(
-    private val scope: CoroutineScope,
-    private val onStateChanged: (PolarDeviceDataType, SubscriptionStatus) -> Unit = { _, _ -> }
-) {
-    private class Task {
-        lateinit var job: Job
-        var stopping = false
-        var error: String? = null
-    }
-
-    private val tasks = mutableMapOf<PolarDeviceDataType, Task>()
-    private val mutableStates = MutableStateFlow(checkedDataTypes.associateWith { SubscriptionState() })
-    val states = mutableStates.asStateFlow()
-
-    fun isActive(type: PolarDeviceDataType) = type in tasks
-
-    fun reset() {
-        check(tasks.isEmpty())
-        mutableStates.value = checkedDataTypes.associateWith { SubscriptionState() }
-    }
-
-    fun unavailable(type: PolarDeviceDataType, reason: String) {
-        if (type in checkedDataTypes && !isActive(type)) setState(type, SubscriptionStatus.IDLE, reason)
-    }
-
-    private fun setState(type: PolarDeviceDataType, status: SubscriptionStatus, error: String? = null) {
-        mutableStates.value = mutableStates.value + (type to SubscriptionState(status, error))
-        onStateChanged(type, status)
-    }
-
-    fun <T> start(
-        type: PolarDeviceDataType,
-        canStart: () -> Boolean,
-        isCurrent: () -> Boolean,
-        stream: suspend () -> Flow<T>,
-        onData: (T) -> Unit
-    ): Boolean {
-        if (type !in checkedDataTypes || type in tasks || !isCurrent() || !canStart()) return false
-        val task = Task()
-        fun acceptsEvents() = tasks[type] === task && !task.stopping && isCurrent()
-        task.job = scope.launch(start = CoroutineStart.LAZY) {
-            try {
-                if (!isCurrent() || !canStart()) return@launch
-                stream().collect { data ->
-                    ensureActive()
-                    if (acceptsEvents()) {
-                        setState(type, SubscriptionStatus.RECEIVING)
-                        onData(data)
-                    }
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                if (acceptsEvents()) {
-                    task.error = "$type stream failed: ${error.message ?: error.javaClass.simpleName}"
-                }
-            }
-        }
-        tasks[type] = task
-        setState(type, SubscriptionStatus.STARTING)
-        task.job.invokeOnCompletion {
-            // Completion includes child jobs and cleanup, even if cancelled before launch.
-            scope.launch {
-                if (tasks[type] === task) {
-                    tasks.remove(type)
-                    val error = task.error.takeIf { !task.stopping && isCurrent() }
-                    setState(type, if (error == null) SubscriptionStatus.STOPPED else SubscriptionStatus.FAILED, error)
-                }
-            }
-        }
-        task.job.start()
-        return true
-    }
-
-    fun stop(type: PolarDeviceDataType) {
-        val task = tasks[type] ?: return
-        if (task.stopping) return
-        task.stopping = true
-        setState(type, SubscriptionStatus.STOPPING)
-        // Keep ownership until completion so another start cannot overlap cleanup.
-        task.job.cancel()
-    }
-
-    fun stopAll() {
-        tasks.keys.toList().forEach(::stop)
     }
 }
