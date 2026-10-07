@@ -96,6 +96,9 @@ class PolarBleManager(context: Context) {
     fun stopSession() = session.stop("Stopped by user.", interrupted = false, reset = true)
 
     @MainThread
+    fun stopAccStream() = dataSubscriptions.stop(PolarDeviceDataType.ACC)
+
+    @MainThread
     fun pauseSession() = session.pause()
 
     @MainThread

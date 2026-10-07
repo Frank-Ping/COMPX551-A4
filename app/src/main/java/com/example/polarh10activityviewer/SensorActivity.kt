@@ -187,6 +187,7 @@ class SensorActivity : ComponentActivity() {
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
                         steps = steps,
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
+                        onStopAcc = bleManager::stopAccStream,
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
                         session = session,
                         disabledReason = disabledReason,
@@ -378,7 +379,8 @@ internal fun SessionScreen(
     disabledReason: String? = null,
     saveStatus: @Composable () -> Unit = {},
     charts: @Composable () -> Unit = {},
-    onClearSavedDevices: () -> Unit = {}
+    onClearSavedDevices: () -> Unit = {},
+    onStopAcc: (() -> Unit)? = null
 ) {
     var showDevices by rememberSaveable { mutableStateOf(false) }
     val validBattery = batteryLevel.takeIf {
@@ -429,7 +431,8 @@ internal fun SessionScreen(
             availability = availability, connection = connectionState, batteryLevel = validBattery,
             hrSubscription = hrSubscription,
             accSubscription = accSubscription, ecgSubscription = ecgSubscription,
-            onOpenDevices = { showDevices = true }
+            onOpenDevices = { showDevices = true },
+            onStopAcc = onStopAcc
         )
         HeartRateCard(heartRate, heartRateStatistics, heartRateZones,
             stopped = session.status in listOf(SessionStatus.STOPPING, SessionStatus.STOPPED),

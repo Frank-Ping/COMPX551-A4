@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
 import com.example.polarh10activityviewer.BluetoothAvailability
 import com.example.polarh10activityviewer.R
 import com.example.polarh10activityviewer.ble.ConnectionState
@@ -49,21 +50,22 @@ internal fun SessionHeader(
     hrSubscription: SubscriptionState,
     onOpenDevices: () -> Unit,
     accSubscription: SubscriptionState = SubscriptionState(),
-    ecgSubscription: SubscriptionState = SubscriptionState()
+    ecgSubscription: SubscriptionState = SubscriptionState(),
+    onStopAcc: (() -> Unit)? = null
 ) {
     SessionCard {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 if (maxWidth < 300.dp * LocalDensity.current.fontScale) {
                     Column(verticalArrangement = Arrangement.spacedBy(ControlSpacing)) {
                         ConnectionDetails(availability, connection, batteryLevel, onOpenDevices)
-                        StreamStates(hrSubscription, accSubscription, ecgSubscription)
+                        StreamStates(hrSubscription, accSubscription, ecgSubscription, onStopAcc)
                     }
                 } else {
                     Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.weight(1.1f)) { ConnectionDetails(availability, connection, batteryLevel, onOpenDevices) }
                         VerticalDivider(Modifier.fillMaxHeight(), color = sessionBorder())
-                        Box(Modifier.weight(1f)) { StreamStates(hrSubscription, accSubscription, ecgSubscription) }
+                        Box(Modifier.weight(1f)) { StreamStates(hrSubscription, accSubscription, ecgSubscription, onStopAcc) }
                     }
                 }
             }
@@ -99,10 +101,11 @@ private fun ConnectionDetails(
 }
 
 @Composable
-private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: SubscriptionState) {
+private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: SubscriptionState, onStopAcc: (() -> Unit)?) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically) {
         // Each state comes from its subscription, not data readiness.
         listOf("HR" to hr, "ACC" to acc, "ECG" to ecg).forEach { (label, stream) ->
             val icon = when (stream.status) {
@@ -111,11 +114,17 @@ private fun StreamStates(hr: SubscriptionState, acc: SubscriptionState, ecg: Sub
                 SubscriptionStatus.FAILED -> R.drawable.hr_status_red
                 SubscriptionStatus.IDLE, SubscriptionStatus.STOPPED -> R.drawable.hr_status_gray
             }
-            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {
+            val stopAction = if (label == "ACC" && onStopAcc != null) {
+                Modifier.clickable(
+                    enabled = stream.status == SubscriptionStatus.STARTING || stream.status == SubscriptionStatus.RECEIVING,
+                    onClickLabel = "Stop ACC stream", role = Role.Button, onClick = onStopAcc
+                )
+            } else Modifier
+            Column(Modifier.weight(1f).heightIn(min = MinimumTouchTarget).then(stopAction).semantics(mergeDescendants = true) {
                 contentDescription = "$label: ${stream.status.name.lowercase().replaceFirstChar { it.uppercase() }}"
                 stateDescription = stream.status.name.lowercase()
             }, horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
                 Image(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp))
                 Text(label, Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.bodySmall)
             }
