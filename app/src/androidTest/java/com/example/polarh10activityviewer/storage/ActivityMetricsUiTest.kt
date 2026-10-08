@@ -62,11 +62,11 @@ class ActivityMetricsUiTest {
             checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()).compress(Bitmap.CompressFormat.PNG,100,it)
         }
     }
-    @Test fun metricsVisibleWithoutDetailClickActions() {
+    @Test fun metricsKeepFormattingAndOpenDetails() {
         mount()
         for (text in listOf("6 / 10","5 / 10","7.4%","73.6 / 100")) compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
         for (text in listOf("6 / 10", "5 / 10", "73.6 / 100")) {
-            val annotated = compose.onNodeWithText(text).fetchSemanticsNode().config[SemanticsProperties.Text].single()
+            val annotated = compose.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().config[SemanticsProperties.Text].single()
             val span = annotated.spanStyles.single()
             assertEquals(text.indexOf('/'), span.start)
             assertEquals(if (context.resources.configuration.uiMode and 0x30 == 0x20)
@@ -76,21 +76,22 @@ class ActivityMetricsUiTest {
         compose.onNodeWithText("HR Recovery").assertDoesNotExist()
         capture("summary")
         for (title in listOf("Intensity", "Cardio Load", "Cadence Stability", "Session Strain")) {
-            compose.onNodeWithText(title).performScrollTo().assertHasNoClickAction()
-            compose.onAllNodes(hasClickAction() and hasAnyDescendant(hasText(title))).assertCountEquals(0)
+            compose.onNodeWithText(title).performScrollTo().assertHasClickAction().performClick()
+            compose.onNodeWithText("$title details").assertIsDisplayed()
+            compose.onNodeWithText("Close").performClick()
         }
         compose.onNodeWithText("Delete session").performScrollTo().assertIsDisplayed()
     }
-    @Test fun strainRemainsReadOnlyWithoutDetailsOrInput() {
+    @Test fun strainDetailsRemainReadOnly() {
         mount()
         val before = runBlocking { db.detail("metrics") }
-        compose.onNodeWithText("Session Strain").performScrollTo().assertHasNoClickAction()
+        compose.onNodeWithText("Session Strain").performScrollTo().assertHasClickAction()
         compose.onNodeWithText("Session Strain").performTouchInput { click() }
-        compose.onNodeWithText("Automatically estimated",substring=true).assertDoesNotExist()
+        compose.onNodeWithText("Automatically estimated",substring=true).assertIsDisplayed()
         compose.onNodeWithText("Tap to rate").assertDoesNotExist()
         compose.onNodeWithText("Save rating").assertDoesNotExist()
         assertEquals(278.5,before!!.record.summary.activityMetrics.sessionStrain!!,1e-10)
-        compose.onNodeWithText("Close").assertDoesNotExist()
+        compose.onNodeWithText("Close").performClick()
         assertEquals(before,runBlocking { db.detail("metrics") })
         compose.onNodeWithText("73.6 / 100").performScrollTo().assertIsDisplayed()
     }
@@ -122,7 +123,7 @@ class ActivityMetricsUiTest {
     @Test fun interruptedActivityKeepsMissingMetricsAndHasNoRatingInput() {
         mount(archived=true)
         compose.onAllNodesWithText("--").assertCountEquals(4)
-        compose.onNodeWithText("Session Strain").performScrollTo().assertHasNoClickAction()
+        compose.onNodeWithText("Session Strain").performScrollTo().assertHasClickAction()
         compose.onNodeWithText("Save rating").assertDoesNotExist()
         compose.onNodeWithText("Close").assertDoesNotExist()
         compose.onNodeWithText("Data collection incomplete").performScrollTo().assertIsDisplayed()

@@ -22,7 +22,8 @@ import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import java.util.Locale
 
 @Composable
-internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boolean) {
+internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boolean,
+    onMetricClick: ((String) -> Unit)? = null) {
     val summary = record.summary
     fun section(weight: Float) = if (compact) Modifier.weight(weight) else Modifier
     SummaryCard(section(1.15f)) {
@@ -46,7 +47,7 @@ internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boo
             SummaryValue("Max", summaryNumber(summary.maximumCadence), "steps/min")
         ))
     }
-    ActivityMetricCards(record, compact)
+    ActivityMetricCards(record, compact, onMetricClick)
 }
 
 private data class SummaryValue(val label: String, val value: String, val unit: String? = null)
