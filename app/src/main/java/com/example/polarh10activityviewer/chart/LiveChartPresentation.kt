@@ -5,6 +5,52 @@ import kotlin.math.exp
 import kotlin.math.abs
 import kotlin.math.min
 
+internal data class ChartStatistics(val mean: Double? = null, val maximum: Double? = null,
+    val minimum: Double? = null)
+
+// Use selected samples before visual smoothing; HR excludes zero, cadence retains actual zero.
+internal fun chartStatistics(snapshot: ChartSnapshot, kind: ChartKind): ChartStatistics {
+    if (kind == ChartKind.ELECTROCARDIOGRAM) return ChartStatistics()
+    val values = snapshot.points.asSequence()
+        .filter { it.elapsedMs in snapshot.startMs..snapshot.endMs }
+        .mapNotNull { it.value }
+        .filter { it.isFinite() && if (kind == ChartKind.HEART_RATE) it > 0.0 else it >= 0.0 }
+        .toList()
+    return if (values.isEmpty()) ChartStatistics() else ChartStatistics(values.average(), values.max(), values.min())
+}
+
+// Wait ten seconds of chart time after the first valid HR reading, excluding paused time.
+internal fun heartRateMeanReady(snapshot: ChartSnapshot): Boolean {
+    val first = snapshot.points.firstOrNull {
+        it.elapsedMs in snapshot.startMs..snapshot.endMs &&
+            it.value?.let { value -> value.isFinite() && value > 0.0 } == true
+    } ?: return false
+    return snapshot.endMs - first.elapsedMs >= 10_000.0
+}
+
+// Require ten observed seconds in one valid run before showing the cadence reference.
+// Both live (250 ms) and saved (about one second) samples use elapsed time, not point count.
+internal fun cadenceMeanReady(snapshot: ChartSnapshot): Boolean {
+    var start: Double? = null
+    var previous: Double? = null
+    for (point in snapshot.points) {
+        if (point.elapsedMs !in snapshot.startMs..snapshot.endMs) continue
+        val value = point.value
+        if (value == null || !value.isFinite() || value < 0.0) {
+            start = null
+            previous = null
+            continue
+        }
+        val gap = previous?.let { point.elapsedMs - it }
+        if (start == null || point.breakBefore || gap == null || gap <= 0.0 || gap > 1500.0) {
+            start = point.elapsedMs
+        }
+        if (point.elapsedMs - start >= 10_000.0) return true
+        previous = point.elapsedMs
+    }
+    return false
+}
+
 // Display-only two-second low-pass filter. Restart at real gaps, preserving sample times.
 internal fun smoothCadenceForDisplay(points: List<ChartPoint>): List<ChartPoint> {
     var previous: ChartPoint? = null

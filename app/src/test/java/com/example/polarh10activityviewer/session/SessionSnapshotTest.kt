@@ -362,9 +362,11 @@ class SessionSnapshotTest {
         assertFalse(f.motionHistory.snapshot().last().breakBefore)
         val beforeExpiry = f.detector.segment
         source.emit(samples(10_090_000_000L, 301, false)); runCurrent()
-        assertTrue(f.detector.segment > beforeExpiry)
+        assertEquals(beforeExpiry, f.detector.segment)
+        assertFalse(f.detector.isWarmingUp)
         f.now = 9250; f.tick()
-        assertTrue(f.motionHistory.snapshot().last().breakBefore)
+        assertFalse(f.motionHistory.snapshot().last().breakBefore)
+        assertEquals(0.0, f.motionHistory.snapshot().last().cadence!!, 0.0)
         f.stop()
     }
 

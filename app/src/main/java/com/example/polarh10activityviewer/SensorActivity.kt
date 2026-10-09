@@ -52,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -121,6 +122,15 @@ class SensorActivity : ComponentActivity() {
             val steps by bleManager.stepState.collectAsState()
             val subscriptionStates by bleManager.subscriptionStates.collectAsState()
             val session by bleManager.sessionState.collectAsState()
+            var validCadence by remember(session.generation, session.status) {
+                mutableStateOf(bleManager.validCadenceStatistics())
+            }
+            LaunchedEffect(session.generation, session.status) {
+                while (true) {
+                    validCadence = bleManager.validCadenceStatistics()
+                    delay(1000)
+                }
+            }
             val recordingState by bleManager.storage.recording.state.collectAsState()
             val saveState by bleManager.storage.saves.state.collectAsState()
             var showHistory by rememberSaveable { mutableStateOf(false) }
@@ -186,6 +196,7 @@ class SensorActivity : ComponentActivity() {
                         heartRateZones = heartRateZones,
                         hrSubscription = subscriptionStates.getValue(PolarDeviceDataType.HR),
                         steps = steps,
+                        validCadence = validCadence,
                         accSubscription = subscriptionStates.getValue(PolarDeviceDataType.ACC),
                         onStopAcc = bleManager::stopAccStream,
                         ecgSubscription = subscriptionStates.getValue(PolarDeviceDataType.ECG),
@@ -380,7 +391,8 @@ internal fun SessionScreen(
     saveStatus: @Composable () -> Unit = {},
     charts: @Composable () -> Unit = {},
     onClearSavedDevices: () -> Unit = {},
-    onStopAcc: (() -> Unit)? = null
+    onStopAcc: (() -> Unit)? = null,
+    validCadence: com.example.polarh10activityviewer.chart.ChartStatistics = com.example.polarh10activityviewer.chart.ChartStatistics()
 ) {
     var showDevices by rememberSaveable { mutableStateOf(false) }
     val validBattery = batteryLevel.takeIf {
@@ -437,7 +449,8 @@ internal fun SessionScreen(
         HeartRateCard(heartRate, heartRateStatistics, heartRateZones,
             stopped = session.status in listOf(SessionStatus.STOPPING, SessionStatus.STOPPED),
             subscription = hrSubscription)
-        MotionCard(steps, paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING))
+        MotionCard(steps, paused = session.status in listOf(SessionStatus.PAUSED, SessionStatus.PAUSING),
+            statistics = validCadence)
         charts()
         ActivitySummaryCard(session, steps)
         SessionHeartRateZonePanel(heartRateZones)

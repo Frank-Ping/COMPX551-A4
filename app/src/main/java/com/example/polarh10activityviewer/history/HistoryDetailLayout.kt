@@ -94,7 +94,7 @@ internal fun HistoryDetailLayout(snapshot: SessionSnapshot?, loading: Boolean, e
                         }
                         snapshot == null -> Text("Session not found")
                         else -> {
-                            SessionSummaryPanel(snapshot.record, compact, onMetricClick = { selectedMetric = it })
+                            SessionSummaryPanel(snapshot, compact, onMetricClick = { selectedMetric = it })
                             HistoryCharts(snapshot, if (compact) Modifier.weight(3.1f)
                                 else Modifier.height(400.dp * LocalDensity.current.fontScale), database)
                             // Reserve all five rows instead of squeezing them into a weighted remainder.

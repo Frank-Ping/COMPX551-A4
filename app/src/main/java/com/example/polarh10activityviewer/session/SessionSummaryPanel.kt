@@ -11,6 +11,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import com.example.polarh10activityviewer.chart.ChartKind
+import com.example.polarh10activityviewer.chart.ChartPoint
+import com.example.polarh10activityviewer.chart.ChartSnapshot
+import com.example.polarh10activityviewer.chart.chartStatistics
+import com.example.polarh10activityviewer.ble.SubscriptionStatus
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -22,9 +28,20 @@ import com.example.polarh10activityviewer.heartrate.formatZoneDuration
 import java.util.Locale
 
 @Composable
-internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boolean,
+internal fun ColumnScope.SessionSummaryPanel(snapshot: SessionSnapshot, compact: Boolean,
     onMetricClick: ((String) -> Unit)? = null) {
+    val record = snapshot.record
     val summary = record.summary
+    val hr = remember(snapshot) {
+        chartStatistics(ChartSnapshot(snapshot.hrPoints.map {
+            ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore)
+        }, record.durationMs.toDouble(), record.durationMs.toDouble(), SubscriptionStatus.STOPPED), ChartKind.HEART_RATE)
+    }
+    val motion = remember(snapshot) {
+        chartStatistics(ChartSnapshot(snapshot.motionPoints.map {
+            ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore)
+        }, record.durationMs.toDouble(), record.durationMs.toDouble(), SubscriptionStatus.STOPPED), ChartKind.CADENCE)
+    }
     fun section(weight: Float) = if (compact) Modifier.weight(weight) else Modifier
     SummaryCard(section(1.15f)) {
         SummaryMetrics(listOf(
@@ -37,14 +54,14 @@ internal fun ColumnScope.SessionSummaryPanel(record: SessionRecord, compact: Boo
     val sensorModifier = if (compact) Modifier.height(sensorHeight) else Modifier
     SummaryCard(sensorModifier, "Heart Rate") {
         SummaryMetrics(listOf(
-            SummaryValue("Mean HR", summaryNumber(summary.meanHr), "bpm"),
-            SummaryValue("Range", "${summary.minimumHr ?: "--"}–${summary.maximumHr ?: "--"}", "bpm")
+            SummaryValue("Mean HR", summaryNumber(hr.mean), "bpm"),
+            SummaryValue("Range", "${summaryNumber(hr.minimum)}–${summaryNumber(hr.maximum)}", "bpm")
         ))
     }
     SummaryCard(sensorModifier, "Cadence") {
         SummaryMetrics(listOf(
-            SummaryValue("Mean", summaryNumber(summary.meanCadence), "steps/min"),
-            SummaryValue("Max", summaryNumber(summary.maximumCadence), "steps/min")
+            SummaryValue("Mean", summaryNumber(motion.mean), "steps/min"),
+            SummaryValue("Max", summaryNumber(motion.maximum), "steps/min")
         ))
     }
     ActivityMetricCards(record, compact, onMetricClick)

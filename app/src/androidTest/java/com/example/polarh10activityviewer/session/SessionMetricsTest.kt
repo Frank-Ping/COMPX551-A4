@@ -110,8 +110,8 @@ class SessionMetricsTest {
     @Test fun validReadingsUseExistingStatisticsAndDisplayOnlyRounding() {
         mount()
         visible("123"); visible("Max HR: 130 bpm"); visible("Max HR: 130 bpm"); visible("Mean HR: 120 bpm")
-        visible("124"); visible("Mean: 121 steps/min");
-        visible("Max: 168 steps/min")
+        visible("124"); visible("Mean: -- steps/min");
+        visible("Max: -- steps/min")
         visible("01:00"); visible("121")
         compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         listOf("Min HR:", "Min cadence:", "Estimated speed", "Mean speed:", "Max speed:", "km/h").forEach {

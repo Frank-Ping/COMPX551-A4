@@ -98,7 +98,8 @@ internal fun HeartRateCard(
 }
 
 @Composable
-internal fun MotionCard(steps: StepState, paused: Boolean = false) {
+internal fun MotionCard(steps: StepState, paused: Boolean = false,
+    statistics: com.example.polarh10activityviewer.chart.ChartStatistics = com.example.polarh10activityviewer.chart.ChartStatistics()) {
     val displayed = rememberCadenceDisplay(steps, paused)
     SessionCard() {
         MetricColumns(
@@ -110,8 +111,8 @@ internal fun MotionCard(steps: StepState, paused: Boolean = false) {
                 }
             },
             statistics = {
-                SessionStatistic("Mean", "${cadence(displayed.meanCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
-                SessionStatistic("Max", "${cadence(displayed.maximumCadence)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
+                SessionStatistic("Mean", "${cadence(statistics.mean)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
+                SessionStatistic("Max", "${cadence(statistics.maximum)} steps/min", Modifier.fillMaxWidth(), TextAlign.Center)
             }
         )
     }

@@ -62,9 +62,9 @@ class HistoryPresentationTest {
     private fun show(text: String) = compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
     private fun selectCadence() = compose.onNode(hasText("Cadence") and hasClickAction()).performScrollTo().performClick()
 
-    @Test fun summaryUsesStoredValuesAndKeepsUncomputedMetricsEmptyAndEnabledChoices() {
+    @Test fun summaryUsesValidHistoryValuesAndKeepsUncomputedMetricsEmptyAndEnabledChoices() {
         mount()
-        for (value in listOf("1920", "125", "70–160", "96", "144")) show(value)
+        for (value in listOf("1920", "103", "70–160", "72", "144")) show(value)
         compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
         compose.onNodeWithContentDescription("Session details").assertDoesNotExist()
         compose.onNodeWithText("10:10").assertHasNoClickAction()
@@ -77,11 +77,11 @@ class HistoryPresentationTest {
             compose.onNodeWithText(choice).assertIsSelected()
         }
         compose.onNodeWithText("HR").performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Heart rate, whole session. Dashed line: saved mean 125.0 bpm. Gaps are not interpolated.").assertExists()
+        compose.onNodeWithContentDescription("Heart rate, whole session. Dashed line: saved mean 102.5 bpm. Gaps are not interpolated.").assertExists()
         selectCadence()
-        compose.onNodeWithContentDescription("Cadence, whole session. Dashed line: saved mean 96.0 steps/min. Gaps are not interpolated.").assertExists()
+        compose.onNodeWithContentDescription("Cadence, whole session. Dashed line: saved mean 72.0 steps/min. Gaps are not interpolated.").assertExists()
         compose.onNode(hasText("20:00") and hasAnyAncestor(hasContentDescription(
-            "Cadence, whole session. Dashed line: saved mean 96.0 steps/min. Gaps are not interpolated.")))
+            "Cadence, whole session. Dashed line: saved mean 72.0 steps/min. Gaps are not interpolated.")))
             .performScrollTo().assertIsDisplayed()
     }
 

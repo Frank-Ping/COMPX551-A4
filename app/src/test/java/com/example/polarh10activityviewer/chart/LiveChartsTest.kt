@@ -187,7 +187,7 @@ class LiveChartsTest {
         assertEquals(before, detector.state.value)
     }
 
-    @Test fun stepSequenceTimeoutBreaksChartEvenIfWarmupFinishesBetweenRefreshes() {
+    @Test fun stepSequenceTimeoutKeepsChartContinuousWithoutRewarming() {
         val charts = running()
         val detector = StepDetector { 0 }
         detector.onSubscriptionState(SubscriptionStatus.STARTING)
@@ -204,11 +204,11 @@ class LiveChartsTest {
         val previousSegment = detector.segment
         (304..600).forEach { detector.receive(AccSample(it * 10_000_000L, 1000, 0, 0)) }
         detector.receivedBatch(6_000_000_000, 0)
-        assertTrue(detector.segment > previousSegment)
+        assertEquals(previousSegment, detector.segment)
         assertFalse(detector.isWarmingUp)
         charts.recordMotion(6000, detector.state.value, false, detector.segment)
         val last = charts.snapshot(ChartKind.CADENCE, 6000).points.last()
-        assertTrue(last.breakBefore)
+        assertFalse(last.breakBefore)
         assertEquals(0.0, last.value!!, 0.0)
     }
 

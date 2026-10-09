@@ -40,8 +40,8 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
     var segment: Long = 0
         private set
 
-    fun clearSegment(resetCadence: Boolean = true) {
-        if (resetCadence) cadenceReady = false
+    fun clearSegment() {
+        cadenceReady = false
         segment++
         preprocessor.clear()
         candidates.clear()
@@ -114,7 +114,10 @@ internal class StepDetector(private val now: () -> Long = { System.nanoTime() / 
             clearSegment()
             incompleteAcc = true
         } else if (sequence.expire(sample.timeStamp)) {
-            clearSegment(resetCadence = false)
+            // expire clears the confirmation sequence. Keep continuous ACC preparation and
+            // chart identity, but discard old candidate cycles and cadence peaks.
+            candidates.clear()
+            motionWindow.clear()
         }
         receivedAcc = true
         val prepared = preprocessor.receive(sample)

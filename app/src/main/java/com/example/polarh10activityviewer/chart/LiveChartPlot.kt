@@ -39,7 +39,10 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     val plotHeight = height ?: (((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f))
     Column {
     val valid = snapshot.points.any { it.value != null }
-    val mean = if (kind == ChartKind.ELECTROCARDIOGRAM) null else chartMeanInRange(sessionMean, scale, valid)
+    val mean = if (kind == ChartKind.ELECTROCARDIOGRAM ||
+        (kind == ChartKind.HEART_RATE && !heartRateMeanReady(snapshot)) ||
+        (kind == ChartKind.CADENCE && !cadenceMeanReady(snapshot))) null
+        else chartMeanInRange(sessionMean, scale, valid)
     val ticks = chartYTicks(scale)
     val style = MaterialTheme.typography.bodySmall
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -59,7 +62,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     val gutter = axisWidth ?: with(density) { (labels.maxOf { measurer.measure(it, style).size.width }).toDp() + ContentSpacing }
     val ink = if (kind == ChartKind.HEART_RATE) Color(0xFFEF4444) else sessionBlue()
     val axis = MaterialTheme.colorScheme.outline
-    val meanInk = if (kind == ChartKind.HEART_RATE) Color(0xFFF59E0B) else ink
+    val meanInk = if (kind == ChartKind.HEART_RATE) sessionBlue() else Color(0xFFEAB308)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(kind.unit, style = style, color = textColor)
         statusLabel?.let { Text(it, style = style, color = textColor) }

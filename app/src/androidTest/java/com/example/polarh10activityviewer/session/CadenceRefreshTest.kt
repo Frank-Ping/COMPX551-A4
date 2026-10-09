@@ -13,25 +13,26 @@ class CadenceRefreshTest {
     private val steps = mutableStateOf(StepState(cadence = 100.0, receivedAcc = true,
         totalSteps = 100, durationMs = 60_000, maximumCadence = 120.0))
     private val paused = mutableStateOf(false)
+    private val statistics = mutableStateOf(com.example.polarh10activityviewer.chart.ChartStatistics(80.0, 115.0, 0.0))
 
     private fun mount() {
         compose.mainClock.autoAdvance = false
-        compose.setContent { PolarH10ActivityViewerTheme { MotionCard(steps.value, paused.value) } }
+        compose.setContent { PolarH10ActivityViewerTheme { MotionCard(steps.value, paused.value, statistics.value) } }
         compose.mainClock.advanceTimeBy(32)
     }
 
-    @Test fun currentMeanAndMaxUseLatestValuesOncePerSecond() {
+    @Test fun currentCadenceRefreshesWhileStatisticsUseOnlySuppliedValidPoints() {
         mount()
         steps.value = steps.value.copy(cadence = 110.0, totalSteps = 110, maximumCadence = 140.0)
         compose.mainClock.advanceTimeBy(400)
         compose.onNodeWithText("100").assertExists()
-        compose.onNodeWithText("Mean: 100 steps/min").assertExists()
-        compose.onNodeWithText("Max: 120 steps/min").assertExists()
+        compose.onNodeWithText("Mean: 80 steps/min").assertExists()
+        compose.onNodeWithText("Max: 115 steps/min").assertExists()
         steps.value = steps.value.copy(cadence = 130.0, totalSteps = 130, maximumCadence = 160.0)
         compose.mainClock.advanceTimeBy(700)
         compose.onNodeWithText("130").assertExists()
-        compose.onNodeWithText("Mean: 130 steps/min").assertExists()
-        compose.onNodeWithText("Max: 160 steps/min").assertExists()
+        compose.onNodeWithText("Mean: 80 steps/min").assertExists()
+        compose.onNodeWithText("Max: 115 steps/min").assertExists()
         steps.value = steps.value.copy(cadence = 150.0)
         compose.mainClock.advanceTimeBy(400)
         compose.onNodeWithText("130").assertExists()
@@ -53,6 +54,7 @@ class CadenceRefreshTest {
         compose.mainClock.advanceTimeBy(32)
         compose.onNodeWithText("144").assertExists()
         steps.value = StepState()
+        statistics.value = com.example.polarh10activityviewer.chart.ChartStatistics()
         compose.mainClock.advanceTimeBy(32)
         compose.onNodeWithText("--").assertExists()
         compose.onNodeWithText("Mean: -- steps/min").assertExists()

@@ -43,6 +43,7 @@ import com.example.polarh10activityviewer.chart.ChartPoint
 import com.example.polarh10activityviewer.chart.ChartSnapshot
 import com.example.polarh10activityviewer.chart.LivePlot
 import com.example.polarh10activityviewer.chart.chartScale
+import com.example.polarh10activityviewer.chart.chartStatistics
 import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.session.SummaryCard
 import com.example.polarh10activityviewer.session.sessionBlue
@@ -76,12 +77,12 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
         1 -> snapshot.motionPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore) }
         else -> loaded
     } }
-    val mean = when (choice) { 0 -> snapshot.record.summary.meanHr; 1 -> snapshot.record.summary.meanCadence; else -> null }
     val end = when (choice) {
         2 -> minOf(windowStart + 5000, snapshot.record.durationMs).toDouble()
         else -> snapshot.record.durationMs.toDouble()
     }
     val chart = ChartSnapshot(points, end, if (choice >= 2) (end - windowStart).coerceAtLeast(0.0) else end, SubscriptionStatus.STOPPED)
+    val mean = chartStatistics(chart, kind).mean
     val scale = chartScale(points, kind, mean)
     val maximum = (snapshot.record.durationMs - 5000).coerceAtLeast(0)
     fun moveWindow(forward: Boolean): Boolean {

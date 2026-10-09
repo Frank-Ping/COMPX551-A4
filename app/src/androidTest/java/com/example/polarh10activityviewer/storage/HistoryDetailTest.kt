@@ -92,17 +92,17 @@ class HistoryDetailTest {
         compose.setContent { MaterialTheme { HistoryPanel(db, null, {}) } }
         awaitList(2); select(); awaitText("Delete session")
         assertDetail("two")
-        assertText("80–200")
-        assertText("288")
+        assertText("80–90")
+        assertText("48")
         compose.onNodeWithText("Estimated Distance").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Heart rate, whole session. Dashed line: saved mean 110.25 bpm. Gaps are not interpolated.").assertExists()
+        compose.onNodeWithContentDescription("Heart rate, whole session. Dashed line: saved mean 85.0 bpm. Gaps are not interpolated.").assertExists()
         compose.onNode(hasText("Cadence") and hasClickAction()).performScrollTo().performClick()
-        compose.onNodeWithContentDescription("Cadence, whole session. Dashed line: saved mean 288.0 steps/min. Gaps are not interpolated.").assertExists()
+        compose.onNodeWithContentDescription("Cadence, whole session. Dashed line: saved mean 48.0 steps/min. Gaps are not interpolated.").assertExists()
         assertText("4%")
         assertEquals(two, runBlocking { db.detail("two") })
         click("Back"); awaitList(2); select(1); awaitText("Delete session")
         assertDetail("one")
-        assertText("80–140")
+        assertText("120–140")
         assertEquals(one, runBlocking { db.detail("one") })
     }
 

@@ -229,23 +229,53 @@ class StepDetectorTest {
         assertEquals(4L, detector.totalSteps)
     }
 
-    @Test fun sensorTimeoutRewarmsOnceAndPreservesTotalWithoutAnyUiTimer() {
+    @Test fun sensorTimeoutKeepsPreparationAndChartSegmentWhileCadenceBecomesZero() {
         val detector = StepDetector()
         val committed = walking().flatMap(detector::receive)
         val lastPeak = committed.last().timeStamp
+        val segment = detector.segment
         val exactIndex = ((lastPeak + 2_000_000_000L) / 10_000_000L).toInt()
         for (i in 304..exactIndex) detector.receive(raw(i, 1000))
         assertFalse(detector.isWarmingUp)
         detector.receive(raw(exactIndex + 1, 1000))
-        assertTrue(detector.isWarmingUp)
+        assertFalse(detector.isWarmingUp)
         assertEquals(4L, detector.totalSteps)
+        assertEquals(segment, detector.segment)
+        detector.receivedBatch((exactIndex + 1) * 10_000_000L, 0)
+        assertEquals(0.0, detector.state.value.cadence!!, 0.0)
         for (i in exactIndex + 2..exactIndex + 103) detector.receive(raw(i, 1000))
-        assertTrue(detector.isWarmingUp)
+        assertFalse(detector.isWarmingUp)
         detector.receive(raw(exactIndex + 104, 1000))
         assertFalse(detector.isWarmingUp)
         detector.receive(raw(exactIndex + 105, 1000))
         assertFalse(detector.isWarmingUp)
         assertEquals(4L, detector.totalSteps)
+    }
+
+    @Test fun timeoutDropsOldPendingStepsAndRequiresFourFreshStepsWithoutWarmup() {
+        for (previouslyConfirmed in listOf(false, true)) {
+            val detector = StepDetector()
+            val initial = if (previouslyConfirmed) walking() else walking().take(230)
+            initial.forEach { detector.receive(it) }
+            val baseline = detector.totalSteps
+            val segment = detector.segment
+            val end = if (previouslyConfirmed) 500 else 430
+            for (i in initial.size..end) detector.receive(raw(i, 1000))
+            assertFalse(detector.isWarmingUp)
+            assertEquals(segment, detector.segment)
+            val restart = (end + 1) * 10_000_000L
+            val resumed = walking().drop(104).map {
+                it.copy(timeStamp = it.timeStamp - 1_040_000_000L + restart)
+            }
+            assertTrue(resumed.take(150).flatMap(detector::receive).isEmpty())
+            assertEquals(baseline, detector.totalSteps)
+            val committed = resumed.drop(150).flatMap(detector::receive)
+            assertEquals(4, committed.size)
+            assertTrue(committed.all { it.timeStamp >= restart })
+            assertEquals(baseline + 4, detector.totalSteps)
+            assertFalse(detector.isWarmingUp)
+            assertEquals(segment, detector.segment)
+        }
     }
 
     @Test fun gapDropsPendingSequenceAndRewarmsBeforeConfirmingAgain() {

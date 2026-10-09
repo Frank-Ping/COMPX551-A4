@@ -36,6 +36,13 @@ internal class SessionDataCoordinator(
     private val latestHeartRate = LatestHeartRate()
     private val hrHistory = HrHistory()
     private val motionHistory = MotionHistory()
+    internal fun validCadenceStatistics(): com.example.polarh10activityviewer.chart.ChartStatistics {
+        val end = session.state.value.elapsedMs.toDouble()
+        return com.example.polarh10activityviewer.chart.chartStatistics(
+            com.example.polarh10activityviewer.chart.ChartSnapshot(motionHistory.snapshot().map {
+                com.example.polarh10activityviewer.chart.ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore)
+            }, end, end, SubscriptionStatus.STOPPED), ChartKind.CADENCE)
+    }
     private val mutableLastSnapshot = MutableStateFlow<SessionSnapshot?>(null)
     internal val lastSnapshot = mutableLastSnapshot.asStateFlow()
     private var previousHrArrival: Long? = null

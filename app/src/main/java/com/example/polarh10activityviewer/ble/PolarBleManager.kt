@@ -115,6 +115,7 @@ class PolarBleManager(context: Context) {
     fun discardRecording() = coordinator.discardRecording()
 
     internal fun chartSnapshot(kind: ChartKind) = coordinator.chartSnapshot(kind)
+    internal fun validCadenceStatistics() = coordinator.validCadenceStatistics()
 
     private fun connectedForData() = api != null &&
         mutableConnectionState.value.status == ConnectionStatus.CONNECTED && bluetoothAvailableForData()
