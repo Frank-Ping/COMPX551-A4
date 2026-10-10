@@ -1,6 +1,8 @@
 package com.example.polarh10activityviewer.session
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -46,7 +48,8 @@ internal fun ColumnScope.SessionSummaryPanel(snapshot: SessionSnapshot, compact:
     SummaryCard(section(1.15f)) {
         SummaryMetrics(listOf(
             SummaryValue("Duration", formatZoneDuration(record.durationMs)),
-            SummaryValue("Total Steps", summary.totalSteps?.toString() ?: "--")
+            SummaryValue("Total Steps", summary.totalSteps?.toString() ?: "--",
+                onClick = onMetricClick?.let { { it("Total Steps") } })
         ), enlarged = true)
     }
     // Both sensor cards reserve the same title, label and value space.
@@ -67,7 +70,12 @@ internal fun ColumnScope.SessionSummaryPanel(snapshot: SessionSnapshot, compact:
     ActivityMetricCards(record, compact, onMetricClick)
 }
 
-private data class SummaryValue(val label: String, val value: String, val unit: String? = null)
+private data class SummaryValue(val label: String, val value: String, val unit: String? = null,
+    val onClick: (() -> Unit)? = null)
+
+private fun Modifier.metricClick(value: SummaryValue): Modifier = value.onClick?.let {
+    clickable(role = Role.Button, onClickLabel = "Explain ${value.label}", onClick = it)
+} ?: this
 
 @Composable
 private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false) {
@@ -75,7 +83,7 @@ private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             values.forEachIndexed { index, value ->
                 if (index > 0) HorizontalDivider(color = sessionBorder())
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.fillMaxWidth().metricClick(value), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(value.label, fontSize = 10.sp,
                         lineHeight = 13.sp, letterSpacing = 0.sp)
                     Row(verticalAlignment = Alignment.CenterVertically,
@@ -93,7 +101,7 @@ private fun SummaryMetrics(values: List<SummaryValue>, enlarged: Boolean = false
         horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         values.forEachIndexed { index, value ->
             if (index > 0) VerticalDivider(color = sessionBlue().copy(alpha = 0.45f))
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(Modifier.weight(1f).metricClick(value), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(value.label, textAlign = TextAlign.Center, fontSize = if (enlarged) 11.sp else 10.sp,
                     lineHeight = if (enlarged) 14.sp else 13.sp, letterSpacing = 0.sp)
                 Row(verticalAlignment = Alignment.CenterVertically,

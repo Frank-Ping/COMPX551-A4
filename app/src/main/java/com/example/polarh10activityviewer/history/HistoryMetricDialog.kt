@@ -10,52 +10,89 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.example.polarh10activityviewer.session.ActivityMetricsCalculator
 import com.example.polarh10activityviewer.session.SessionRecord
+import com.polar.sdk.api.PolarBleApi.PolarDeviceDataType
 import java.util.Locale
 
 @Composable
 internal fun HistoryMetricDialog(title: String, record: SessionRecord, onDismiss: () -> Unit) {
     val metrics = record.summary.activityMetrics
-    fun number(value: Double?) = value?.let { String.format(Locale.ENGLISH, "%.2f", it) } ?: "--"
-    val zones = record.summary.zoneDurationsMs.map { it / 60_000.0 }
-    val zoneDetails = "Recorded zone minutes (Z1–Z5): " + zones.joinToString(", ") { number(it) }
-    val zoneRule = "Fixed HR zones: Z1 <110, Z2 110–124, Z3 125–139, Z4 140–154, Z5 ≥155 bpm. Unclassified time is excluded."
+    fun decimal(value: Double?) = value?.let { String.format(Locale.ENGLISH, "%.1f", it) }
+    val value: String?
+    val maximum: Int?
     val description: String
     val calculation: String
-    val recorded: String
     when (title) {
+        "Total Steps" -> {
+            value = record.summary.totalSteps?.toString()
+            maximum = null
+            description = "Total confirmed steps during this session."
+            calculation = "Detected from accelerometer data. Counting begins after four consecutive step candidates are confirmed, including those first four steps."
+        }
         "Intensity" -> {
-            description = "Average heart-rate zone during classified activity time. A higher score means more time in higher HR zones; it does not measure fitness or performance."
-            calculation = "Raw intensity = (1×t1 + 2×t2 + 3×t3 + 4×t4 + 5×t5) / (t1+t2+t3+t4+t5).\n\nDisplayed score = round(2 × raw intensity), limited to 0–10. Each t is time in that zone.\n\n$zoneRule"
-            recorded = "$zoneDetails\nRaw intensity: ${number(metrics.intensity)}\n\nNo classified HR time or incomplete collection gives --."
+            value = ActivityMetricsCalculator.intensityRating(metrics.intensity)?.toString()
+            maximum = 10
+            description = "Higher scores mean higher average heart-rate intensity."
+            calculation = "Based on time spent in HR zones 1–5, converted to a score out of 10."
         }
         "Cardio Load" -> {
-            description = "Accumulated heart-rate load, combining duration and HR zone. Longer activity and higher zones increase this app's estimated load."
-            calculation = "Raw load (AU) = 1×t1 + 2×t2 + 3×t3 + 4×t4 + 5×t5, with time in minutes.\n\nDisplayed score = round(10 × raw load / (raw load + 100)), limited to 0–10. AU means arbitrary units.\n\n$zoneRule"
-            recorded = "$zoneDetails\nRaw load: ${number(metrics.cardioLoad)} AU\n\nNo classified HR time or incomplete collection gives --."
+            value = ActivityMetricsCalculator.cardioLoadRating(metrics.cardioLoad)?.toString()
+            maximum = 10
+            description = "Longer activity and higher heart-rate zones increase the load."
+            calculation = "Adds up minutes in each HR zone, weighted from 1 to 5, then converts the total to a score out of 10."
         }
         "Cadence Stability" -> {
-            description = "Variation in cadence, shown as a coefficient of variation (CV). Lower percentages mean steadier cadence; 0% means all selected cadence values are equal. This is not a score where higher is better."
-            calculation = "CV = 100 × population standard deviation / mean cadence.\n\nMean = sum(cadence) / N.\nPopulation standard deviation = sqrt(sum((cadence − mean)²) / N).\n\nUse the final recorded point in each second, then exclude missing, zero and non-finite cadence values. At least 30 valid points are required. This uses recorded values, not the smoothed chart."
-            recorded = "Valid points: ${metrics.cadencePointCount ?: "--"}\nStored CV: ${number(metrics.cadenceCvPercent)}%\n\nFewer than 30 valid points or incomplete collection gives --."
+            value = decimal(metrics.cadenceCvPercent)?.let { "$it%" }
+            maximum = null
+            description = "Lower percentages mean steadier cadence."
+            calculation = "Cadence variation (standard deviation) ÷ mean cadence × 100%.\nExcludes zero and missing readings.\nRequires at least 30 valid readings."
         }
-        else -> {
-            description = "Automatically estimated session load combining heart-rate and movement load. A higher score means greater estimated strain, not better performance."
-            calculation = "Heart load = 1²×t1 + 2²×t2 + 3²×t3 + 4²×t4 + 5²×t5 (zone minutes).\n\nCadence level = 5 × clamp(mean cadence / 180, 0, 1).\nMovement load = active minutes × cadence level².\nRaw strain = 0.7 × heart load + 0.3 × movement load.\n\nDisplayed score = 100 × raw strain / (raw strain + 100), shown to one decimal. Active duration excludes pauses. The constants 180 and 100 are fixed app scoring parameters, not personal targets."
-            recorded = "$zoneDetails\nActive minutes: ${number(record.durationMs / 60_000.0)}\nMean cadence: ${number(record.summary.meanCadence)} steps/min\nRaw strain: ${number(metrics.sessionStrain)} AU\nStored score: ${number(metrics.sessionStrainScore)} / 100\n\nRequires classified HR time, valid mean cadence, positive active duration and complete ACC collection; otherwise --."
+        "Session Strain" -> {
+            value = decimal(metrics.sessionStrainScore)
+            maximum = 100
+            description = "Higher scores mean greater overall session load."
+            calculation = "Combines 70% heart-rate load and 30% movement load, then converts the result to a score out of 100."
+        }
+        else -> return
+    }
+    val unavailable = if (value != null) null else when {
+        title == "Total Steps" -> "No recorded step data."
+        record.collectionIncomplete -> "Data collection was incomplete."
+        title == "Cadence Stability" && metrics.cadencePointCount != null &&
+            metrics.cadencePointCount < ActivityMetricsCalculator.MIN_CADENCE_POINTS -> "Not enough valid cadence readings."
+        title in listOf("Intensity", "Cardio Load", "Session Strain") &&
+            record.summary.zoneDurationsMs.sum() <= 0 -> "No classified heart-rate data."
+        title == "Session Strain" && record.durationMs <= 0 -> "No active session duration."
+        title == "Session Strain" && record.streams[PolarDeviceDataType.ACC]?.let {
+            it.received && !it.missing && !it.failed
+        } != true -> "Complete accelerometer data is required."
+        title == "Session Strain" && record.summary.meanCadence?.let { it.isFinite() && it >= 0 } != true ->
+            "No valid mean cadence."
+        else -> "This metric was not calculated for this session."
+    }
+    val result = buildAnnotatedString {
+        append(value ?: "--")
+        if (value != null && maximum != null) {
+            append(" ")
+            withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) {
+                append("/ $maximum")
+            }
         }
     }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("$title details") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("What it means", style = MaterialTheme.typography.titleSmall)
-                Text(description)
-                Text("Calculation", style = MaterialTheme.typography.titleSmall)
-                Text(calculation)
-                Text("This session", style = MaterialTheme.typography.titleSmall)
-                Text(recorded)
-                Text("Values above are rounded for explanation. Cards use saved metrics; opening this explanation does not recalculate or change them.")
+                Text(result, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface)
+                Text(description, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(calculation, style = MaterialTheme.typography.bodyMedium)
+                unavailable?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
             }
         }, confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } })
 }

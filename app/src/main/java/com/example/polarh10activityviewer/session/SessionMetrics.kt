@@ -1,6 +1,13 @@
 package com.example.polarh10activityviewer.session
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -101,7 +108,10 @@ internal fun HeartRateCard(
 internal fun MotionCard(steps: StepState, paused: Boolean = false,
     statistics: com.example.polarh10activityviewer.chart.ChartStatistics = com.example.polarh10activityviewer.chart.ChartStatistics()) {
     val displayed = rememberCadenceDisplay(steps, paused)
-    SessionCard() {
+    var showDetails by remember { mutableStateOf(false) }
+    if (showDetails) CadenceDetailsDialog { showDetails = false }
+    SessionCard(Modifier.testTag("session-cadence-card").clickable(
+        role = Role.Button, onClickLabel = "Explain cadence", onClick = { showDetails = true })) {
         MetricColumns(
             current = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

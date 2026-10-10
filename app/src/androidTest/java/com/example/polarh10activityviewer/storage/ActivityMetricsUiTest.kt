@@ -75,9 +75,13 @@ class ActivityMetricsUiTest {
         assertEquals(85.0, runBlocking { db.detail("metrics") }!!.record.summary.activityMetrics.cardioLoad!!, 0.0)
         compose.onNodeWithText("HR Recovery").assertDoesNotExist()
         capture("summary")
-        for (title in listOf("Intensity", "Cardio Load", "Cadence Stability", "Session Strain")) {
+        compose.onNodeWithText("Duration").assertHasNoClickAction()
+        for (title in listOf("Total Steps", "Intensity", "Cardio Load", "Cadence Stability", "Session Strain")) {
             compose.onNodeWithText(title).performScrollTo().assertHasClickAction().performClick()
-            compose.onNodeWithText("$title details").assertIsDisplayed()
+            compose.onNode(hasText(title) and hasAnyAncestor(isDialog())).assertIsDisplayed()
+            compose.onNodeWithText("What it means").assertDoesNotExist()
+            compose.onNodeWithText("Calculation").assertDoesNotExist()
+            compose.onNodeWithText("This session").assertDoesNotExist()
             compose.onNodeWithText("Close").performClick()
         }
         compose.onNodeWithText("Delete session").performScrollTo().assertIsDisplayed()
@@ -87,7 +91,7 @@ class ActivityMetricsUiTest {
         val before = runBlocking { db.detail("metrics") }
         compose.onNodeWithText("Session Strain").performScrollTo().assertHasClickAction()
         compose.onNodeWithText("Session Strain").performTouchInput { click() }
-        compose.onNodeWithText("Automatically estimated",substring=true).assertIsDisplayed()
+        compose.onNodeWithText("Higher scores mean greater overall session load.").assertIsDisplayed()
         compose.onNodeWithText("Tap to rate").assertDoesNotExist()
         compose.onNodeWithText("Save rating").assertDoesNotExist()
         assertEquals(278.5,before!!.record.summary.activityMetrics.sessionStrain!!,1e-10)

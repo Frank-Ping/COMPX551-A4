@@ -147,7 +147,7 @@ class SessionReferenceTest {
         compose.onNodeWithText("Data Streams").assertDoesNotExist()
         compose.onNodeWithContentDescription("Open Devices").assertIsDisplayed()
         for (label in listOf("Cadence", "Duration", "Total Steps", "HR Zone", "Z5")) {
-            val node = compose.onNode(hasText(label) and !hasClickAction()).assertIsDisplayed()
+            val node = (if (label == "Cadence") compose.onNodeWithTag("session-cadence-card") else compose.onNode(hasText(label) and !hasClickAction())).assertIsDisplayed()
             val bounds = node.getUnclippedBoundsInRoot()
             assertTrue("$label below footer: $bounds", bounds.bottom <= bottom)
             assertTrue("$label has no height", bounds.bottom > bounds.top)
@@ -160,7 +160,7 @@ class SessionReferenceTest {
 
     @Test fun normalPhoneShowsAllRegionsWithoutScrollingInAllThreeViews() {
         mount()
-        compose.onNode(hasText("Cadence") and hasClickAction()).performClick()
+        compose.onNode(hasText("Cadence") and hasAnyAncestor(hasTestTag("live-chart-card"))).performClick()
         val cardBounds = compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot()
         val plotHeight = compose.onNodeWithTag("live-chart-plot").getUnclippedBoundsInRoot().height
         val lowerLabels = listOf("Duration", "Total Steps", "HR Zone", "Z5")
@@ -169,7 +169,7 @@ class SessionReferenceTest {
             compose.runOnIdle { dark.value = night }
             val prefix = if (night) "dark" else "light"
             for (label in listOf("HR", "Cadence", "ECG")) {
-                compose.onNode(hasText(label) and hasClickAction()).performClick().assertIsSelected()
+                compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag("live-chart-card"))).performClick().assertIsSelected()
                 capture("$prefix-$label")
                 singleScreen()
                 assertEquals(cardBounds, compose.onNodeWithTag("live-chart-card").getUnclippedBoundsInRoot())
@@ -192,7 +192,7 @@ class SessionReferenceTest {
         compose.onNodeWithContentDescription("Pause").performClick()
         capture("paused"); singleScreen()
         for (label in listOf("Cadence", "ECG")) {
-            compose.onNode(hasText(label) and hasClickAction()).performClick()
+            compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag("live-chart-card"))).performClick()
             compose.onNodeWithText("Paused · chart frozen").assertDoesNotExist()
             capture("paused-$label"); singleScreen()
         }
