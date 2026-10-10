@@ -1,3 +1,6 @@
 <resources>
-    <string name="app_name">Polar H10 Viewer</string>
+    <string name="app_name">Polar H10 Flux</string>
+    <string name="welcome_device_name">Polar H10</string>
+    <string name="welcome_product_name">Flux</string>
+    <string name="welcome_tagline">Beyond the Beat.</string>
 </resources>

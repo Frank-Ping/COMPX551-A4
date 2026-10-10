@@ -12,13 +12,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -29,12 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,6 +71,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WelcomeScreen(onEnterSession: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
+    val deviceName = stringResource(R.string.welcome_device_name)
+    val productName = stringResource(R.string.welcome_product_name)
     BoxWithConstraints(modifier.fillMaxSize().background(colors.background)) {
         val viewportHeight = maxHeight
         Column(
@@ -78,33 +84,61 @@ fun WelcomeScreen(onEnterSession: () -> Unit, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(Modifier.size(56.dp)) {
-                    drawCircle(Brush.linearGradient(listOf(Color(0xFF2563EB), Color(0xFF8B5CF6))))
-                    val pulse = Path().apply {
-                        moveTo(size.width * .20f, size.height * .50f)
-                        lineTo(size.width * .33f, size.height * .50f)
-                        lineTo(size.width * .40f, size.height * .39f)
-                        lineTo(size.width * .47f, size.height * .66f)
-                        lineTo(size.width * .55f, size.height * .24f)
-                        lineTo(size.width * .64f, size.height * .76f)
-                        lineTo(size.width * .71f, size.height * .50f)
-                        lineTo(size.width * .81f, size.height * .50f)
-                    }
-                    drawPath(pulse, Color.White, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    BasicText(
+                        deviceName,
+                        maxLines = 1,
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontSize = 24.sp,
+                            lineHeight = 30.sp,
+                            letterSpacing = .5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.onBackground
+                        ),
+                        autoSize = TextAutoSize.StepBased(minFontSize = 16.sp, maxFontSize = 24.sp)
+                    )
+                    BasicText(
+                        productName,
+                        modifier = Modifier.padding(start = 12.dp),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontSize = 40.sp,
+                            lineHeight = 46.sp,
+                            letterSpacing = .5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.primary
+                        ),
+                        autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = 40.sp)
+                    )
                 }
-                Text(
-                    "Viewer for Polar H10",
-                    modifier = Modifier.padding(top = 12.dp),
-                    fontSize = 34.sp,
-                    lineHeight = 40.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onBackground,
-                    textAlign = TextAlign.Center
-                )
+                // Decorative brand pulse, independent of recorded sensor data.
+                Canvas(Modifier.weight(1f).height(30.dp)) {
+                    val pulseWidth = size.width * .8f
+                    val pulse = Path().apply {
+                        moveTo(3.dp.toPx(), size.height * .50f)
+                        lineTo(pulseWidth * .30f, size.height * .50f)
+                        lineTo(pulseWidth * .39f, size.height * .25f)
+                        lineTo(pulseWidth * .47f, size.height * .75f)
+                        lineTo(pulseWidth * .56f, size.height * .10f)
+                        lineTo(pulseWidth * .65f, size.height * .90f)
+                        lineTo(pulseWidth * .74f, size.height * .50f)
+                        lineTo(pulseWidth - 3.dp.toPx(), size.height * .50f)
+                    }
+                    translate(left = 12.dp.toPx()) {
+                        drawPath(pulse, colors.primary.copy(alpha = .75f),
+                            style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    }
+                }
             }
             Box(
-                Modifier.padding(vertical = 32.dp).size(260.dp),
+                Modifier.padding(vertical = 32.dp).size(300.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(Modifier.fillMaxSize()) {
@@ -126,12 +160,33 @@ fun WelcomeScreen(onEnterSession: () -> Unit, modifier: Modifier = Modifier) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                Text(
-                    "Track your heart rate and movement during your activity.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.welcome_tagline),
+                        fontSize = 24.sp,
+                        lineHeight = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onBackground,
+                        textAlign = TextAlign.Center
+                    )
+                    BasicText(
+                        "Track your heart rate and movement during your activity.",
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            letterSpacing = 0.sp,
+                            color = colors.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        ),
+                        autoSize = TextAutoSize.StepBased(
+                            minFontSize = 8.sp, maxFontSize = 13.sp, stepSize = .5.sp)
+                    )
+                }
                 Button(
                     onClick = onEnterSession,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
