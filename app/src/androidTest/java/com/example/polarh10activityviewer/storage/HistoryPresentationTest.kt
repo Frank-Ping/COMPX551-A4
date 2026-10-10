@@ -79,9 +79,9 @@ class HistoryPresentationTest {
         compose.onNodeWithText("HR").performScrollTo().performClick()
         compose.onNodeWithContentDescription("Heart rate, whole session. Dashed line: saved mean 102.5 bpm. Gaps are not interpolated.").assertExists()
         selectCadence()
-        compose.onNodeWithContentDescription("Cadence, whole session. Dashed line: saved mean 72.0 steps/min. Gaps are not interpolated.").assertExists()
-        compose.onNode(hasText("20:00") and hasAnyAncestor(hasContentDescription(
-            "Cadence, whole session. Dashed line: saved mean 72.0 steps/min. Gaps are not interpolated.")))
+        compose.onNodeWithContentDescription("Cadence, five-minute window. Dashed line: saved mean 72.0 steps/min. Gaps are not interpolated.").assertExists()
+        compose.onNode(hasText("05:00") and hasAnyAncestor(hasContentDescription(
+            "Cadence, five-minute window. Dashed line: saved mean 72.0 steps/min. Gaps are not interpolated.")))
             .performScrollTo().assertIsDisplayed()
     }
 
@@ -111,7 +111,7 @@ class HistoryPresentationTest {
                 motionPoints = listOf(MotionHistoryPoint("presentation", 0, 0, 0.0, true),
                     MotionHistoryPoint("presentation", 1, duration, 0.0, false))) } }
             compose.onNodeWithText("HR").performScrollTo().performClick()
-            compose.onNodeWithContentDescription("Heart rate line chart").assertExists()
+            compose.onNodeWithContentDescription("Heart rate range chart").assertExists()
             selectCadence()
             compose.onNodeWithContentDescription("Cadence line chart").assertExists()
             noTextOverflow()

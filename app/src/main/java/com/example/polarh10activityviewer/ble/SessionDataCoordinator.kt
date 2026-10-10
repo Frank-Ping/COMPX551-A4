@@ -190,7 +190,21 @@ internal class SessionDataCoordinator(
         }
     }
 
-    internal fun chartSnapshot(kind: ChartKind) = liveCharts.snapshot(kind, session.elapsedAt())
+    internal fun chartSnapshot(kind: ChartKind): com.example.polarh10activityviewer.chart.ChartSnapshot {
+        val elapsed = session.elapsedAt().toDouble()
+        val live = liveCharts.snapshot(kind, elapsed.toLong())
+        if (kind == ChartKind.ELECTROCARDIOGRAM) return live
+        val points = when (kind) {
+            ChartKind.HEART_RATE -> hrHistory.snapshot().map {
+                com.example.polarh10activityviewer.chart.ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore)
+            }
+            else -> motionHistory.snapshot().map {
+                com.example.polarh10activityviewer.chart.ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore)
+            }
+        }
+        return com.example.polarh10activityviewer.chart.recentSessionChart(
+            live.copy(points = points, endMs = elapsed, windowMs = elapsed), kind)
+    }
 
     fun receiveHr(data: PolarHrData, receivedTime: Long, receivedDate: Long) {
         if (!acceptSignalInput(0)) return

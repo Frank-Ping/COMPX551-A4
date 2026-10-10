@@ -141,7 +141,7 @@ class LiveChartCardTest {
     }
     @Test fun emptyAndGenuineZeroAreDistinct() {
         points.value = emptyList(); mount(); compose.onNodeWithTag("live-chart-plot").reveal()
-        visible("Waiting for valid data"); compose.onNodeWithContentDescription("Heart rate line chart: no valid data").assertExists()
+        visible("Waiting for valid data"); compose.onNodeWithContentDescription("Heart rate range chart: no valid data").assertExists()
         compose.runOnIdle { points.value = listOf(ChartPoint(30_000.0, 0.0, true)) }
         compose.onNodeWithText("Live").assertDoesNotExist(); compose.onNodeWithTag("live-chart-plot").reveal()
         compose.onAllNodesWithText("No valid chart data in this window").assertCountEquals(0)
@@ -179,7 +179,7 @@ class LiveChartCardTest {
         fun meanPixels(): Int {
             val plot = compose.onNodeWithTag("live-chart-plot").reveal().captureToImage().asAndroidBitmap()
             return (0 until plot.width).sumOf { x -> (0 until plot.height).count { y ->
-                plot.getPixel(x, y) == android.graphics.Color.rgb(245, 158, 11)
+                plot.getPixel(x, y) == android.graphics.Color.rgb(37, 99, 235)
             } }
         }
         assertTrue(meanPixels() > 100)

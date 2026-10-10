@@ -8,6 +8,25 @@ import kotlin.math.min
 internal data class ChartStatistics(val mean: Double? = null, val maximum: Double? = null,
     val minimum: Double? = null)
 
+// Session-only window. Keep full-session qualification and smoothing before cropping.
+// History snapshots and stored readings are not changed.
+internal fun recentSessionChart(snapshot: ChartSnapshot, kind: ChartKind): ChartSnapshot {
+    if (kind == ChartKind.ELECTROCARDIOGRAM) return snapshot
+    val start = (snapshot.endMs - 60_000.0).coerceAtLeast(0.0)
+    val points = snapshot.points.filter { it.elapsedMs in start..snapshot.endMs }
+    val meanReady = if (kind == ChartKind.HEART_RATE) heartRateMeanReady(snapshot)
+        else cadenceMeanReady(snapshot)
+    val display = if (kind == ChartKind.CADENCE) {
+        val smoothed = smoothCadenceForDisplay(snapshot.points)
+        val first = smoothed.indexOfFirst { it.elapsedMs >= start }
+        // Two preceding points preserve the curve and its slope at the left clipping edge.
+        if (first < 0) emptyList() else smoothed.drop((first - 2).coerceAtLeast(0))
+            .takeWhile { it.elapsedMs <= snapshot.endMs }
+    } else null
+    return snapshot.copy(points = points, windowMs = 60_000.0,
+        meanReady = meanReady, cadenceDisplayPoints = display)
+}
+
 // Use selected samples before visual smoothing; HR excludes zero, cadence retains actual zero.
 internal fun chartStatistics(snapshot: ChartSnapshot, kind: ChartKind): ChartStatistics {
     if (kind == ChartKind.ELECTROCARDIOGRAM) return ChartStatistics()
@@ -107,9 +126,14 @@ internal fun chartSegments(points: List<ChartPoint>): List<List<ChartPoint>> {
 internal fun chartMeanInRange(mean: Double?, scale: ChartScale, hasData: Boolean): Double? =
     mean?.takeIf { hasData && it.isFinite() && it in scale.lower..scale.upper }
 
-internal fun chartYTicks(scale: ChartScale): List<Double> =
-    (0..4).map { chartScaleLabel(scale.lower + (scale.upper - scale.lower) * it / 4).toDouble() }
-        .distinct().sortedDescending()
+internal fun chartYTicks(scale: ChartScale): List<Double> {
+    val step = scale.tickStep ?: return (0..4).map {
+        chartScaleLabel(scale.lower + (scale.upper - scale.lower) * it / 4).toDouble()
+    }.distinct().sortedDescending()
+    val stride = step * kotlin.math.ceil((scale.upper - scale.lower) / step / 6).coerceAtLeast(1.0)
+    return generateSequence(kotlin.math.ceil(scale.lower / stride) * stride) { it + stride }
+        .takeWhile { it <= scale.upper }.toList().sortedDescending()
+}
 
 internal data class ChartTimeTick(val fraction: Float, val label: String)
 

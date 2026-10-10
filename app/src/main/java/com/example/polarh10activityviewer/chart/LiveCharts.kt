@@ -19,7 +19,9 @@ internal enum class ChartKind(val type: PolarDeviceDataType, val label: String, 
 internal data class ChartPoint(val elapsedMs: Double, val value: Double?, val breakBefore: Boolean)
 internal data class ChartSnapshot(
     val points: List<ChartPoint>, val endMs: Double, val windowMs: Double, val status: SubscriptionStatus,
-    val detectingSteps: Boolean = false
+    val detectingSteps: Boolean = false,
+    val meanReady: Boolean? = null,
+    val cadenceDisplayPoints: List<ChartPoint>? = null
 ) {
     val startMs: Double get() = (endMs - windowMs).coerceAtLeast(0.0)
 }

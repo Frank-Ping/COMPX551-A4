@@ -8,7 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.polarh10activityviewer.heartrate.formatZoneDuration
-import com.example.polarh10activityviewer.heartrate.HeartRateZone
 import com.example.polarh10activityviewer.ui.theme.*
 import com.example.polarh10activityviewer.session.sessionBlue
 import kotlin.math.roundToInt
@@ -34,14 +33,17 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     modifier: Modifier = Modifier, scale: ChartScale = chartScale(snapshot.points, kind), height: Dp? = null,
     maximumTimeTicks: Int = if (snapshot.windowMs == 5000.0) 6 else 3,
     plainLine: Boolean = false,
-    axisWidth: Dp? = null, smoothLine: Boolean = false) {
+    axisWidth: Dp? = null, historyCadence: Boolean = false) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
     val plotHeight = height ?: (((maxWidth / 4).coerceIn(80.dp, 120.dp) + 12.dp) * LocalDensity.current.fontScale.coerceAtMost(1.5f))
     Column {
     val valid = snapshot.points.any { it.value != null }
-    val mean = if (kind == ChartKind.ELECTROCARDIOGRAM ||
-        (kind == ChartKind.HEART_RATE && !heartRateMeanReady(snapshot)) ||
-        (kind == ChartKind.CADENCE && !cadenceMeanReady(snapshot))) null
+    val meanReady = snapshot.meanReady ?: when (kind) {
+        ChartKind.HEART_RATE -> heartRateMeanReady(snapshot)
+        ChartKind.CADENCE -> cadenceMeanReady(snapshot)
+        ChartKind.ELECTROCARDIOGRAM -> false
+    }
+    val mean = if (kind == ChartKind.ELECTROCARDIOGRAM || !meanReady) null
         else chartMeanInRange(sessionMean, scale, valid)
     val ticks = chartYTicks(scale)
     val style = MaterialTheme.typography.bodySmall
@@ -78,80 +80,83 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
             }
         }
         Canvas(Modifier.weight(1f).height(plotHeight).then(modifier).testTag("live-chart-plot")
-            .semantics { contentDescription = "${kind.label} line chart${if (valid) "" else ": no valid data"}" }) {
+            .semantics { contentDescription = "${kind.label} ${if (kind == ChartKind.HEART_RATE) "range" else "line"} chart${if (valid) "" else ": no valid data"}" }) {
             val span = (snapshot.endMs - snapshot.startMs).coerceAtLeast(1.0)
             fun y(value: Double) = inset + ((size.height - 2 * inset) *
                 (1 - (value - scale.lower) / (scale.upper - scale.lower))).toFloat()
             fun position(point: ChartPoint) = Offset(
                 ((point.elapsedMs - snapshot.startMs) / span * size.width).toFloat(), y(point.value!!))
-            val heartRateBrush = if (kind == ChartKind.HEART_RATE) {
-                val stops = buildList {
-                    add(0f to HeartRateZoneColors[HeartRateZone.from(scale.upper.toInt()).ordinal])
-                    HeartRateZone.entries.drop(1).asReversed().forEach { zone ->
-                        if (zone.minimumBpm > scale.lower && zone.minimumBpm <= scale.upper) {
-                            val fraction = ((scale.upper - zone.minimumBpm) / (scale.upper - scale.lower)).toFloat()
-                            // Repeated stops switch color exactly at each BPM boundary, without blending zones.
-                            add(fraction to HeartRateZoneColors[zone.ordinal])
-                            add(fraction to HeartRateZoneColors[zone.ordinal - 1])
-                        }
-                    }
-                    add(1f to HeartRateZoneColors[HeartRateZone.from(scale.lower.toInt()).ordinal])
-                }
-                Brush.verticalGradient(*stops.toTypedArray(), startY = y(scale.upper), endY = y(scale.lower))
-            } else null
             clipRect {
-                ticks.filterNot { ecg && it == 0.0 }.forEach { value ->
-                    drawLine(axis.copy(alpha = 0.25f), Offset(0f, y(value)), Offset(size.width, y(value)))
-                }
-                listOf(0f, 0.25f, 0.5f, 0.75f, 1f).forEach { fraction ->
-                    drawLine(axis.copy(alpha = 0.18f), Offset(size.width * fraction, inset),
-                        Offset(size.width * fraction, size.height - inset))
+                if (kind != ChartKind.HEART_RATE) {
+                    ticks.filterNot { ecg && it == 0.0 }.forEach { value ->
+                        drawLine(axis.copy(alpha = 0.25f), Offset(0f, y(value)), Offset(size.width, y(value)))
+                    }
+                    listOf(0f, 0.25f, 0.5f, 0.75f, 1f).forEach { fraction ->
+                        drawLine(axis.copy(alpha = 0.18f), Offset(size.width * fraction, inset),
+                            Offset(size.width * fraction, size.height - inset))
+                    }
+                    if (ecg && valid && scale.lower <= 0 && scale.upper >= 0) {
+                        drawLine(axis.copy(alpha = 0.25f), Offset(0f, y(0.0)),
+                            Offset(size.width, y(0.0)), strokeWidth = 0.5.dp.toPx())
+                    }
                 }
                 drawLine(axis, Offset(0f, inset), Offset(0f, size.height - inset))
                 drawLine(axis, Offset(0f, size.height - inset), Offset(size.width, size.height - inset))
-                if (scale.lower <= 0 && scale.upper >= 0 && (!ecg || valid)) {
-                    drawLine(if (ecg) axis.copy(alpha = 0.25f) else axis,
-                        Offset(0f, y(0.0)), Offset(size.width, y(0.0)),
-                        strokeWidth = if (ecg) 0.5.dp.toPx() else 0f)
-                }
-                // Close each fill at its own endpoints; missing intervals never receive ink.
-                val displayPoints = if (smoothLine) smoothCadenceForDisplay(snapshot.points) else snapshot.points
-                chartSegments(displayPoints).forEach { segment ->
-                    val tangents = if (smoothLine) cadenceDisplayTangents(segment) else emptyList()
-                    val path = Path()
-                    val first = position(segment.first())
-                    path.moveTo(first.x, first.y)
-                    segment.forEachIndexed { index, point ->
-                        if (index > 0) {
+                if (ecg) {
+                    // Keep every raw ECG sample and its existing gaps, without smoothing.
+                    chartSegments(snapshot.points).forEach { segment ->
+                        val path = Path()
+                        val first = position(segment.first())
+                        path.moveTo(first.x, first.y)
+                        segment.drop(1).forEach { point ->
                             val next = position(point)
-                            if (smoothLine) {
-                                val previous = position(segment[index - 1])
-                                val previousPoint = segment[index - 1]
-                                val thirdTime = (point.elapsedMs - previousPoint.elapsedMs) / 3.0
-                                val thirdX = (next.x - previous.x) / 3f
-                                path.cubicTo(previous.x + thirdX,
-                                    y(previousPoint.value!! + tangents[index - 1] * thirdTime),
-                                    next.x - thirdX, y(point.value!! - tangents[index] * thirdTime),
-                                    next.x, next.y)
-                            } else path.lineTo(next.x, next.y)
+                            path.lineTo(next.x, next.y)
                         }
+                        drawPath(path, ink, style = Stroke(width = 1.dp.toPx()))
+                        if (segment.size == 1 && !plainLine) drawCircle(ink, 2.dp.toPx(), first)
                     }
-                    if (!plainLine && kind != ChartKind.ELECTROCARDIOGRAM && segment.size > 1) {
-                        val fill = Path().apply {
-                            addPath(path)
-                            lineTo(position(segment.last()).x, y(scale.lower))
-                            lineTo(first.x, y(scale.lower)); close()
+                } else if (kind == ChartKind.CADENCE) {
+                    // History retains sampled extrema; Session keeps its timed low-pass filter.
+                    val segments = if (historyCadence) historyCadenceSegments(snapshot,
+                        (size.width / 4.dp.toPx()).toInt().coerceAtLeast(1))
+                    else chartSegments(snapshot.cadenceDisplayPoints ?: smoothCadenceForDisplay(snapshot.points))
+                    segments.forEach { segment ->
+                        val tangents = cadenceDisplayTangents(segment)
+                        val path = Path()
+                        val first = position(segment.first())
+                        path.moveTo(first.x, first.y)
+                        segment.zipWithNext().forEachIndexed { index, (previousPoint, point) ->
+                            val previous = position(previousPoint)
+                            val next = position(point)
+                            val thirdTime = (point.elapsedMs - previousPoint.elapsedMs) / 3.0
+                            val thirdX = (next.x - previous.x) / 3f
+                            path.cubicTo(previous.x + thirdX,
+                                y(previousPoint.value!! + tangents[index] * thirdTime),
+                                next.x - thirdX, y(point.value!! - tangents[index + 1] * thirdTime),
+                                next.x, next.y)
                         }
-                        drawPath(fill, ink.copy(alpha = 0.10f))
+                        if (!plainLine && segment.size > 1) {
+                            val fill = Path().apply {
+                                addPath(path)
+                                lineTo(position(segment.last()).x, y(scale.lower))
+                                lineTo(first.x, y(scale.lower))
+                                close()
+                            }
+                            drawPath(fill, ink.copy(alpha = 0.10f))
+                        }
+                        drawPath(path, ink, style = Stroke(width = 2.dp.toPx()))
+                        if (segment.size == 1) drawCircle(ink, 2.dp.toPx(), first)
                     }
-                    val stroke = Stroke(width = (if (kind == ChartKind.ELECTROCARDIOGRAM) 1 else 2).dp.toPx())
-                    if (heartRateBrush != null) drawPath(path, heartRateBrush, style = stroke)
-                    else drawPath(path, ink, style = stroke)
-                    if (segment.size == 1 && (kind != ChartKind.ELECTROCARDIOGRAM || !plainLine)) {
-                        val point = segment.first()
-                        val pointInk = if (kind == ChartKind.HEART_RATE)
-                            HeartRateZoneColors[HeartRateZone.from(point.value!!.toInt()).ordinal] else ink
-                        drawCircle(pointInk, 2.dp.toPx(), position(point))
+                } else {
+                    val columns = (size.width / 5.dp.toPx()).toInt().coerceAtLeast(1)
+                    val strokeWidth = 2.dp.toPx()
+                    chartMarks(snapshot, kind, columns).forEach { mark ->
+                        val x = ((mark.elapsedMs - snapshot.startMs) / span * size.width).toFloat()
+                            .coerceIn(strokeWidth / 2, (size.width - strokeWidth / 2).coerceAtLeast(strokeWidth / 2))
+                        // A single-valued interval is a dot, not an invented HR range.
+                        if (mark.minimum == mark.maximum) drawCircle(ink, strokeWidth / 2, Offset(x, y(mark.mean)))
+                        else drawLine(ink, Offset(x, y(mark.minimum)), Offset(x, y(mark.maximum)),
+                            strokeWidth = strokeWidth, cap = StrokeCap.Round)
                     }
                 }
                 mean?.let {
@@ -163,7 +168,7 @@ internal fun LivePlot(snapshot: ChartSnapshot, kind: ChartKind, sessionMean: Dou
     }
     BoxWithConstraints(Modifier.fillMaxWidth().padding(start = gutter)) {
         val width = with(density) { maxWidth.toPx() }
-        val timeTicks = chartTimeTicks(snapshot, width, with(density) { ContentSpacing.toPx() }, maximumTimeTicks) {
+        val timeTicks = chartTimeTicks(snapshot, width, with(density) { ContentSpacing.toPx() }, if (ecg) maximumTimeTicks else 2) {
             measurer.measure(it, style).size.width.toFloat()
         }
         if (timeTicks.isEmpty()) {

@@ -5,7 +5,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
-import kotlin.math.abs
+import kotlin.math.roundToLong
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.conflate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
@@ -44,6 +46,7 @@ import com.example.polarh10activityviewer.chart.ChartSnapshot
 import com.example.polarh10activityviewer.chart.LivePlot
 import com.example.polarh10activityviewer.chart.chartScale
 import com.example.polarh10activityviewer.chart.chartStatistics
+import com.example.polarh10activityviewer.chart.cadenceMeanReady
 import com.example.polarh10activityviewer.session.SessionSnapshot
 import com.example.polarh10activityviewer.session.SummaryCard
 import com.example.polarh10activityviewer.session.sessionBlue
@@ -55,49 +58,65 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
     val id = snapshot.record.id
     var choice by rememberSaveable(id) { mutableIntStateOf(0) }
     var windowStart by rememberSaveable(id, choice) { mutableLongStateOf(0L) }
-    var loaded by remember(id, choice, windowStart) { mutableStateOf<List<ChartPoint>>(emptyList()) }
-    var queryError by remember(id, choice, windowStart) { mutableStateOf<String?>(null) }
-    var loading by remember(id, choice, windowStart) { mutableStateOf(choice >= 2) }
+    var loaded by remember(id, choice) { mutableStateOf<List<ChartPoint>>(emptyList()) }
+    var queryError by remember(id, choice) { mutableStateOf<String?>(null) }
+    var loading by remember(id, choice) { mutableStateOf(choice >= 2) }
     var retry by remember(id) { mutableIntStateOf(0) }
-    LaunchedEffect(id, choice, windowStart, retry) {
+    LaunchedEffect(id, choice, database, snapshot.record.durationMs, retry) {
         if (choice < 2) return@LaunchedEffect
-        loading = true; queryError = null
-        try {
-            val result = database?.ecgWindow(id, windowStart,
-                minOf(windowStart + 5000, snapshot.record.durationMs)).orEmpty()
-            ensureActive(); loaded = result
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { queryError = "Chart query failed. Please retry." }
-        finally { if (isActive) loading = false }
+        val cache = HistoryEcgCache(snapshot.record.durationMs) { start, end ->
+            database?.ecgWindow(id, start, end).orEmpty()
+        }
+        snapshotFlow { windowStart }.conflate().collect { start ->
+            loading = true; queryError = null
+            try {
+                val result = cache.at(start)
+                ensureActive(); loaded = result
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { queryError = "Chart query failed. Please retry." }
+            finally { if (isActive) loading = false }
+        }
     }
     val kind = when (choice) { 0 -> ChartKind.HEART_RATE; 2 -> ChartKind.ELECTROCARDIOGRAM; else -> ChartKind.CADENCE }
     val labels = listOf("HR", "Cadence", "ECG")
-    val points = remember(snapshot, choice, loaded) { when (choice) {
+    val allPoints = remember(snapshot, choice, loaded) { when (choice) {
         0 -> snapshot.hrPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.bpm?.toDouble(), it.breakBefore) }
         1 -> snapshot.motionPoints.map { ChartPoint(it.elapsedMs.toDouble(), it.cadence, it.breakBefore) }
         else -> loaded
     } }
+    val windowDuration = if (choice == 1) 300_000L else 5000L
     val end = when (choice) {
-        2 -> minOf(windowStart + 5000, snapshot.record.durationMs).toDouble()
+        1, 2 -> minOf(windowStart + windowDuration, snapshot.record.durationMs).toDouble()
         else -> snapshot.record.durationMs.toDouble()
     }
-    val chart = ChartSnapshot(points, end, if (choice >= 2) (end - windowStart).coerceAtLeast(0.0) else end, SubscriptionStatus.STOPPED)
-    val mean = chartStatistics(chart, kind).mean
+    val points = when (choice) {
+        1 -> allPoints.filter { it.elapsedMs in windowStart.toDouble()..end }
+        2 -> historyViewportPoints(allPoints, windowStart, end.toLong())
+        else -> allPoints
+    }
+    val fullChart = ChartSnapshot(allPoints, snapshot.record.durationMs.toDouble(),
+        snapshot.record.durationMs.toDouble(), SubscriptionStatus.STOPPED)
+    val chart = ChartSnapshot(points, end, if (choice >= 1) (end - windowStart).coerceAtLeast(0.0) else end,
+        SubscriptionStatus.STOPPED, meanReady = if (choice == 1) cadenceMeanReady(fullChart) else null)
+    // Browsing changes the visible curve; the reference remains the whole-session mean.
+    val mean = chartStatistics(fullChart, kind).mean
     val scale = chartScale(points, kind, mean)
-    val maximum = (snapshot.record.durationMs - 5000).coerceAtLeast(0)
+    val maximum = (snapshot.record.durationMs - windowDuration).coerceAtLeast(0)
     fun moveWindow(forward: Boolean): Boolean {
-        val next = (windowStart + if (forward) 5000L else -5000L).coerceIn(0, maximum)
+        val next = (windowStart + if (forward) windowDuration else -windowDuration).coerceIn(0, maximum)
         if (next == windowStart) return false
         windowStart = next
         return true
     }
-    val swipe = if (choice == 2) Modifier.pointerInput(id, choice, maximum) {
-        var distance = 0f
+    val swipe = if (choice >= 1) Modifier.pointerInput(id, choice, maximum) {
+        var position = 0.0
         detectHorizontalDragGestures(
-            onDragStart = { distance = 0f },
-            onDragCancel = { distance = 0f },
-            onDragEnd = { if (abs(distance) >= size.width * 0.1f) moveWindow(distance < 0) },
-            onHorizontalDrag = { change, amount -> change.consume(); distance += amount }
+            onDragStart = { position = windowStart.toDouble() },
+            onHorizontalDrag = { change, amount ->
+                change.consume()
+                position = draggedHistoryStart(position, amount, size.width, windowDuration, snapshot.record.durationMs)
+                windowStart = position.roundToLong()
+            }
         )
     }.semantics {
         stateDescription = "${labels[choice]} window start: $windowStart"
@@ -121,13 +140,13 @@ internal fun HistoryCharts(snapshot: SessionSnapshot, modifier: Modifier = Modif
             }
         }
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).semantics {
-            contentDescription = if (choice < 2) "${kind.label}, whole session. Dashed line: saved mean ${mean ?: "--"} ${kind.unit}. Gaps are not interpolated."
+            contentDescription = if (choice < 2) "${kind.label}, ${if (choice == 1) "five-minute window" else "whole session"}. Dashed line: saved mean ${mean ?: "--"} ${kind.unit}. Gaps are not interpolated."
                 else "${labels[choice]} recorded data. Gaps are not interpolated."
         }) {
             val axisHeight = with(LocalDensity.current) { MaterialTheme.typography.bodySmall.lineHeight.toDp() } * 2
             LivePlot(chart, kind, mean, statusLabel = null, scale = scale,
                 height = (maxHeight - axisHeight).coerceAtLeast(36.dp), maximumTimeTicks = 5,
-                plainLine = choice == 2, smoothLine = kind == ChartKind.CADENCE,
+                plainLine = choice == 2, historyCadence = kind == ChartKind.CADENCE,
                 axisWidth = 48.dp * LocalDensity.current.fontScale, modifier = swipe)
             if (queryError != null) Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(queryError!!, style = MaterialTheme.typography.bodySmall)

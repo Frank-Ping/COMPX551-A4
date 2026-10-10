@@ -26,7 +26,8 @@ internal fun LiveChartCard(
     kind: ChartKind, snapshot: ChartSnapshot,
     sessionMean: Double?, sessionMaximum: Double?,
     readiness: Map<PolarDeviceDataType, DataReadiness>,
-    onSelect: (ChartKind) -> Unit, paused: Boolean
+    onSelect: (ChartKind) -> Unit, paused: Boolean,
+    scale: ChartScale = chartScale(snapshot.points, kind)
 ) {
     SessionCard(modifier = Modifier.testTag("live-chart-card")) {
             Row(Modifier.fillMaxWidth(if (LocalDensity.current.fontScale > 1.2f) 1f else 0.76f)
@@ -61,7 +62,7 @@ internal fun LiveChartCard(
                     SubscriptionStatus.FAILED -> "Failed · chart frozen"
                 }
             } else if (!paused && snapshot.detectingSteps) "Detecting steps" else null
-            LivePlot(snapshot, kind, sessionMean, statusLabel, smoothLine = kind == ChartKind.CADENCE)
+            LivePlot(snapshot, kind, sessionMean, statusLabel, scale = scale)
     }
 }
 

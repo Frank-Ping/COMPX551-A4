@@ -22,10 +22,14 @@ internal fun LiveChartPanel(manager: PolarBleManager,
     val session by manager.sessionState.collectAsState()
     val paused = session.status in listOf(SessionStatus.PAUSING, SessionStatus.PAUSED)
     var snapshot by remember(manager, kind, session.generation) { mutableStateOf(manager.chartSnapshot(kind)) }
+    val scaleTracker = remember(manager, kind, session.generation) { LiveScaleTracker() }
+    var scale by remember(manager, kind, session.generation) { mutableStateOf(chartScale(snapshot.points, kind)) }
     // Only the selected chart takes display snapshots. Sampling remains independent.
     LaunchedEffect(manager, kind, session.generation) {
         while (true) {
             snapshot = manager.chartSnapshot(kind)
+            scale = scaleTracker.update(chartScale(snapshot.points, kind), snapshot.endMs,
+                snapshot.points.any { it.value?.isFinite() == true })
             delay(when (kind) {
                 ChartKind.ELECTROCARDIOGRAM -> 100L
                 else -> 250L
@@ -35,5 +39,5 @@ internal fun LiveChartPanel(manager: PolarBleManager,
     val statistics = chartStatistics(snapshot, kind)
     LiveChartCard(kind, snapshot, statistics.mean, statistics.maximum, readiness,
         manager.liveCharts::select,
-        paused = paused)
+        paused = paused, scale = scale)
 }
